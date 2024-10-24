@@ -4,7 +4,11 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <DHT.h>
+#include <Adafruit_Sensor.h>
+#include <SPI.h>
+#include "Adafruit_SHT31.h"
 #include "PubSubClient.h"
+
 #define LED_BUILTIN 2
 
 #define WIFI_SSID SECRET_WIFI_SSID
@@ -12,7 +16,11 @@
 
 #define DHTPIN 14
 #define DHTTYPE DHT11
+#define SHT_ADDR 0x44
 DHT dht(DHTPIN, DHTTYPE);
+
+bool enableHeater = false;
+Adafruit_SHT31 sht = Adafruit_SHT31();
 
 // MQTT
 const char* mqtt_server = "192.168.1.17";  // IP of the MQTT broker
@@ -28,6 +36,7 @@ WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, wifiClient);
 void connect_MQTT();
 void connect_WiFi();
+float celsiusToFahrenheit(float celsius);
 
 enum State {START, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, READ_SENSORS, WAIT, RESTART};
 State state = START;
@@ -39,12 +48,20 @@ State state = START;
 
 void setup() {
   Serial.begin(115200);
-
+  delay(2000); //so I don't miss any messages from setup
   Serial.println("Hello from the setup");
   pinMode(LED_BUILTIN,OUTPUT);
   Serial.println("Connected");
   Serial.setTimeout(2000);
   dht.begin();
+  sht.begin(SHT_ADDR);
+  delay(5000);
+  if (! sht.begin(SHT_ADDR)) 
+  {   
+  Serial.println("Couldn't find SHT31");
+  while (1) delay(1);
+  }
+
 }
 
 void loop() {
@@ -53,7 +70,10 @@ void loop() {
   static unsigned long chrono;  // For timing in states (static means only initialized once?)
   static float dht_temperature;
   static float dht_humidity;
+  static float sht_temperature;
+  static float sht_humidity;
   static char tempString[16];
+
   switch (state) {
     case START:
       Serial.println("State: START");
@@ -83,21 +103,33 @@ void loop() {
     /*
     TODO: Make functions for the different sensors. 
     */
-      //Serial.println("State: READ_SENSORS");
+      Serial.println("State: READ_SENSORS");
       dht_humidity = dht.readHumidity();
       dht_temperature = dht.readTemperature(true);
-      Serial.print("Humidity: ");
+      Serial.print("DHT Humidity: ");
       Serial.print(dht_humidity);
       Serial.print(" %\t");
-      Serial.print("Temperature(F): ");
+      Serial.print("DHT Temperature(F): ");
       Serial.print(dht_temperature);
       Serial.print("\n");
+
+
+      // sht_humidity = sht.readHumidity();
+      // sht_temperature = celsiusToFahrenheit(sht.readTemperature());
+      // Serial.print("SHT Humidity: ");
+      // Serial.print(sht_humidity);
+      // Serial.print(" %\t");
+      // Serial.print("SHT Temperature(F): ");
+      // Serial.print(sht_temperature);
+      // Serial.print("\n");
+
 
       state = MQTT_CONNECT;
       chrono = millis();
       break;
 
     case MQTT_CONNECT:
+      Serial.println("State: MQTT_CONNECT");
       if (client.connected())
       {
         state = MQTT_PUBLISH;
@@ -123,6 +155,7 @@ void loop() {
       /*
       If we made it here we were connected like 0.00001 seconds ago, not checking again
       */
+      Serial.println("State: MQTT_PUBLISH");
       char tempString[16];
       dtostrf(dht_temperature, 1, 2, tempString);
       if (client.publish(temperature_topic, tempString)) 
@@ -149,6 +182,7 @@ void loop() {
 
     case RESTART:
       Serial.println("State: RESTART");
+      delay(500);
       ESP.restart();
       break;    
   }
@@ -167,6 +201,7 @@ void connect_WiFi() {
     Serial.println("WiFi connected");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
+    Serial.print("\n");
   }
 
 }
@@ -182,4 +217,8 @@ void connect_MQTT() {
     Serial.print(client.state());
     delay(2000); //delays oh here because we can't possible receive message
   }
+}
+
+float celsiusToFahrenheit(float celsius) {
+    return celsius * 9.0 / 5.0 + 32;
 }
