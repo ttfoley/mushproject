@@ -13,12 +13,14 @@
 
 SCD4x SCD41;
 
+const int ledPin = 4;
 
 // MQTT
 const char* mqtt_server = "192.168.1.17";  // IP of the MQTT broker
 const char* scd_humidity_topic = "mush/controller2/scd/humidity";
 const char* scd_temperature_topic = "mush/controller2/scd/temperature";
 const char* scd_co2_topic = "mush/controller2/scd/co2";
+const char* led1_output = "mush/controller2/control/led1";
 const char* mqtt_username = "ttfoley"; // MQTT username
 const char* mqtt_password = "password"; // MQTT password
 const char* clientID = "controller2"; // MQTT client ID
@@ -27,8 +29,11 @@ const char* clientID = "controller2"; // MQTT client ID
 // Initialise the WiFi and MQTT Client objects
 WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, wifiClient);
+
 void connect_MQTT();
 void connect_WiFi();
+void mqtt_callback(char *topic, byte *payload, unsigned int length);
+void SuscribeMqtt();
 float celsiusToFahrenheit(float celsius);
 
 enum State {START, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, READ_SENSORS, WAIT, RESTART};
@@ -45,12 +50,9 @@ void setup() {
   Serial.println("Hello from the setup");
   Serial.println("Connected");
   Serial.setTimeout(2000);
+  pinMode(ledPin, OUTPUT);
   delay(2000);
   Wire.begin();
-
-  //mySensor.enableDebugging(); // Uncomment this line to get helpful debug messages on Serial
-
-  //.begin will start periodic measurements for us (see the later examples for details on how to override this)
   if (SCD41.begin() == false)
   {
     Serial.println(F("Sensor not detected. Please check wiring. Freezing..."));
@@ -58,17 +60,23 @@ void setup() {
       ;
   }
 
+  //MQTT setup
+  client.setCallback(mqtt_callback);
 }
 
 void loop() {
 
   client.loop();
+
+
   static unsigned long chrono;  // For timing in states (static means only initialized once?)
   static float scd_temperature;
   static float scd_humidity;
   static float scd_co2;
   static char tempString[16];
   static char printString[16];
+
+
   switch (state) {
     case START:
       Serial.println("State: START");
@@ -134,6 +142,7 @@ void loop() {
       Serial.println("State: MQTT_CONNECT");
       if (client.connected())
       {
+        SuscribeMqtt();
         state = MQTT_PUBLISH;
         chrono = millis();
       }
@@ -190,6 +199,7 @@ void loop() {
         state = READ_SENSORS;
         chrono = millis();
       }
+
       break;   
 
     case RESTART:
@@ -233,4 +243,37 @@ void connect_MQTT() {
 
 float celsiusToFahrenheit(float celsius) {
     return celsius * 9.0 / 5.0 + 32;
+}
+
+
+void SuscribeMqtt()
+{
+    client.subscribe("mush/controller2/control/led1");
+}
+
+void mqtt_callback(char *topic, byte *payload, unsigned int length)
+{
+    Serial.print("Received on ");
+    Serial.print(topic);
+    Serial.print(": ");
+
+    String content = "";
+    for (size_t i = 0; i < length; i++)
+    {
+        content.concat((char)payload[i]);
+    }
+    Serial.print(content);
+    Serial.println();
+    if (String(topic) == led1_output) 
+    {
+      Serial.print("Changing output to ");
+      if (content == "on") {
+        Serial.println("on");
+        digitalWrite(ledPin, HIGH);
+      }
+      else if (content == "off") {
+        Serial.println("off");
+        digitalWrite(ledPin, LOW);
+      }
+    }
 }
