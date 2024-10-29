@@ -24,13 +24,13 @@ Adafruit_SHT31 sht = Adafruit_SHT31();
 
 // MQTT
 const char* mqtt_server = "192.168.1.17";  // IP of the MQTT broker
-const char* dht_humidity_topic = "mush/dht/humidity";
-const char* dht_temperature_topic = "mush/dht/temperature";
-const char* sht_humidity_topic = "mush/sht/humidity";
-const char* sht_temperature_topic = "mush/sht/temperature";
+const char* dht_humidity_topic = "mush/controller1/dht/humidity";
+const char* dht_temperature_topic = "mush/controller1/dht/temperature";
+const char* sht_humidity_topic = "mush/controller1/sht/humidity";
+const char* sht_temperature_topic = "mush/controller1/sht/temperature";
 const char* mqtt_username = "ttfoley"; // MQTT username
 const char* mqtt_password = "password"; // MQTT password
-const char* clientID = "esp32"; // MQTT client ID
+const char* clientID = "controller1"; // MQTT client ID
 
 
 // Initialise the WiFi and MQTT Client objects
