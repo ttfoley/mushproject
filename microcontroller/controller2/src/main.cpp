@@ -16,7 +16,7 @@ SCD4x SCD41;
 
 // MQTT
 const char* mqtt_server = "192.168.1.17";  // IP of the MQTT broker
-const char* scd_humidity_topic = "mush/controller2/scd/RH";
+const char* scd_humidity_topic = "mush/controller2/scd/humidity";
 const char* scd_temperature_topic = "mush/controller2/scd/temperature";
 const char* scd_co2_topic = "mush/controller2/scd/co2";
 const char* mqtt_username = "ttfoley"; // MQTT username
