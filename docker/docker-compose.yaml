@@ -56,4 +56,6 @@ services:
       - mosquitto
     networks:
       - default
+    environment:
+      - PYTHONBUFFERED=1
   
