@@ -30,25 +30,18 @@ def connect_mqtt(client_id, broker, port, username, password):
     # Set Connecting Client ID
     client = mqtt.Client(client_id=client_id,callback_api_version=CallbackAPIVersion.VERSION2)
 
-    # For paho-mqtt 2.0.0, you need to set callback_api_version.
-    # client = mqtt_client.Client(client_id=client_id, callback_api_version=mqtt_client.CallbackAPIVersion.VERSION2)
-
+    #TODO: username and password in environment variables
     client.username_pw_set(username, password)
     client.on_connect = on_connect
     client.on_message = on_message
     client.on_publish = on_publish
+    #Todo: return status of connection, verify connection
     client.connect(broker, port)
     return client
 
-# Blocking call that processes network traffic, dispatches callbacks and
-# handles reconnecting.
-# Other loop*() functions are available that give a threaded interface and a
-# manual interface.
-
-
-
 
 def main():
+    #TODO: verify the connection, add reconnect logic
     client = connect_mqtt(mqtt_client_id, mqtt_broker, mqtt_port,mqtt_uname, mqtt_pwd)
     client.loop_start()
     t0 = datetime.now()
