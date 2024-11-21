@@ -287,10 +287,12 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
       if (content == "on") {
         Serial.println("on");
         digitalWrite(write_pin, HIGH);
+        delay(250);
       }
       else if (content == "off") {
         Serial.println("off");
         digitalWrite(write_pin, LOW);
+        delay(250);
       }
     }
 
@@ -301,10 +303,12 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
       if (content == "on") {
         Serial.println("on");
         digitalWrite(write_pin, HIGH);
+        delay(250);
       }
       else if (content == "off") {
         Serial.println("off");
         digitalWrite(write_pin, LOW);
+        delay(250);
       }
     }
 
@@ -315,10 +319,12 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
       if (content == "on") {
         Serial.println("on");
         digitalWrite(write_pin, HIGH);
+        delay(250);
       }
       else if (content == "off") {
         Serial.println("off");
         digitalWrite(write_pin, LOW);
+        delay(250);
       }
     }
 
@@ -329,10 +335,12 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
       if (content == "on") {
         Serial.println("on");
         digitalWrite(write_pin, HIGH);
+        delay(250);
       }
       else if (content == "off") {
         Serial.println("off");
         digitalWrite(write_pin, LOW);
+        delay(250);
       }
     }
 
@@ -343,10 +351,12 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
       if (content == "on") {
         Serial.println("on");
         digitalWrite(write_pin, HIGH);
+        delay(250);
       }
       else if (content == "off") {
         Serial.println("off");
         digitalWrite(write_pin, LOW);
+        delay(250);
       }
     }
 }
