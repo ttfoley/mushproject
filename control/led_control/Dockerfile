@@ -15,5 +15,5 @@ WORKDIR /app
 EXPOSE 8000
 
 # Run your application
-CMD ["python", "main.py"]
+CMD ["python","-u", "main.py"]
 # CMD ["ls","app"]
