@@ -2,32 +2,29 @@
 #include "WiFi.h"
 #include <secrets.h>
 #include <OneWire.h>
-#include <DallasTemperature.h>
-#include <DHT.h>
 #include <Adafruit_Sensor.h>
 #include <SPI.h>
 #include "Adafruit_SHT31.h"
 #include "PubSubClient.h"
-
-#define LED_BUILTIN 2
+#include <SensirionCore.h>
+#include "SparkFun_SCD4x_Arduino_Library.h"
 
 #define WIFI_SSID SECRET_WIFI_SSID
 #define WIFI_PASSWORD SECRET_WIFI_PWD
 
-#define DHTPIN 14
-#define DHTTYPE DHT11
 #define SHT_ADDR 0x44
-DHT dht(DHTPIN, DHTTYPE);
+SCD4x SCD41;
 
 bool enableHeater = false;
 Adafruit_SHT31 sht = Adafruit_SHT31();
 
 // MQTT
 const char* mqtt_server = "192.168.1.17";  // IP of the MQTT broker
-const char* dht_humidity_topic = "mush/controller1/dht/humidity";
-const char* dht_temperature_topic = "mush/controller1/dht/temperature";
 const char* sht_humidity_topic = "mush/controller1/sht/humidity";
 const char* sht_temperature_topic = "mush/controller1/sht/temperature";
+const char* scd_humidity_topic = "mush/controller1/scd/humidity";
+const char* scd_temperature_topic = "mush/controller1/scd/temperature";
+const char* scd_co2_topic = "mush/controller1/scd/co2";
 const char* mqtt_username = "ttfoley"; // MQTT username
 const char* mqtt_password = "password"; // MQTT password
 const char* clientID = "controller1"; // MQTT client ID
@@ -43,7 +40,7 @@ float celsiusToFahrenheit(float celsius);
 enum State {START, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, READ_SENSORS, WAIT, RESTART};
 State state = START;
 #define DEFAULT_WAIT 1000
-#define WAIT_WAIT 5000
+#define WAIT_WAIT 10000
 #define WIFI_WAIT 10000
 #define MQTT_WAIT 10000
 
@@ -52,16 +49,21 @@ void setup() {
   Serial.begin(115200);
   delay(2000); //so I don't miss any messages from setup
   Serial.println("Hello from the setup");
-  pinMode(LED_BUILTIN,OUTPUT);
   Serial.println("Connected");
   Serial.setTimeout(2000);
-  dht.begin();
+  Wire.begin();
   sht.begin(SHT_ADDR);
   delay(2000);
   if (! sht.begin(SHT_ADDR)) 
   {   
   Serial.println("Couldn't find SHT31");
   while (1) delay(1);
+  }
+  
+  if (SCD41.begin(true,false) == false) //sets autocalibration false
+  {
+    Serial.println(F("SCD41 not detected. Please check wiring. Freezing..."));
+    while (1);
   }
 
 }
@@ -70,11 +72,13 @@ void loop() {
 
   client.loop();
   static unsigned long chrono;  // For timing in states (static means only initialized once?)
-  static float dht_temperature;
-  static float dht_humidity;
   static float sht_temperature;
   static float sht_humidity;
+  static float scd_temperature;
+  static float scd_humidity;
+  static float scd_co2;
   static char tempString[16];
+  static char printString[16];
 
   switch (state) {
     case START:
@@ -106,24 +110,38 @@ void loop() {
     TODO: Make functions for the different sensors. 
     */
       Serial.println("State: READ_SENSORS");
-      dht_humidity = dht.readHumidity();
-      dht_temperature = dht.readTemperature(true);
-      Serial.print("DHT Humidity: ");
-      Serial.print(dht_humidity);
-      Serial.print(" %\t");
-      Serial.print("DHT Temperature(F): ");
-      Serial.print(dht_temperature);
-      Serial.print("\n");
-
 
       sht_humidity = sht.readHumidity();
       sht_temperature = celsiusToFahrenheit(sht.readTemperature());
       Serial.print("SHT Humidity: ");
-      Serial.print(sht_humidity);
-      Serial.print(" %\t");
-      Serial.print("SHT Temperature(F): ");
-      Serial.print(sht_temperature);
+      dtostrf(sht_humidity, 1, 2, printString);
+      Serial.print(printString);
+      Serial.print("\tSHT Temperature(F): ");
+      dtostrf(sht_temperature, 1, 2, printString);
+      Serial.print(printString);
       Serial.print("\n");
+      if (SCD41.readMeasurement()) // readMeasurement will return true when fresh data is available
+      {
+        scd_temperature = celsiusToFahrenheit(SCD41.getTemperature());
+        scd_humidity = SCD41.getHumidity();
+        scd_co2 = SCD41.getCO2();
+
+        Serial.print(F("SCD CO2(ppm):"));
+        dtostrf(scd_co2, 1, 2, printString);
+        Serial.print(printString);
+
+        Serial.print(F("\tSCD Temperature(F):"));
+        dtostrf(scd_temperature, 1, 2, printString);
+        Serial.print(printString);
+
+        Serial.print(F("\tSCD Humidity(%RH):"));
+        dtostrf(scd_humidity, 1, 2, printString);
+        Serial.print(printString);
+
+        Serial.println();
+        state = MQTT_CONNECT;
+        chrono = millis();
+      }
 
 
       state = MQTT_CONNECT;
@@ -160,17 +178,6 @@ void loop() {
       Serial.println("State: MQTT_PUBLISH");
       char tempString[16];
 
-      dtostrf(dht_temperature, 1, 2, tempString);
-      if (client.publish(dht_temperature_topic, tempString)) 
-      {
-        Serial.println("DHT Temperature sent!");
-      }
-
-      dtostrf(dht_humidity, 1, 2, tempString);
-      if (client.publish(dht_humidity_topic, tempString)) 
-      {
-        Serial.println("DHT Humidity sent!");
-      }
 
       dtostrf(sht_temperature, 1, 2, tempString);
       if (client.publish(sht_temperature_topic, tempString)) 
@@ -181,6 +188,26 @@ void loop() {
       if (client.publish(sht_humidity_topic, tempString)) 
       {
         Serial.println("SHT Humidity sent!");
+      }
+
+      dtostrf(scd_humidity, 1, 2, tempString);
+      if (client.publish(scd_humidity_topic, tempString)) 
+      {
+        Serial.println("SCD Humidity sent!");
+      }
+      
+      dtostrf(scd_temperature, 1, 2, tempString);
+      if (client.publish(scd_temperature_topic, tempString)) 
+      {
+        Serial.println("SCD Temperature sent!");
+      }
+
+
+
+      dtostrf(scd_co2, 1, 2, tempString);
+      if (client.publish(scd_co2_topic, tempString)) 
+      {
+        Serial.println("SCD CO2 sent!");
       }
       chrono = millis();
       state = WAIT;
