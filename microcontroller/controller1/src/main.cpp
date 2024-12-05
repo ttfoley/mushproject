@@ -40,7 +40,7 @@ float celsiusToFahrenheit(float celsius);
 enum State {START, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, READ_SENSORS, WAIT, RESTART};
 State state = START;
 #define DEFAULT_WAIT 1000
-#define WAIT_WAIT 5000
+#define WAIT_WAIT 10000
 #define WIFI_WAIT 10000
 #define MQTT_WAIT 10000
 
@@ -54,12 +54,13 @@ void setup() {
   Wire.begin();
   sht.begin(SHT_ADDR);
   delay(2000);
-  // if (! sht.begin(SHT_ADDR)) 
-  // {   
-  // Serial.println("Couldn't find SHT31");
-  // while (1) delay(1);
-  // }
-  if (SCD41.begin() == false)
+  if (! sht.begin(SHT_ADDR)) 
+  {   
+  Serial.println("Couldn't find SHT31");
+  while (1) delay(1);
+  }
+  
+  if (SCD41.begin(true,false) == false) //sets autocalibration false
   {
     Serial.println(F("SCD41 not detected. Please check wiring. Freezing..."));
     while (1);
@@ -187,6 +188,26 @@ void loop() {
       if (client.publish(sht_humidity_topic, tempString)) 
       {
         Serial.println("SHT Humidity sent!");
+      }
+
+      dtostrf(scd_humidity, 1, 2, tempString);
+      if (client.publish(scd_humidity_topic, tempString)) 
+      {
+        Serial.println("SCD Humidity sent!");
+      }
+      
+      dtostrf(scd_temperature, 1, 2, tempString);
+      if (client.publish(scd_temperature_topic, tempString)) 
+      {
+        Serial.println("SCD Temperature sent!");
+      }
+
+
+
+      dtostrf(scd_co2, 1, 2, tempString);
+      if (client.publish(scd_co2_topic, tempString)) 
+      {
+        Serial.println("SCD CO2 sent!");
       }
       chrono = millis();
       state = WAIT;
