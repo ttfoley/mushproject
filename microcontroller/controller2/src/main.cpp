@@ -237,7 +237,7 @@ void loop() {
       {
         Serial.println("Pin32 RB sent!");
       }
-      
+
 
       chrono = millis();
       state = WAIT;
@@ -354,7 +354,7 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
 }
 
 
-void write_delay(String content, int write_pin, float readback, int delay_time=250)
+void write_delay(String content, int write_pin, float readback, int delay_time)
 //This writes to pin (HIGH,LOW) and sets readback to (1,0) depending on the content.
 {
   if (content == "on") 
