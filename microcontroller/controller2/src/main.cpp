@@ -17,11 +17,11 @@ const int ledPin = 4;
 
 // readbacks for the pins. when controller comes on, they start low. Only change if sent from mqtt.
 //Floats for now because topic parsing in telegraf sucks.
-float ledPin_rb = 0;
-float pin26_rb = 0;
-float pin25_rb = 0;
-float pin33_rb = 0;
-float pin32_rb = 0; 
+float ledPin_rb = 0.0;
+float pin26_rb = 0.0;
+float pin25_rb = 0.0;
+float pin33_rb = 0.0;
+float pin32_rb = 0.0; 
 
 // MQTT
 const char* mqtt_server = "192.168.1.17";  // IP of the MQTT broker
@@ -54,7 +54,7 @@ void connect_WiFi();
 void mqtt_callback(char *topic, byte *payload, unsigned int length);
 void SuscribeMqtt();
 float celsiusToFahrenheit(float celsius);
-void write_delay(String content, int write_pin, float readback, int delay_time=250);
+void write_delay(String content, int write_pin, float& readback, int delay_time=250);
 
 enum State {START, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, READ_SENSORS, WAIT, RESTART};
 State state = START;
@@ -213,6 +213,7 @@ void loop() {
       dtostrf(ledPin_rb, 1, 2, tempString);
       if (client.publish(led1_readback_topic, tempString)) 
       {
+        Serial.println(tempString);
         Serial.println("LED RB sent!");
       }
 
@@ -354,19 +355,19 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
 }
 
 
-void write_delay(String content, int write_pin, float readback, int delay_time)
+void write_delay(String content, int write_pin, float& readback, int delay_time)
 //This writes to pin (HIGH,LOW) and sets readback to (1,0) depending on the content.
 {
   if (content == "on") 
   {
     digitalWrite(write_pin, HIGH);
-    readback = 1;
+    readback = 100.0;
     delay(delay_time);
   }
   else if (content == "off") 
   {
     digitalWrite(write_pin, LOW);
-    readback = 0;
+    readback = 200.0;
     delay(delay_time);
   }
   else 
