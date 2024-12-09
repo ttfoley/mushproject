@@ -54,7 +54,7 @@ void connect_WiFi();
 void mqtt_callback(char *topic, byte *payload, unsigned int length);
 void SuscribeMqtt();
 float celsiusToFahrenheit(float celsius);
-void write_delay(String content, int write_pin, float& readback, int delay_time=100);
+void write_delay(String content, int write_pin, float& readback, int delay_time=25);
 
 enum State {START, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, READ_SENSORS, WAIT, RESTART};
 State state = START;
