@@ -54,7 +54,7 @@ void connect_WiFi();
 void mqtt_callback(char *topic, byte *payload, unsigned int length);
 void SuscribeMqtt();
 float celsiusToFahrenheit(float celsius);
-void write_delay(String content, int write_pin, float& readback, int delay_time=250);
+void write_delay(String content, int write_pin, float& readback, int delay_time=100);
 
 enum State {START, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, READ_SENSORS, WAIT, RESTART};
 State state = START;
@@ -328,7 +328,7 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
 
     if (str_output_topic == led1_output_topic) 
     {
-      write_delay(content, ledPin, ledPin_rb); 
+      write_delay(content, ledPin, ledPin_rb,10); //reduced delay time
     }
 
     else if (str_output_topic == pin25_output_topic) 
