@@ -361,13 +361,13 @@ void write_delay(String content, int write_pin, float& readback, int delay_time)
   if (content == "on") 
   {
     digitalWrite(write_pin, HIGH);
-    readback = 100.0;
+    readback = 1.0;
     delay(delay_time);
   }
   else if (content == "off") 
   {
     digitalWrite(write_pin, LOW);
-    readback = 200.0;
+    readback = -1.0;
     delay(delay_time);
   }
   else 
