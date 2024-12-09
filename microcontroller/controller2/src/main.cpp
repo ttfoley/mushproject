@@ -15,16 +15,30 @@ SCD4x SCD41;
 
 const int ledPin = 4;
 
+// readbacks for the pins. when controller comes on, they start low. Only change if sent from mqtt.
+//Floats for now because topic parsing in telegraf sucks.
+float ledPin_rb = 0;
+float pin26_rb = 0;
+float pin25_rb = 0;
+float pin33_rb = 0;
+float pin32_rb = 0; 
+
 // MQTT
 const char* mqtt_server = "192.168.1.17";  // IP of the MQTT broker
 const char* scd_humidity_topic = "mush/controller2/scd/humidity";
 const char* scd_temperature_topic = "mush/controller2/scd/temperature";
 const char* scd_co2_topic = "mush/controller2/scd/co2";
-const char* led1_output = "mush/controller2/control/led1";
-const char* pin26_output = "mush/controller2/control/pin26";
-const char* pin25_output = "mush/controller2/control/pin25";
-const char* pin33_output = "mush/controller2/control/pin33";
-const char* pin32_output = "mush/controller2/control/pin32";
+const char* led1_output_topic = "mush/controller2/control/led1";
+const char* pin26_output_topic = "mush/controller2/control/pin26";
+const char* pin25_output_topic = "mush/controller2/control/pin25";
+const char* pin33_output_topic = "mush/controller2/control/pin33";
+const char* pin32_output_topic = "mush/controller2/control/pin32";
+const char* led1_readback_topic = "mush/controller2/readback/led1";
+const char* pin26_readback_topic = "mush/controller2/readback/pin26";
+const char* pin25_readback_topic = "mush/controller2/readback/pin25";
+const char* pin33_readback_topic = "mush/controller2/readback/pin33";
+const char* pin32_readback_topic = "mush/controller2/readback/pin32";
+
 
 const char* mqtt_username = "ttfoley"; // MQTT username
 const char* mqtt_password = "password"; // MQTT password
@@ -40,6 +54,7 @@ void connect_WiFi();
 void mqtt_callback(char *topic, byte *payload, unsigned int length);
 void SuscribeMqtt();
 float celsiusToFahrenheit(float celsius);
+void write_delay(String content, int write_pin, float readback, int delay_time=250);
 
 enum State {START, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, READ_SENSORS, WAIT, RESTART};
 State state = START;
@@ -189,13 +204,40 @@ void loop() {
         Serial.println("SCD Temperature sent!");
       }
 
-
-
       dtostrf(scd_co2, 1, 2, tempString);
       if (client.publish(scd_co2_topic, tempString)) 
       {
         Serial.println("SCD CO2 sent!");
       }
+
+      dtostrf(ledPin_rb, 1, 2, tempString);
+      if (client.publish(led1_readback_topic, tempString)) 
+      {
+        Serial.println("LED RB sent!");
+      }
+
+      dtostrf(pin25_rb, 1, 2, tempString);
+      if (client.publish(pin25_readback_topic, tempString)) 
+      {
+        Serial.println("Pin25 RB sent!");
+      }
+
+      dtostrf(pin26_rb, 1, 2, tempString);
+      if (client.publish(pin26_readback_topic, tempString)) 
+      {
+        Serial.println("Pin26 RB sent!");
+      }
+      dtostrf(pin33_rb, 1, 2, tempString);  
+      if (client.publish(pin33_readback_topic, tempString)) 
+      {
+        Serial.println("Pin33 RB sent!");
+      }
+      dtostrf(pin32_rb, 1, 2, tempString);
+      if (client.publish(pin32_readback_topic, tempString)) 
+      {
+        Serial.println("Pin32 RB sent!");
+      }
+      
 
       chrono = millis();
       state = WAIT;
@@ -268,95 +310,67 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
 {
     //TODO: make all this crap functions, check if pin in valid range and writable.
     //TODO: Should probably make a switch statement for the different pins/topics.
-    int write_pin = -1;
     Serial.print("Received on ");
     Serial.print(topic);
     Serial.print(": ");
 
     String content = "";
+    String str_output_topic = String(topic);
+
     for (size_t i = 0; i < length; i++)
     {
         content.concat((char)payload[i]);
     }
+
     Serial.print(content);
     Serial.println();
-    if (String(topic) == led1_output) 
+
+    if (str_output_topic == led1_output_topic) 
     {
-      write_pin = ledPin;
-      Serial.print("Changing output to ");
-      if (content == "on") {
-        Serial.println("on");
-        digitalWrite(write_pin, HIGH);
-        delay(250);
-      }
-      else if (content == "off") {
-        Serial.println("off");
-        digitalWrite(write_pin, LOW);
-        delay(250);
-      }
+      write_delay(content, ledPin, ledPin_rb); 
     }
 
-    else if (String(topic) == pin26_output) 
+    else if (str_output_topic == pin25_output_topic) 
     {
-      write_pin = 26;
-      Serial.print("Changing output to ");
-      if (content == "on") {
-        Serial.println("on");
-        digitalWrite(write_pin, HIGH);
-        delay(250);
-      }
-      else if (content == "off") {
-        Serial.println("off");
-        digitalWrite(write_pin, LOW);
-        delay(250);
-      }
+      write_delay(content, 25, pin25_rb); 
+    }
+    else if (str_output_topic == pin26_output_topic) 
+    {
+      write_delay(content, 26, pin26_rb); 
+    }
+    else if (str_output_topic == pin33_output_topic) 
+    {
+      write_delay(content, 33, pin33_rb); 
+    }
+    else if (str_output_topic == pin32_output_topic) 
+    {
+      write_delay(content, 32, pin32_rb); 
+    }
+    else 
+    {
+      Serial.println("Invalid topic");
     }
 
-    else if (String(topic) == pin25_output) 
-    {
-      write_pin = 25;
-      Serial.print("Changing output to ");
-      if (content == "on") {
-        Serial.println("on");
-        digitalWrite(write_pin, HIGH);
-        delay(250);
-      }
-      else if (content == "off") {
-        Serial.println("off");
-        digitalWrite(write_pin, LOW);
-        delay(250);
-      }
-    }
+}
 
-    else if (String(topic) == pin33_output) 
-    {
-      write_pin = 33;
-      Serial.print("Changing output to ");
-      if (content == "on") {
-        Serial.println("on");
-        digitalWrite(write_pin, HIGH);
-        delay(250);
-      }
-      else if (content == "off") {
-        Serial.println("off");
-        digitalWrite(write_pin, LOW);
-        delay(250);
-      }
-    }
 
-    else if (String(topic) == pin32_output) 
-    {
-      write_pin = 32;
-      Serial.print("Changing output to ");
-      if (content == "on") {
-        Serial.println("on");
-        digitalWrite(write_pin, HIGH);
-        delay(250);
-      }
-      else if (content == "off") {
-        Serial.println("off");
-        digitalWrite(write_pin, LOW);
-        delay(250);
-      }
-    }
+void write_delay(String content, int write_pin, float readback, int delay_time=250)
+//This writes to pin (HIGH,LOW) and sets readback to (1,0) depending on the content.
+{
+  if (content == "on") 
+  {
+    digitalWrite(write_pin, HIGH);
+    readback = 1;
+    delay(delay_time);
+  }
+  else if (content == "off") 
+  {
+    digitalWrite(write_pin, LOW);
+    readback = 0;
+    delay(delay_time);
+  }
+  else 
+  {
+    Serial.println("Invalid command");
+  }
 }
