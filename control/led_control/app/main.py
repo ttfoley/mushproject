@@ -8,6 +8,9 @@ mqtt_port = 1883
 mqtt_client_id = "control"
 control_led_topic = "mush/controller2/control/led1"
 
+to_subscribe = ["mush/controller2/control/pin25","mush/controller2/control/pin26","mush/controller2/control/pin32","mush/controller2/control/pin33",
+                "mush/controller2/control/pin25_rb","mush/controller2/control/pin26_rb","mush/controller2/control/pin32_rb","mush/controller2/control/pin33_rb",]
+
 def on_message(client, userdata, msg:mqtt.MQTTMessage):
     print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
 
@@ -16,7 +19,8 @@ def on_connect(client:mqtt.Client, userdata, flags, rc,properties = None):
     # def on_connect(client, userdata, flags, rc, properties):
     if rc == 0:
         print("Connected to MQTT Broker!")
-        client.subscribe("mush/controller2/scd/temperature")
+        for topic in to_subscribe:
+            client.subscribe(topic)
 
     else:
         print("Failed to connect, return code %d\n", rc)
