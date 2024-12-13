@@ -30,6 +30,8 @@ def main():
     humid_control.update_state()
     print(humid_control.current_state,humid_control.desired_state,humid_control.time_in_state)
     waiting_for_state_verification = False
+    if humid_control.current_state != humid_control.desired_state:
+        waiting_for_state_verification = True
     time_to_wait = 15
     wait_start = datetime.now()
     elapsed_time = 0
@@ -42,15 +44,23 @@ def main():
                 elapsed_time = 0
                 print("State verified:",humid_control.current_state)
             else:
+                print("Waiting for state verification. Current state:",humid_control.current_state)
                 time.sleep(1)
 
         elif waiting_for_state_verification and (elapsed_time >= time_to_wait):
             print("State verification timed out. Current state:",humid_control.current_state)
             print("Setting desired state to off.")
             humid_control.desired_state = "Off"
-            
+            elapsed_time =0
+            wait_start = datetime.now()
+            #increase sleep time so we don't spam mqtt
+            time.sleep(5)
+
         else:
+
             old_desired = humid_control.desired_state
+            print(humid_control.current_state)
+            print(old_desired,humid_control.desired_state,humid_control.time_in_state)
             changed = humid_control.update_desired_state()
             if changed:
                 print(humid_control.current_state)
