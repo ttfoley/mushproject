@@ -140,6 +140,12 @@ class Humidity_Control:
                 break
         return match
 
+    def in_desired_state(self):
+        #If the current state is the desired state, return True
+        if self.current_state == self.desired_state:
+            return True
+        return False
+
     def get_relevant_points(self):
         #The relevant points should be the same for any state.
         random_state = list(self.states.values())[0]
@@ -170,13 +176,13 @@ class Humidity_Control:
         #Returns true if the desired state has been changed
         # If the current state has been satisfied, move to the next state.
         #If the current state is unknown, default to Off.
-        starting_desired_state = self.current_state
+        starting_desired_state = self.desired_state
         if self.current_state_time_satisfied():
             if self.current_state == "Unknown":
                 self.desired_state = "Off"
             else:
                 self.desired_state = self.states[self.current_state].rules.to_state
-                
+
         if self.desired_state != starting_desired_state:
             return True
         return False
