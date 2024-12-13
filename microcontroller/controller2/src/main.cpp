@@ -11,7 +11,6 @@
 #define WIFI_SSID SECRET_WIFI_SSID
 #define WIFI_PASSWORD SECRET_WIFI_PWD
 
-SCD4x SCD41;
 
 const int ledPin = 4;
 
@@ -25,9 +24,7 @@ float pin32_rb = 0.0;
 
 // MQTT
 const char* mqtt_server = "192.168.1.17";  // IP of the MQTT broker
-const char* scd_humidity_topic = "mush/controller2/scd/humidity";
-const char* scd_temperature_topic = "mush/controller2/scd/temperature";
-const char* scd_co2_topic = "mush/controller2/scd/co2";
+
 const char* led1_output_topic = "mush/controller2/control/led1";
 const char* pin26_output_topic = "mush/controller2/control/pin26";
 const char* pin25_output_topic = "mush/controller2/control/pin25";
@@ -76,13 +73,6 @@ void setup() {
   pinMode(33, OUTPUT);
   pinMode(32, OUTPUT);
   delay(2000);
-  Wire.begin();
-  if (SCD41.begin() == false)
-  {
-    Serial.println(F("Sensor not detected. Please check wiring. Freezing..."));
-    while (1)
-      ;
-  }
 
   //MQTT setup
   client.setCallback(mqtt_callback);
@@ -94,9 +84,7 @@ void loop() {
 
 
   static unsigned long chrono;  // For timing in states (static means only initialized once?)
-  static float scd_temperature;
-  static float scd_humidity;
-  static float scd_co2;
+
   static char tempString[16];
   static char printString[16];
 
@@ -130,26 +118,9 @@ void loop() {
     /*
     TODO: Make functions for the different sensors. 
     */
-      if (SCD41.readMeasurement()) // readMeasurement will return true when fresh data is available
+      if (true) // readMeasurement will return true when fresh data is available
       {
         Serial.println("State: READ_SENSORS");
-        scd_temperature = celsiusToFahrenheit(SCD41.getTemperature());
-        scd_humidity = SCD41.getHumidity();
-        scd_co2 = SCD41.getCO2();
-
-        Serial.print(F("CO2(ppm):"));
-        dtostrf(scd_co2, 1, 2, printString);
-        Serial.print(printString);
-
-        Serial.print(F("\tTemperature(F):"));
-        dtostrf(scd_temperature, 1, 2, printString);
-        Serial.print(printString);
-
-        Serial.print(F("\tHumidity(%RH):"));
-        dtostrf(scd_humidity, 1, 2, printString);
-        Serial.print(printString);
-
-        Serial.println();
         state = MQTT_CONNECT;
         chrono = millis();
       }
@@ -191,24 +162,6 @@ void loop() {
       If we made it here we were connected like 0.00001 seconds ago, not checking again
       */
       Serial.println("State: MQTT_PUBLISH");
-
-      dtostrf(scd_humidity, 1, 2, tempString);
-      if (client.publish(scd_humidity_topic, tempString)) 
-      {
-        Serial.println("SCD Humidity sent!");
-      }
-      
-      dtostrf(scd_temperature, 1, 2, tempString);
-      if (client.publish(scd_temperature_topic, tempString)) 
-      {
-        Serial.println("SCD Temperature sent!");
-      }
-
-      dtostrf(scd_co2, 1, 2, tempString);
-      if (client.publish(scd_co2_topic, tempString)) 
-      {
-        Serial.println("SCD CO2 sent!");
-      }
 
       dtostrf(ledPin_rb, 1, 2, tempString);
       if (client.publish(led1_readback_topic, tempString)) 
