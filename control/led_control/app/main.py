@@ -1,80 +1,56 @@
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 from datetime import datetime
+import time
+from mqtt_handler import MQTTHandler
+from controller import ControlPoint,State,Humidity_Control,output_value,transition_rule
 mqtt_uname = "ttfoley"
 mqtt_pwd = "password"
 mqtt_broker = "192.168.1.17"
 mqtt_port = 1883
-mqtt_client_id = "control"
-control_led_topic = "mush/controller2/control/led1"
-
-to_subscribe = ["mush/controller2/control/pin25","mush/controller2/control/pin26","mush/controller2/control/pin32","mush/controller2/control/pin33",
-                "mush/controller2/control/pin25_rb","mush/controller2/control/pin26_rb","mush/controller2/control/pin32_rb","mush/controller2/control/pin33_rb",]
-
-def on_message(client, userdata, msg:mqtt.MQTTMessage):
-    print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
-
-def on_connect(client:mqtt.Client, userdata, flags, rc,properties = None):
-    # For paho-mqtt 2.0.0, you need to add the properties parameter.
-    # def on_connect(client, userdata, flags, rc, properties):
-    if rc == 0:
-        print("Connected to MQTT Broker!")
-        for topic in to_subscribe:
-            client.subscribe(topic)
-
-    else:
-        print("Failed to connect, return code %d\n", rc)
+mqtt_client_id = "control_test"
 
 
-def on_publish(client, userdata, mid,reason_code="Success", properties=None):
-    print("Message published with mid: " + str(mid))
+to_subscribe = ["mush/controller2/control/led1","mush/controller2/control/pin25","mush/controller2/control/pin26","mush/controller2/control/pin32",
+                "mush/controller2/control/pin33","mush/controller2/readback/led1","mush/controller2/readback/pin25",
+                "mush/controller2/readback/pin26","mush/controller2/readback/pin32","mush/controller2/readback/pin33"]
 
-def connect_mqtt(client_id, broker, port, username, password):
+state_output_defs = {"Off":[output_value("pin25","Off"),output_value("pin33","Off")],"HumidOn":[output_value("pin25","On"),output_value("pin33","Off")],
+                     "Humidify":[output_value("pin25","On"),output_value("pin33","On")],"FanOff":[output_value("pin25","On"),output_value("pin33","Off")]}
 
-    # Set Connecting Client ID
-    client = mqtt.Client(client_id=client_id,callback_api_version=CallbackAPIVersion.VERSION2)
-
-    #TODO: username and password in environment variables
-    client.username_pw_set(username, password)
-    client.on_connect = on_connect
-    client.on_message = on_message
-    client.on_publish = on_publish
-    #Todo: return status of connection, verify connection
-    client.connect(broker, port)
-    return client
-
-
+#for now only one rule per state
+state_rules = {"Off":transition_rule("0","Off","HumidOn",1*60),"HumidOn":transition_rule("1","HumidOn","Humidify",15),
+               "Humidify":transition_rule("2","Humidify","FanOff",2*60),"FanOff":transition_rule("3","FanOff","Off",15)}
 def main():
     #TODO: verify the connection, add reconnect logic
-    client = connect_mqtt(mqtt_client_id, mqtt_broker, mqtt_port,mqtt_uname, mqtt_pwd)
-    client.loop_start()
-    t0 = datetime.now()
-    print(t0)
-    i = 0 
-    message_sent = False
+    mqtt_handler.loop_start()
     while True:
+        humid_control.update_state()
+        print(humid_control.current_state,humid_control.desired_state,humid_control.time_in_state)
+        changed = humid_control.update_desired_state()
+        if changed:
+            print(f"Desired changed to {humid_control.desired_state}")
+        humid_control.write_desired_state()
+        time.sleep(15)
 
-        t1 = datetime.now()
-
-        if (t1 - t0).total_seconds() > 1:
-            i += 1
-            t0 = t1
-            message_sent = False
-
-        if i!= 0:
-            if (i % 5 == 0) and (i % 10 == 0):
-                if not message_sent:
-                    print(i,"turn off")
-                    client.publish(control_led_topic, "off")
-                    message_sent = True
-
-            elif (i % 5) == 0:
-                if not message_sent:
-                    print(i,"turn on")
-                    client.publish(control_led_topic, "on")
-                    message_sent = True
+    mqtt_handler.loop_stop()
 
 
-    client.loop_stop()
 if __name__ == "__main__":
+
+    control_points = {point_name:ControlPoint(point_name,f"mush/controller2/control/{point_name}",f"mush/controller2/readback/{point_name}") 
+                      for point_name in ["led1","pin25","pin26","pin32","pin33"]}
+
+    states = {}
+    for state_name,outputs in state_output_defs.items():
+        states[state_name] = State(state_name,outputs,control_points,state_rules[state_name])
+
+    mqtt_handler = MQTTHandler(mqtt_client_id, mqtt_broker, mqtt_port, mqtt_uname, mqtt_pwd,userdata=control_points)
+    mqtt_handler.connect()
+    humid_control = Humidity_Control(states,mqtt_handler,"Humidify")
+
+    #I don't like how this is separate, but you can't add args to the callbacks...
+    for topic in to_subscribe:
+        mqtt_handler.client.subscribe(topic)
+
     main()
