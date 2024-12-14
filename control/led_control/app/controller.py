@@ -85,7 +85,7 @@ class Outputs:
     def sort_and_validate(self,outputs_values:dict[ControlPoint,output_value])->dict[ControlPoint,output_value]:
         #Sort the outputs by control point name.
         #Check that all the outputs are valid values
-        sorted_outputs = dict(sorted(outputs_values.items(), key=lambda item: item[0].name))
+        #sorted_outputs = dict(sorted(outputs_values.items(), key=lambda item: item[0].name))
         print(outputs_values.items())
         for cp,value in outputs_values.items():
             print(cp,value)
@@ -93,7 +93,7 @@ class Outputs:
             if value not in ["On","Off","Unknown"]:
                 raise ValueError(f"Invalid output value {value}")
 
-        return sorted_outputs
+        return outputs_values
     
     def update_single_output(self,control_point:ControlPoint,value:output_value):
         assert control_point in self.outputs.keys()
