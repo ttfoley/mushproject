@@ -20,7 +20,7 @@ class MQTTHandler:
         #print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
         message = msg.payload.decode()
         #print(message,msg.topic)
-        #values of 1.00 and -1.00 are from the arduino code, and those specific values are not very robust.
+        #values of 1.00 and -1.00 are from the arduino code, and those seem kind of silly.
         for _,point in self.userdata.items():
             if point.readback_point == msg.topic:
                 if message == "1.00":

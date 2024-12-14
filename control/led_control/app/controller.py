@@ -62,6 +62,7 @@ class ControlPoint:
                 print(f"Requested state not set for {self.name}")
 
     def __eq__(self, other):
+        #This is obviously not good enough, but it's a start.
         if not isinstance(other, ControlPoint):
             return False
         return self.name == other.name
@@ -77,10 +78,11 @@ class Outputs:
     Valid value of outputs are "On","Off","Unknown"
     """
     def __init__(self,outputs_values:dict[ControlPoint,output_value]):
+        self.control_points = outputs_values.keys()
         self.outputs = self.sort_and_validate(outputs_values)
         self.is_unknown = self.any_unknown()
 
-    def sort_and_validate(self,outputs_values:dict[ControlPoint,output_value]):
+    def sort_and_validate(self,outputs_values:dict[ControlPoint,output_value])->dict[ControlPoint,output_value]:
         #Sort the outputs by control point name.
         #Check that all the outputs are valid values
         sorted_outputs = dict(sorted(outputs_values.items(), key=lambda item: item[0].name))
@@ -142,40 +144,45 @@ class Outputs:
 
 
 
-
 class State:
     #Every state better have the same control points
-    #Outputs are {control_point_name:state(On/Off)}
     #TODO: Would it better to have an "any" option for control points that don't matter, so we don't have to filter them out?
-    def __init__(self,name,outputs:list[output_value],control_points:dict[str,ControlPoint],rules):
+    def __init__(self,name,outputs:Outputs,rules:transition_rule):
         self.name = name
-        self.outputs = {op.point_name:op for op in outputs}
-        self.relevant_points = [ov.point_name for ov in outputs]
-        #Restrict access to control points to only those that are relevant to the state.
-        self.control_points = {name:control_points[name] for name in control_points.keys() if name in self.relevant_points}
+        self.outputs = outputs
         self.rules = rules
 
-    
-
+    def same_outputs(self,other):
+        assert isinstance(other,State)
+        return self.outputs == other.outputs
 
 class Humidity_Control:
     #A FSM for controlling the humidity.
-    #States will have rules for when to switch to the next state.
-    # Unknown is not a valid state. There isn't an actuall State instance for it.
-    def __init__(self, states:dict[str,State],mqtt_handler,initial_desired_state ="Off"):
+    #States will have rules for when to switch to the next state..
+    def __init__(self, states:dict[str,State],initial_desired_state:State,mqtt_handler):
         self.desired_state = initial_desired_state
         self.mqtt_handler = mqtt_handler
         self.states = states
+        self.unknown_state = states["Unknown"]
         self.control_points = self.get_relevant_points()
-        #Current states by name of states. Including "Unknown" for when we don't know the state.
-        self.prev_state = "Unknown"
-        self.current_state = "Unknown"
+        #This is the state of the outputs as determined by readback. I guess I could try to fetch known states from the start...
+        self.outputs_state = self.initialize_outputs_unknown()
+        self.prev_state = self.unknown_state
+        self.current_state = self.unknown_state
+        self.desired_state =  initial_desired_state
         self.time_start_state = datetime.now()
         self.time_in_state = 0
-        self.update_state()
 
+    def initialize_outputs_unknown(self):
+        #We don't know in the very beginning what the outputs are.
+        return Outputs({cp:output_value(cp.name,"Unknown") for cp in self.control_points})
+
+    def get_relevant_points(self):
+        #The relevant points should be the same for any state.  
+        return [control_point for control_point in self.unknown_state.outputs.control_points]
+                              
     def update_state(self):
-        #Since we start in unknown, it will think we're in unknown for some nonzero amount of time regardless of whether the s
+        #Since we start in unknown, it will think we're in unknown for some nonzero amount of time regardless
         self.prev_state = self.current_state
         self.current_state = self.get_current_state()
         now = datetime.now()
@@ -185,81 +192,79 @@ class Humidity_Control:
         self.time_in_state = (now - self.time_start_state).total_seconds()
 
 
-    def get_current_state(self):
-        ##If the outputs match multiple states AND the desired state, choose the desired state as current state.
-        ##Otherwise, set to "Unknown"
-        output_values = [output_value(point_name,self.control_points[point_name].state) for point_name in self.control_points.keys()]
-        #print(output_values)
-        matching_states = []
+    def get_outputs_state(self):
+        #Look up the current state of the outputs and update the outputs_state
+        for control_point in self.outputs_state.control_points:
+            #I don't like using output_value here, or anywhere really. But I guess it never lets us separate the name from the value.
+            current_output = output_value(control_point.name,control_point.state)
+            self.outputs_state.update_single_output(control_point,current_output)
+
+
+    def get_compatible_states(self)->list[State]:
+        #Returns a list of states that have the same outputs as the current outputs.
+        compatible_states = []
         for state in self.states.values():
-            if self.outputs_match_state(output_values,state):
-                matching_states.append(state)
+            if state.outputs == self.outputs_state:
+                compatible_states.append(state)
+        return compatible_states
 
-        if len(matching_states) == 1:
-            return matching_states[0].name
-        elif len(matching_states) > 1:
-            if self.desired_state in [state.name for state in matching_states]:
+    def get_current_state(self)->State:
+        """If the outputs match a single state, set that as the current state.  This could be "Unknown".
+        elif the outputs match multiple states AND the desired state, choose the desired state as current state.
+        elif the outputs match multine and the previous verified state, set that as the current state.
+        else  set to "Unknown"
+
+        CAREFUL: this is using current state as a proxy for the last verified state (elif self.current_state in compatible_states:).
+        The current state may be stale in reality.
+        """
+
+        compatible_states = self.get_compatible_states()
+        if len(compatible_states) == 1:
+            return compatible_states[0]
+        elif len(compatible_states) > 1:
+            #Note that order matters here.  If the desired state is in the compatible states, it will be chosen first.
+            #This should always be what we want, I think.  Or does this throw us into Unknown too often?
+            if self.desired_state in compatible_states:
                 return self.desired_state
+            elif self.current_state in compatible_states:
+                return self.current_state
             else:
-                return "Unknown"
+                return self.unknown_state
         else:
-            return "Unknown"
-
-    def outputs_match_state(self,outputs:list[output_value],state:State):
-        match = True
-        for output in outputs:
-            if output.point_name not in state.relevant_points:
-                match = False
-                break
-            if state.outputs[output.point_name].value == output.value:
-                match = True
-            else:
-                match = False
-                break
-        return match
-
+            #This should never happen, so maybe raise an error?
+            raise ValueError("No compatible states found")
+        
     def in_desired_state(self):
         #If the current state is the desired state, return True
         if self.current_state == self.desired_state:
             return True
         return False
 
-    def get_relevant_points(self):
-        #The relevant points should be the same for any state.
-        random_state = list(self.states.values())[0]
-        return random_state.control_points
 
     def write_desired_state(self):
         #If the desired state is different from the current state, write the state.
         if self.desired_state != self.current_state:
-            for point in self.control_points.values():
-                point.set_requested_state(self.states[self.desired_state].outputs[point.name].value)
+            for point,output in self.desired_state.outputs.outputs.items():
+                point.set_requested_state(output)
                 point.publish(self.mqtt_handler)
 
 
     def current_state_time_satisfied(self):
-        #this is ugly, too much indexing not enough transparency
-        if self.current_state != "Unknown":
-            if self.time_in_state > self.states[self.current_state].rules.required_time:
-                return True
-            return False
-        elif self.current_state == "Unknown":
-            #We're always ready to leave unknown state??
+        #This should be a method of the state class, maybe?
+        #In any case, it's too specific right now to the way our rules are defined.
+        if self.time_in_state > self.current_state.rules.required_time:
             return True
-        else:
-            raise ValueError("Current state is not valid")
+        return False
+
         
 
     def update_desired_state(self):
         #Returns true if the desired state has been changed
         # If the current state has been satisfied, move to the next state.
-        #If the current state is unknown, default to Off.
         starting_desired_state = self.desired_state
         if self.current_state_time_satisfied():
-            if self.current_state == "Unknown":
-                self.desired_state = "Off"
-            else:
-                self.desired_state = self.states[self.current_state].rules.to_state
+            #The fallback state is "Off" if the current state is unknown. This should be in the rules.
+            self.desired_state = self.states[self.current_state.rules.to_state]
 
         if self.desired_state != starting_desired_state:
             return True

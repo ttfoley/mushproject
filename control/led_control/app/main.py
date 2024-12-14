@@ -16,11 +16,13 @@ to_subscribe = ["mush/controller2/control/led1","mush/controller2/control/pin25"
                 "mush/controller2/readback/pin26","mush/controller2/readback/pin32","mush/controller2/readback/pin33"]
 
 state_output_defs = {"Off":[output_value("pin25","Off"),output_value("pin33","Off")],"HumidOn":[output_value("pin25","On"),output_value("pin33","Off")],
-                     "Humidify":[output_value("pin25","On"),output_value("pin33","On")],"FanOff":[output_value("pin25","On"),output_value("pin33","Off")]}
+                     "Humidify":[output_value("pin25","On"),output_value("pin33","On")],"FanOff":[output_value("pin25","On"),output_value("pin33","Off")],
+                     "Unknown":[output_value("pin25","Unknown"),output_value("pin33","Unknown")]}
 
 #for now only one rule per state
 state_rules = {"Off":transition_rule("0","Off","HumidOn",10*60),"HumidOn":transition_rule("1","HumidOn","Humidify",15),
-               "Humidify":transition_rule("2","Humidify","FanOff",1*60),"FanOff":transition_rule("3","FanOff","Off",15)}
+               "Humidify":transition_rule("2","Humidify","FanOff",1*60),"FanOff":transition_rule("3","FanOff","Off",15),
+               "Unknown":transition_rule("4","Unknown","Off",0)}
 def main():
     #TODO: verify the connection, add reconnect logic
     mqtt_handler.loop_start()
@@ -42,17 +44,18 @@ def main():
             if humid_control.current_state == humid_control.desired_state:
                 waiting_for_state_verification = False
                 elapsed_time = 0
-                print("State verified:",humid_control.current_state)
+                print("State verified:",humid_control.current_state.name)
             else:
-                print(f"Waiting for state verification. Current state:{humid_control.current_state}")
-                print(f"Desired state:{humid_control.desired_state}")
+                print(f"Waiting for state verification. Current state:{humid_control.current_state.name}")
+                print(f"Desired state:{humid_control.desired_state.name}")
 
                 time.sleep(1)
 
         elif waiting_for_state_verification and (elapsed_time >= time_to_wait):
-            print("State verification timed out. Current state:",humid_control.current_state)
+            print("State verification timed out. Current state:",humid_control.current_state.name)
             print("Setting desired state to off.")
-            humid_control.desired_state = "Off"
+            #I don't like this because it's basically a new transition rule.
+            humid_control.desired_state = humid_control.states["Off"]
             elapsed_time =0
             wait_start = datetime.now()
             #increase sleep time so we don't spam mqtt
