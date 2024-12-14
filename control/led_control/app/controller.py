@@ -61,6 +61,84 @@ class ControlPoint:
             else:
                 print(f"Requested state not set for {self.name}")
 
+    def __eq__(self, other):
+        if not isinstance(other, ControlPoint):
+            return False
+        return self.name == other.name
+
+    def __hash__(self):
+        return hash(self.name)
+
+
+class Outputs:
+    """
+    To keep track of groups of outputs.  Used for defining states. Methods for equality and comparison.
+    Include "Unknown" as a valid state.  Able to update, as this will track the live output values as determined by readback.
+    Valid value of outputs are "On","Off","Unknown"
+    """
+    def __init__(self,outputs_values:dict[ControlPoint,output_value]):
+        self.outputs = self.sort_and_validate(outputs_values)
+        self.is_unknown = self.any_unknown()
+
+    def sort_and_validate(self,outputs_values:dict[ControlPoint,output_value]):
+        #Sort the outputs by control point name.
+        #Check that all the outputs are valid values
+        sorted_outputs = dict(sorted(outputs_values.items(), key=lambda item: item[0].name))
+        for value in outputs_values.values():
+            if value not in ["On","Off","Unknown"]:
+                raise ValueError("Invalid output value")
+
+        return sorted_outputs
+    
+    def update_single_output(self,control_point:ControlPoint,value:output_value):
+        assert control_point in self.outputs.keys()
+        assert value in ["On","Off","Unknown"]
+        self.outputs[control_point] = value
+
+    def any_unknown(self):
+        return any([value == "Unknown" for value in self.outputs.values()])
+
+    def __eq__(self, other):
+        """To compare two outputs, they must have the same control points and the same values for each control point.
+        I think I could get by with just comparing the dictionaries, but this is more explicit and gives better error messages.
+        Note this does not include the "Unknown" state, as that is not a valid state for a state."""
+        if not isinstance(other, Outputs):
+            return False
+        
+        if len(self.outputs) != len(other.outputs):
+            print("Different number of outputs")
+            return False
+        
+        elif self.outputs.keys() != other.outputs.keys():
+            print("Different control points")
+            return False
+
+        elif self.any_unknown():
+            #This is comparing two unknown states, which is always true.
+            if other.any_unknown():
+                return True
+            else:
+                return False
+
+        else:
+            for key in self.outputs.keys():
+                if self.outputs[key] != other.outputs[key]:
+                    return False
+            return True
+        
+    def __hash__(self):
+        point_names = sorted([point.name for point in self.outputs.keys()])
+        output_values = []
+        for point in point_names:
+            for key in self.outputs.keys():
+                if key.name == point:
+                    output_values.append(self.outputs[key])
+        hashed = ""
+        for point_name,output_value in zip(point_names,output_values):
+            hashed += f"{point_name}:{output_value},"
+        hashed = hashed[:-1]
+
+        return hash(hashed)
 
 
 
@@ -89,7 +167,7 @@ class Humidity_Control:
         self.mqtt_handler = mqtt_handler
         self.states = states
         self.control_points = self.get_relevant_points()
-        #Current states by name of states. Including "Unkown" for when we don't know the state.
+        #Current states by name of states. Including "Unknown" for when we don't know the state.
         self.prev_state = "Unknown"
         self.current_state = "Unknown"
         self.time_start_state = datetime.now()
