@@ -86,9 +86,12 @@ class Outputs:
         #Sort the outputs by control point name.
         #Check that all the outputs are valid values
         sorted_outputs = dict(sorted(outputs_values.items(), key=lambda item: item[0].name))
-        for value in outputs_values.values():
+        print(outputs_values.items())
+        for cp,value in outputs_values.items():
+            print(cp,value)
+            print(value in ["On","Off","Unknown"])
             if value not in ["On","Off","Unknown"]:
-                raise ValueError("Invalid output value")
+                raise ValueError(f"Invalid output value {value}")
 
         return sorted_outputs
     
