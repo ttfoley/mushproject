@@ -16,7 +16,7 @@ that shouldn't all be in one.
 """
 
 class ControlPoint:
-    def __init__(self, name, write_point, readback_point,republish_frequency = 5):
+    def __init__(self, name, write_point, readback_point,republish_frequency = 60):
         self.name = name
         self.write_point = write_point
         self.readback_point = readback_point

@@ -20,7 +20,7 @@ state_output_defs = {"Off":[output_value("pin25","Off"),output_value("pin33","Of
                      "Unknown":[output_value("pin25","Unknown"),output_value("pin33","Unknown")]}
 
 #for now only one rule per state
-state_rules = {"Off":transition_rule("0","Off","HumidOn",5*60),"HumidOn":transition_rule("1","HumidOn","Humidify",15),
+state_rules = {"Off":transition_rule("0","Off","HumidOn",10*60),"HumidOn":transition_rule("1","HumidOn","Humidify",15),
                "Humidify":transition_rule("2","Humidify","FanOff",1*60),"FanOff":transition_rule("3","FanOff","Off",15),
                "Unknown":transition_rule("4","Unknown","Off",0)}
 def main():
@@ -32,6 +32,7 @@ def main():
     #Give it some time to fetch values
     humid_control.update_state()
     print(humid_control.current_state.name,humid_control.desired_state.name,humid_control.time_in_state)
+    
     while True:
         #print(humid_control.current_state.name,humid_control.desired_state.name,humid_control.time_in_state)
         humid_control.update_state()
@@ -40,7 +41,9 @@ def main():
             print(f"Changed desired state to {humid_control.desired_state.name} at {datetime.now()}.  Current state is: {humid_control.current_state.name}") 
         if humid_control.current_state.name != humid_control.previous_state.name:
             print(f"Verified state change to {humid_control.current_state.name} at {datetime.now()} from state: {humid_control.previous_state.name}")
-        humid_control.write_desired_state()
+        ##Changing to only write the desired state if it has changed
+        if humid_control.current_state.name != humid_control.desired_state.name:
+            humid_control.write_desired_state()
         
 
 
