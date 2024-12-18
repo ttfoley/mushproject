@@ -120,11 +120,11 @@ if __name__ == "__main__":
 
     outputs_instances = {}
     #"Off":[output_value("pin25","Off"),output_value("pin33","Off")]
-    state_names = state_output_defs.keys()
-    for state_name,outputs in state_output_defs.items():
+    state_names = state_defs_lookup.keys()
+    for state_name,outputs in state_defs_lookup.items():
         #print(state_name,outputs)
 
-        outputs_instances[state_name] = Outputs({control_points[output.point_name]:output for output in outputs})
+        outputs_instances[state_name] = Outputs({control_points[point_name]:output_value(point_name,output) for point_name,output in outputs.items()})
 
     states = {}
     for state_name in state_names:
