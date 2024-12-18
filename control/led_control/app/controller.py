@@ -16,6 +16,10 @@ that shouldn't all be in one.
 """
 
 class ControlPoint:
+    """
+    Right now this does not verify its state with readback.  It's just a container for the state. I want control points to have a liveness/staleness, but
+    I don't know if this is the best place to do it.  Something like a separate health monitor class?
+    """
     def __init__(self, name, write_point, readback_point,republish_frequency = 60):
         self.name = name
         self.write_point = write_point
@@ -41,7 +45,7 @@ class ControlPoint:
     def time_since_last_published(self):
         return (datetime.now() - self.time_last_published).total_seconds()    
 
-    def set_requested_state(self, state):
+    def set_requested_state(self, state:output_value):
         assert state.value in ["On","Off"]
         self.requested_state = state.value
 
@@ -278,7 +282,7 @@ class Humidity_Control:
         else:
             #I'm not sure exactly where the logic should be for being in limbo for too long should be.
             return False
-            pass
+
 
     def get_transition_to(self)->State:
         #Gets the next state based on the current state and the rules. If no transition ready, returns current state.

@@ -20,8 +20,8 @@ state_output_defs = {"Off":[output_value("pin25","Off"),output_value("pin33","Of
                      "Unknown":[output_value("pin25","Unknown"),output_value("pin33","Unknown")]}
 
 #for now only one rule per state
-state_rules = {"Off":transition_rule("0","Off","HumidOn",20*60),"HumidOn":transition_rule("1","HumidOn","Humidify",45),
-               "Humidify":transition_rule("2","Humidify","FanOff",2*60),"FanOff":transition_rule("3","FanOff","Off",15),
+state_rules = {"Off":transition_rule("0","Off","HumidOn",25*60),"HumidOn":transition_rule("1","HumidOn","Humidify",45),
+               "Humidify":transition_rule("2","Humidify","FanOff",10*60),"FanOff":transition_rule("3","FanOff","Off",15),
                "Unknown":transition_rule("4","Unknown","Off",0)}
 
 def main():
