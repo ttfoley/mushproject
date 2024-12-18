@@ -1,7 +1,7 @@
 import paho.mqtt.client as mqtt
 from collections import namedtuple
 from datetime import datetime
-from typing import Tuple
+from typing import Tuple, Sequence
 import time
 
 #value better be ("On","Off","Unknown") 
@@ -20,7 +20,7 @@ class ControlPoint:
     Right now this does not verify its state with readback.  It's just a container for the state. I want control points to have a liveness/staleness, but
     I don't know if this is the best place to do it.  Something like a separate health monitor class?
     """
-    def __init__(self, name, write_point, readback_point,republish_frequency = 60):
+    def __init__(self, name, write_point, readback_point,republish_frequency_match = 60,republish_frequency_mismatch = 5):
         self.name = name
         self.write_point = write_point
         self.readback_point = readback_point
@@ -29,7 +29,8 @@ class ControlPoint:
         self.requested_state = None
         self.time_start_state = datetime.now()
         self.time_last_published = datetime.now()
-        self.republish_frequency = republish_frequency
+        self.republish_frequency_match = republish_frequency_match
+        self.republish_frequency_mismatch = republish_frequency_mismatch
         #So we're resigning ourselves to no memory of the last state after a reboot, which seems fine for now
 
     def set_known_state(self, state):
@@ -59,12 +60,16 @@ class ControlPoint:
         else:
             raise ValueError("Requested state must be On or Off")
         
-    def publish(self,mqtt_handler):
-        if self.time_since_last_published() > self.republish_frequency:
-            if self.requested_state is not None:
+    def publish(self,mqtt_handler,immediately=False):
+        assert self.state in ["On","Off","Unknown"]
+        if self.state != self.requested_state:
+            if immediately:
                 self.publish_requested_state(mqtt_handler)
-            else:
-                print(f"Requested state not set for {self.name}")
+            elif self.time_since_last_published() > self.republish_frequency_mismatch:
+                self.publish_requested_state(mqtt_handler)
+        elif self.time_since_last_published() > self.republish_frequency_match:
+            self.publish_requested_state(mqtt_handler)
+        
 
     def __eq__(self, other):
         #This is obviously not good enough, but it's a start.
@@ -88,11 +93,11 @@ class Outputs:
         self.is_unknown = self.any_unknown()
 
     def sort_and_validate(self,outputs_values:dict[ControlPoint,output_value])->dict[ControlPoint,output_value]:
-        #Sort the outputs by control point name.
-        #Check that all the outputs are valid values
-        sorted_outputs_values = dict(sorted(outputs_values.items(), key=lambda item: item[0].name))
+        #Sort the outputs by control point name. Python now preserves dictionary order. It shouldn't matter but thought it would make testing easier.
 
-        for cp,output_value in outputs_values.items():
+        sorted_outputs_values = dict(sorted(outputs_values.items(), key=lambda item: item[0].name))
+        #Check that all the outputs are valid values
+        for _,output_value in outputs_values.items():
 
             if output_value.value not in ["On","Off","Unknown"]:
                 raise ValueError(f"Invalid output value {output_value.value}")
@@ -163,43 +168,147 @@ class State:
         assert isinstance(other,State)
         return self.outputs == other.outputs
 
-class Humidity_Control:
+
+
+
+class StateStatus(object):
+    """
+    To keep track of the FSMs current state and time in state. 
+    IMPORTANT: To make sure this whole thing remains a state machine, this better not contain anything that isn't an "attribute" of the CURRENT STATE.
+    TODORepresents the current state of the FSM, so we should replace calls to the current_state with calls to this 
+    Potentially other attributes to be added later
+    Typical use case should be to initialize this to Unknown state and then update it as the FSM runs. Note that in that case, 
+    the time in state will be nonzero by the time the FSM starts. That's kind of unfortunate, but I don't think it breaks anything.
+    TODO Mark exit time.
+    """
+
+    def __init__(self,state:State):
+        self.state = state
+        self.time_started = datetime.now()
+
+
+
+    @property
+    def time_in_state(self):
+        return (datetime.now() - self.time_started).total_seconds()
+    
+    def report(self):
+        print(f"Current state: {self.state.name}, time started: {self.time_started}, elapsed time: {self.time_in_state}")
+
+    def in_same_state(self, other:State)->bool:
+        assert isinstance(other,State)
+        return self.state == other
+
+
+class Constraint:
+    """
+    Satisfied or not. Base class for time constaint and eventually other constraints.
+    Note the definition of the constraint doesn't include the current state, so it can't be evaluated without it.
+    This is intentional, I want this be the schema for constraints, and defer the actual evaluation.
+    I wanted satisfied to be a property, but it needs the current state to be passed in.
+    """
+    def __init__(self):
+        pass
+    
+    def satisfied(self,current_state:StateStatus)->bool:
+        raise NotImplementedError
+    
+
+class StateTimeConstraint(Constraint):
+    """
+    A constraint that is satisfied if the state has been active for a certain amount of time (Seconds).
+    Operators are just > and < for now.
+    sat
+    [gt,lt](greater than,less than) are  the only valid operators for now.
+    I don't know if I should require the state it's expecting to be in. Seems better to leave that up to the Transition.
+    """
+    def __init__(self,required_time:int,operator:str = "gt"):
+        assert operator in ["gt","lt"]
+        self.operator = operator
+        self.required_time = required_time
+
+    def satisfied(self,current_state:StateStatus)->bool:
+        time_in_state = current_state.time_in_state
+        if self.operator == "gt":
+            if time_in_state > self.required_time:
+                return True
+            return False
+        elif self.operator == "lt":    
+            if time_in_state < self.required_time:
+                return True
+            return False
+        
+        else:
+            #shouldn't be able to get here.
+            raise ValueError("Invalid operator")
+
+
+class Transition:
+    """
+    Return a bool and the state to transition to. 
+    Hopefully only one transition is active among all possible transitions.
+    At the very least, a given state better have only one active transition.
+    I wanted active to be a property, but I couldn't make it work while keeping Transition abstract.
+    TODO A transition may eventually have more than one constraint.
+    TODO A transition's constraints will be evaluated based on some joing with logical operators.
+    """
+    def __init__(self,from_state:State,to_state:State,constraints:Sequence[Constraint]):
+        self.from_state = from_state
+        self.to_state = to_state
+        self.constraints = constraints
+    
+    def active(self)->Tuple[bool,State]:
+        ## If not active, return current state(to_state)
+        raise NotImplementedError
+
+class SingleTransition(Transition):
+    """
+    A transition that only has one constraint.
+    """
+    def __init__(self,from_state:State,to_state:State,constraints:Sequence[Constraint]):
+        assert len(constraints) == 1
+        super().__init__(from_state,to_state,constraints)
+
+    def active(self,current_state:StateStatus)->Tuple[bool,State]:
+        if self.from_state != current_state.state:
+            print("The expected current state is {self.from_state.name}, but the current state is {current_state.state.name}")
+            return False,self.from_state
+        if self.constraints[0].satisfied(current_state):
+            return True,self.to_state
+        else:
+            return False,self.from_state
+
+
+class FSM:
     #A FSM for controlling the humidity.
+    #You need an unknown state, and you need to know the initial desired state.
     #States will have rules for when to switch to the next state..
-    def __init__(self, states:dict[str,State],initial_desired_state:State,mqtt_handler):
+    #READ THIS Current state is StateStatus, desired and previous states are State. This is kind of confusing.  I need better names.
+    def __init__(self, states:dict[str,State],transitions:dict[State,dict[State,SingleTransition]],initial_desired_state:State,mqtt_handler):
         self.desired_state = initial_desired_state
         self.mqtt_handler = mqtt_handler
+        assert "Unknown" in states.keys()
         self.states = states
-        self.unknown_state = states["Unknown"]
+        self.transitions = transitions
+        self.current_state = StateStatus(states["Unknown"])
+        ##TODO I don't like this. We shouldn't have to do this and we're oversubscribing to topics for the time being.
         self.control_points = self.get_relevant_points()
         #This is the state of the outputs as determined by readback. I guess I could try to fetch known states from the start...
         self.outputs_state = self.initialize_outputs_unknown()
-        self.previous_state = self.unknown_state
-        self.current_state = self.unknown_state
+        self.previous_state = self.states["Unknown"]
         self.desired_state =  initial_desired_state
-        self.time_start_state = datetime.now()
-        self.time_in_state = 0
-
-    def initialize_outputs_unknown(self):
-        #We don't know in the very beginning what the outputs are.
-
-        return Outputs({cp:output_value(cp.name,"Unknown") for cp in self.control_points})
-
-    def get_relevant_points(self):
-        #The relevant points should be the same for any state.  
-        return [control_point for control_point in self.unknown_state.outputs.control_points]
-                              
-    def update_state(self):
+          
+    def update_state(self)->bool:
+        #This compares against readbacks.
         #Since we start in unknown, it will think we're in unknown for some nonzero amount of time regardless
         self.update_outputs_state()
-        self.previous_state = self.current_state
-        self.current_state = self.get_current_state()
-        now = datetime.now()
-        if self.previous_state != self.current_state:
-            self.time_start_state = now
-
-        self.time_in_state = (now - self.time_start_state).total_seconds()
-
+        self.previous_state = self.current_state.state
+        new_state = self.get_validated_state()
+        if new_state != self.current_state.state:
+            self.current_state = StateStatus(new_state)
+            return True
+        else:
+            return False
 
     def update_outputs_state(self):
         #Look up the current state of the outputs and update the outputs_state
@@ -209,72 +318,87 @@ class Humidity_Control:
             self.outputs_state.update_single_output(control_point,current_output)
 
 
-    def get_compatible_states(self)->list[State]:
-        #Returns a list of states that have the same outputs as the current outputs.
+    def get_compatible_states(self)->Tuple[bool,list[State]]:
+        #bool indicates if any were found
+        # Returns a list of states that have the same outputs as the current outputs.
         compatible_states = []
+        found = False
         for state in self.states.values():
             if state.outputs == self.outputs_state:
+                found = True
                 compatible_states.append(state)
-        return compatible_states
+        return found, compatible_states
 
-    def get_current_state(self)->State:
-        """If the outputs match a single state, set that as the current state.  This could be "Unknown".
+    def get_validated_state(self)->State:
+        """ Returns the state that match the outputs. This is too complicated right now.
+        If the outputs match a single state, set that as the current state.  This could be "Unknown".
         elif the outputs match multiple states AND the desired state, choose the desired state as current state.
         elif the outputs match multine and the previous verified state, set that as the current state.
         else  set to "Unknown"
 
-        CAREFUL: this is using current state as a proxy for the last verified state (elif self.current_state in compatible_states:).
-        The current state may be stale in reality.
+        CAREFUL: The current state may be stale in reality. We're not yet checking the freshness of output readbacks.
         """
 
-        compatible_states = self.get_compatible_states()
+        were_found,compatible_states = self.get_compatible_states()
         #print("compatible states:",[s.name for s in compatible_states])
-        if len(compatible_states) == 1:
-            return compatible_states[0]
-        elif len(compatible_states) > 1:
-            #Note that order matters here.  If the desired state is in the compatible states, it will be chosen first.
-            #This should always be what we want, I think.  Or does this throw us into Unknown too often?
-            if self.desired_state in compatible_states:
-                return self.desired_state
-            elif self.current_state in compatible_states:
-                return self.current_state
+        if were_found:
+            if len(compatible_states) == 1:
+                return compatible_states[0]
             else:
-                return self.unknown_state
+                #Note that order matters here.  If the desired state is in the compatible states, it will be chosen first.
+                #This should always be what we want, I think.  Or does this throw us into Unknown too often?
+                if self.desired_state in compatible_states:
+                    return self.desired_state
+                elif self.current_state.state in compatible_states:
+                    return self.current_state.state
+                else:
+                    #print("Compatible states found, but no valid state found.")
+                    #print("Compatible states:",[s.name for s in compatible_states])
+                    return self.states["Unknown"]
+        elif not were_found:
+            #Don't know what causes this to happen....
+            raise ValueError("No compatible states found")
+        
         else:
-            #Don't know what causes this to happen, but it's a safe fallback.
-            print("Something weird happened, here are the outputs.")
+            #This shouldn't be possible.
+            print("Something really weird happened, here are the outputs.")
             print([f"{cp.name}:{cp.state}" for cp in self.outputs_state.control_points])
-            return self.unknown_state
-
+            print("The compatible states were: ",[s.name for s in compatible_states])
+            raise ValueError("Something went wrong in get_validated_state")
         
     def in_desired_state(self):
         #If the current state is the desired state, return True
-        if self.current_state == self.desired_state:
+        if self.current_state.in_same_state(self.desired_state):
             return True
         return False
 
-
-    def write_desired_state(self):
+    def write_desired_state(self,immediately=False):
         #If the desired state is different from the current state, write the state.
-        if self.desired_state != self.current_state:
+        if not self.in_desired_state():
             for point,output in self.desired_state.outputs.outputs.items():
                 point.set_requested_state(output)
-                point.publish(self.mqtt_handler)
+                point.publish(self.mqtt_handler,immediately)
 
-
-    def current_state_time_satisfied(self):
-        #This should be a method of the state class, maybe?
-        #In any case, it's too specific right now to the way our rules are defined.
-        if self.time_in_state > self.current_state.rules.required_time:
-            return True
-        return False
-
+    def get_transition_to(self)->State:
+        #Return the state to transition to.  If no transition is active, return the current state.
+        active_transitions = []
+        for transition in self.transitions[self.current_state.state].values():
+            active,new_state = transition.active(self.current_state)
+            if active:
+                active_transitions.append(new_state)
+        if len(active_transitions) == 1:
+            return active_transitions[0]
+        elif len(active_transitions) > 1:
+            raise ValueError("More than one active transition")
+        else:
+            return self.current_state.state
+    
     def update_desired_state(self)->bool:
         #If the current state is the desired state, check if it's time to transition.
         #Return true if the desired state is updated.
         if self.in_desired_state():
             next_state = self.get_transition_to()
-            if next_state != self.current_state:
+            if next_state != self.current_state.state:
                 self.desired_state = next_state
                 return True
             else:
@@ -283,13 +407,13 @@ class Humidity_Control:
             #I'm not sure exactly where the logic should be for being in limbo for too long should be.
             return False
 
+    def initialize_outputs_unknown(self):
+        #We don't know in the very beginning what the outputs are.
+        return Outputs({cp:output_value(cp.name,"Unknown") for cp in self.control_points})
 
-    def get_transition_to(self)->State:
-        #Gets the next state based on the current state and the rules. If no transition ready, returns current state.
-        #Shouldn't try to transition if it's not in the desired state. Nothing should ever trigger that, but just to be safe
-        assert self.in_desired_state()
-        if self.current_state_time_satisfied():
-            return self.states[self.current_state.rules.to_state]
-        else:
-            return self.current_state
+    def get_relevant_points(self):
+        #The relevant points should be the same for any state.  
+        return [control_point for control_point in self.current_state.state.outputs.control_points]
 
+    def print_update(self):
+        print(self.current_state.state.name,self.desired_state.name,self.current_state.time_in_state)
