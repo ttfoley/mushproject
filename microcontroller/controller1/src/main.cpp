@@ -19,7 +19,7 @@ SCD4x SCD41;
 bool enableHeater = false;
 Adafruit_SHT31 sht = Adafruit_SHT31();
 
-#define DHTPIN 35
+#define DHTPIN 4
 #define DHTTYPE DHT22
 DHT dht(DHTPIN, DHTTYPE);
 
