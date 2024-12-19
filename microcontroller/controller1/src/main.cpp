@@ -101,6 +101,7 @@ void loop() {
     case WIFI_CONNECT:
       Serial.println("State: WIFI_CONNECT");
       connect_WiFi();
+      delay(5000);
       if (WiFi.status() == WL_CONNECTED) 
       {
         state = READ_SENSORS;
