@@ -30,7 +30,7 @@ const char* mqtt_password = "password"; // MQTT password
 const char* clientID = "controller1"; // MQTT client ID
 
 
-// Initialise the WiFi and MQTT Client objects
+// Initialise the WiFi and MQTT Client objects. wifiClient part of mqqt, not plain wifi
 WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, wifiClient);
 void connect_MQTT();
@@ -41,8 +41,9 @@ enum State {START, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, READ_SENSORS, WAIT,
 State state = START;
 #define DEFAULT_WAIT 1000
 #define WAIT_WAIT 10000
-#define WIFI_WAIT 10000
+#define WIFI_WAIT 60000
 #define MQTT_WAIT 10000
+#define WIFI_CONNECT_DELAY 10000
 
 
 void setup() {
@@ -89,6 +90,7 @@ void loop() {
 
     case WIFI_CONNECT:
       Serial.println("State: WIFI_CONNECT");
+      //The delay after trying to connect is now in connect_WiFi()
       connect_WiFi();
       if (WiFi.status() == WL_CONNECTED) 
       {
@@ -237,7 +239,7 @@ void connect_WiFi() {
 
   // Connect to the WiFi
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  delay(2000);
+  delay(WIFI_CONNECT_DELAY);
   if (WiFi.status() == WL_CONNECTED)
   {
     Serial.println("WiFi connected");
