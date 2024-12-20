@@ -41,7 +41,7 @@ enum State {START, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, READ_SENSORS, WAIT,
 State state = START;
 #define DEFAULT_WAIT 1000
 #define WAIT_WAIT 10000
-#define WIFI_WAIT 10000
+#define WIFI_WAIT 120000
 #define MQTT_WAIT 10000
 
 
@@ -52,6 +52,7 @@ void setup() {
   Serial.println("Connected");
   Serial.setTimeout(2000);
   Wire.begin();
+  WiFi.mode(WIFI_STA);
   sht.begin(SHT_ADDR);
   delay(2000);
   if (! sht.begin(SHT_ADDR)) 
@@ -237,7 +238,9 @@ void connect_WiFi() {
 
   // Connect to the WiFi
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  delay(2000);
+  delay(10000);
+  Serial.print("WiFi status: ");
+  Serial.println(WiFi.status());
   if (WiFi.status() == WL_CONNECTED)
   {
     Serial.println("WiFi connected");
