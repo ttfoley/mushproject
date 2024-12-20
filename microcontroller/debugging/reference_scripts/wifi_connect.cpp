@@ -1,8 +1,14 @@
 #include "WiFi.h"
 #include <secrets.h>
+#include <Wire.h>
+#include <SPI.h>
 
 #define WIFI_SSID SECRET_WIFI_SSID
 #define WIFI_PASSWORD SECRET_WIFI_PWD
+
+
+void connect_WiFi();
+
 
 void setup() {
   Serial.begin(115200);
@@ -18,7 +24,7 @@ void setup() {
 
 
 void loop() {
-  Serial.println("scan start");
+
   if (WiFi.status() == WL_CONNECTED)
   {
     Serial.println("Still Connected");
@@ -33,17 +39,6 @@ void loop() {
   delay(5000);
 }
 
-
-void initWiFi() {
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("Connecting to WiFi ..");
-  while (WiFi.status() != WL_CONNECTED) {
-    Serial.print('.');
-    delay(1000);
-  }
-  Serial.println(WiFi.localIP());
-}
 
 void connect_WiFi() {
   Serial.print("Connecting to ");
