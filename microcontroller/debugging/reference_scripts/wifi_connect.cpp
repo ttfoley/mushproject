@@ -53,6 +53,7 @@ void connect_WiFi() {
     Serial.println("WiFi connected");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
+    Serial.println(WiFi.RSSI());
     Serial.print("\n");
   }
 

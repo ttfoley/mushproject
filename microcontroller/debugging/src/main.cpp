@@ -32,7 +32,6 @@ void loop() {
   else
   {
     Serial.println("Disconnected, trying to reconnect");
-    WiFi.disconnect();//Really not sure this does anything.
     connect_WiFi();
 
   }
@@ -54,6 +53,7 @@ void connect_WiFi() {
     Serial.println("WiFi connected");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
+    Serial.println(WiFi.RSSI());
     Serial.print("\n");
   }
 
