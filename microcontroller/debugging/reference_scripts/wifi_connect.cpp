@@ -32,7 +32,6 @@ void loop() {
   else
   {
     Serial.println("Disconnected, trying to reconnect");
-    WiFi.disconnect();//Really not sure this does anything.
     connect_WiFi();
 
   }
@@ -47,6 +46,8 @@ void connect_WiFi() {
   // Connect to the WiFi
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   delay(10000);
+  Serial.print("WiFi status: ");
+  Serial.println(WiFi.status());
   if (WiFi.status() == WL_CONNECTED)
   {
     Serial.println("WiFi connected");
