@@ -431,7 +431,6 @@ class FSM:
     def in_desired_state(self):
         #If the current state is the desired state, return True
         #TODO Make this more robust.  Maybe we should check the outputs too.
-        print(self.current_state.state.name,self.desired_state.name)
         if self.current_state.state.name == self.desired_state.name:
             return True
         return False
