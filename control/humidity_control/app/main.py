@@ -15,7 +15,6 @@ mqtt_client_id = "control_test"
 
 def main(fsm:FSM, mqtt_handler:MQTTHandler):
     #TODO: verify the connection, add reconnect logic
-    mqtt_handler.connect()
     mqtt_handler.loop_start()
     humid_control.print_update()
     humid_control.write_desired_state(immediately=True)
@@ -62,6 +61,7 @@ if __name__ == "__main__":
     config = Configuration("/config")
     initializer = Initializer(config,"Off")
     mqtt_handler = MQTTHandler(mqtt_client_id, mqtt_broker, mqtt_port, mqtt_uname, mqtt_pwd,userdata=initializer._control_points)
+    mqtt_handler.connect()
     for topic in config.readback_topics:
         print(topic)
         mqtt_handler.client.subscribe(topic)
