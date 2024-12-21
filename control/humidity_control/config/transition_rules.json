@@ -1,0 +1,9 @@
+{
+  "state_timers": {
+    "Off": {"to_state": "HumidOn", "time": "30"},
+    "HumidOn": {"to_state": "Humidify", "time": "45"},
+    "Humidify": {"to_state": "FanOff", "time": "30"},
+    "FanOff": {"to_state": "Off", "time": "15"},
+    "Unknown": {"to_state": "Off", "time": "0"}
+  }
+}

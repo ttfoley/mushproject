@@ -11,18 +11,13 @@ mqtt_port = 1883
 mqtt_client_id = "control_test"
 
 
-to_subscribe = ["mush/controller2/control/led1","mush/controller2/control/pin25","mush/controller2/control/pin26","mush/controller2/control/pin32",
-                "mush/controller2/control/pin33","mush/controller2/readback/led1","mush/controller2/readback/pin25",
-                "mush/controller2/readback/pin26","mush/controller2/readback/pin32","mush/controller2/readback/pin33"]
 
 state_output_defs = {"Off":[output_value("pin25","Off"),output_value("pin33","Off")],"HumidOn":[output_value("pin25","On"),output_value("pin33","Off")],
                      "Humidify":[output_value("pin25","On"),output_value("pin33","On")],"FanOff":[output_value("pin25","On"),output_value("pin33","Off")],
                      "Unknown":[output_value("pin25","Unknown"),output_value("pin33","Unknown")]}
 
 #for now only one rule per state
-transition_rules = {"Off":transition_rule("0","Off","HumidOn",25*60),"HumidOn":transition_rule("1","HumidOn","Humidify",45),
-               "Humidify":transition_rule("2","Humidify","FanOff",10*60),"FanOff":transition_rule("3","FanOff","Off",15),
-               "Unknown":transition_rule("4","Unknown","Off",0)}
+
 
 ###We're going to move this block to files.
 control_points_lookup = {"led1":{"output":"mush/controller2/control/led1","readback":"mush/controller2/readback/led1"},
@@ -37,7 +32,7 @@ state_defs_lookup = {"Off":{"pin25":"Off","pin33":"Off"},"HumidOn":{"pin25":"On"
                      "Unknown":{"pin25":"Unknown","pin33":"Unknown"}}
 
 #{FromState:{ToState:time}}## For now only one rule per state, with only ">" operators
-timer_transition_rules_lookup = {"Off":{"HumidOn":.5*60},"HumidOn":{"Humidify":45},"Humidify":{"FanOff":.5*60},"FanOff":{"Off":15},"Unknown":{"Off":0}}
+timer_transition_rules_lookup = 
 
 initial_desired_state = "Off"
 ###End of block to move to files
