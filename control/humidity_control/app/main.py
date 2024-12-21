@@ -62,6 +62,9 @@ if __name__ == "__main__":
     config = Configuration("/config")
     initializer = Initializer(config,"Off")
     mqtt_handler = MQTTHandler(mqtt_client_id, mqtt_broker, mqtt_port, mqtt_uname, mqtt_pwd,userdata=initializer._control_points)
+    for topic in config.readback_topics:
+        print(topic)
+        mqtt_handler.client.subscribe(topic)
     humid_control = initializer.make_fsm(mqtt_handler)
 
     #I don't like how this is separate, but you can't add args to the callbacks...

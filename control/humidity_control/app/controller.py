@@ -109,6 +109,10 @@ class StateOutputs(object):
             assert value in VALID_OUTPUT_STATES, f"Invalid state for control point {key}:{value}"
         return outputs
     
+    @property
+    def relevant_control_points_names(self):
+        return self.outputs.keys()
+    
 
 
     def __eq__(self, other):
@@ -163,7 +167,8 @@ class Outputs:
     
     def match_state_output(self,state:State)->bool:
         #Check if the state outputs match the outputs of the actual.
-        return state.outputs == self.outputs_str
+        #note 
+        return state.outputs.outputs == self.outputs_str
 
     def __eq__(self, other):
         """To compare two Outputs, they must have the same control points and the same values for each control point.
@@ -342,7 +347,7 @@ class FSM:
     #You need an unknown state, and you need to know the initial desired state.
     #States will have rules for when to switch to the next state..
     #Note that control point state and thus outputs is updated by the mqtt_handler. 
-    #READ THIS Current state is StateStatus, desired and previous states are State. This is kind of confusing.  I need better names.
+    #READ THIS Current state is type StateStatus, desired and previous states are type State. This is kind of confusing.  I need better names.
     def __init__(self,control_points:list[ControlPoint], states:dict[str,State],transitions:Dict[str,Dict[Tuple[State,State],Transition]],initial_desired_state:State,mqtt_handler):
         self.desired_state = initial_desired_state
         self.mqtt_handler = mqtt_handler

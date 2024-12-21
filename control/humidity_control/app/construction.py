@@ -78,6 +78,12 @@ class Configuration(object):
                 assert point_value["value"] in valid_outputs, "Values should be in ['On','Off','Unknown']"
         return state_names, states_config
     
+    @property
+    def needed_control_points(self):
+        #The names of those control points needed by the states
+        ref_state = self._states_config["Unknown"] ## I'm assuming Unknown is a state, and all states have the same need control points.
+        return [point["control_point"] for point in ref_state]
+
     def get_transitions(self)->Dict[str,Dict[Tuple[str,str],Any]]:
         """
         #TODO Generalize this past state_time transitions.
@@ -115,7 +121,8 @@ class Configuration(object):
         self._transitions["state_time_transitions"][(from_state,to_state)] = float(time)
         return True
     
-    def all_topics(self):
+    @property
+    def all_topics(self)->list[str]:
         #this isn't elegant, just want to test things
         ##TODO make idiomatic
         all_topics = []
@@ -124,6 +131,12 @@ class Configuration(object):
             if len(topics) > 0:
                 all_topics.extend(topics)
         return all_topics
+    
+    @property
+    def readback_topics(self)->list[str]:
+        #this isn't elegant, just want to test things
+        ##TODO make idiomatic
+        return self._topics_config["readback"]
 
     
 
@@ -143,17 +156,10 @@ class Initializer(object):
         self._initial_desired_state = self._states[initial_desired_state]
         self._transitions = self.make_transitions()
 
-    @property
-    def control_points(self):
-        return [self._control_points[point_name] for point_name in sorted(self._config._control_point_names)]
-    
-    def make_control_points(self)->Dict[str,ControlPoint]:
-        control_points = {}
-        for point_name,point in self._config._control_points_config.items():
-            control_points[point_name] = ControlPoint(point_name,point["output"],point["readback"])
-        return control_points
+
     
 
+    
     def make_state_outputs(self)->Dict[str,StateOutputs]:
         state_outputs = {}
         for state_name,outputs in self._config._states_config.items():
@@ -161,6 +167,18 @@ class Initializer(object):
             state_outputs[state_name] = StateOutputs(outputs_values,self.control_points)
         return state_outputs
     
+    def make_control_points(self)->Dict[str,ControlPoint]:
+        #based on what's required from state defintions, get needed control points
+        control_points = {}
+        needed_points = self._config.needed_control_points
+        for point_name,point in self._config._control_points_config.items():
+            if point_name in needed_points:
+                control_points[point_name] = ControlPoint(point_name,point["output"],point["readback"])
+        return control_points
+    
+    @property
+    def control_points(self):
+        return [self._control_points[point_name] for point_name in sorted(self._control_points.keys())]
     def make_live_outputs(self):
         return Outputs(self.control_points)
 
