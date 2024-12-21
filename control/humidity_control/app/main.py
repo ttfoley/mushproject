@@ -59,7 +59,7 @@ def main(fsm:FSM, mqtt_handler:MQTTHandler):
 
 if __name__ == "__main__":
 
-    config = Configuration("./config")
+    config = Configuration("/config")
     initializer = Initializer(config,"Off")
     mqtt_handler = MQTTHandler(mqtt_client_id, mqtt_broker, mqtt_port, mqtt_uname, mqtt_pwd,userdata=initializer._control_points)
     humid_control = initializer.make_fsm(mqtt_handler)

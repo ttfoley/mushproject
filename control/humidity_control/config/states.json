@@ -5,14 +5,14 @@
   ],
   "HumidOn": [
     {"control_point": "pin25", "value": "On"},
-    {"control_point": "pin33", "value": "Off"}W
+    {"control_point": "pin33", "value": "Off"}
   ],
   "Humidify": [
     {"control_point": "pin25", "value": "On"},
     {"control_point": "pin33", "value": "On"}
   ],
   "FanOff": [
-    {"control_poiWnt": "pin25", "value": "On"},
+    {"control_point": "pin25", "value": "On"},
     {"control_point": "pin33", "value": "Off"}
   ],
   "Unknown": [

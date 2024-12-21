@@ -7,7 +7,7 @@ import time
 #value better be ("On","Off","Unknown") 
 #TODO: maybe this should be a class so we can do type checking and easier comparisons use __eq__ and __ne__?
 output_value = namedtuple("output_value",["point_name","value"])
-transition_rule = namedtuple("transition_rule",["rule_name","from_state","to_state","required_time"])
+statetime_transition_rule = namedtuple("transition_rule",["rule_name","from_state","to_state","required_time"])
 
 
 """
@@ -39,6 +39,7 @@ class ControlPoint:
         if self.state != state:
             self.time_start_state = datetime.now()
         self.state = state
+        self.output_value = output_value(self.name,self.state)
 
     def time_in_state(self):
         return (datetime.now() - self.time_start_state).total_seconds()
@@ -79,13 +80,18 @@ class ControlPoint:
 
     def __hash__(self):
         return hash(self.name)
+    
+    def __repr__(self) -> str:
+        return f"ControlPoint {self.name}, state: {self.state}, requested_state: {self.requested_state}"
 
 
 class Outputs:
     """
     To keep track of groups of outputs.  Used for defining states. Methods for equality and comparison.
-    Include "Unknown" as a valid state.  Able to update, as this will track the live output values as determined by readback.
+    Include "Unknown" as a valid control point state.  Able to update, as this will track the live output values as determined by readback.
     Valid value of outputs are "On","Off","Unknown"
+    #TODO: I don't like that this is a named_tuple.  I don't like that I have to use output_value to keep the name and value together. 
+    ## It seems redundant
     """
     def __init__(self,outputs_values:dict[ControlPoint,output_value]):
         self.control_points = outputs_values.keys()
@@ -140,7 +146,11 @@ class Outputs:
                     return False
             return True
         
+    def __repr__(self):
+        return f"Outputs: {self.outputs}"
+        
     def __hash__(self):
+        #This is ugly, one example of why I want to get rid of type named_tuple
         point_names = sorted([point.name for point in self.outputs.keys()])
         output_values = []
         for point in point_names:
@@ -166,6 +176,8 @@ class State:
     def same_outputs(self,other):
         assert isinstance(other,State)
         return self.outputs == other.outputs
+    
+
 
 
 
@@ -197,6 +209,9 @@ class StateStatus(object):
     def in_same_state(self, other:State)->bool:
         assert isinstance(other,State)
         return self.state == other
+    
+    def __repr__(self) -> str:
+        pass
 
 
 class Constraint:
@@ -220,6 +235,7 @@ class StateTimeConstraint(Constraint):
     sat
     [gt,lt](greater than,less than) are  the only valid operators for now.
     I don't know if I should require the state it's expecting to be in. Seems better to leave that up to the Transition.
+    required_time in seconds.
     """
     def __init__(self,required_time:float,operator:str = "gt"):
         assert operator in ["gt","lt"]
@@ -236,10 +252,12 @@ class StateTimeConstraint(Constraint):
             if time_in_state < self.required_time:
                 return True
             return False
-        
         else:
             #shouldn't be able to get here.
             raise ValueError("Invalid operator")
+        
+    def __repr__(self) -> str:
+        return "StateTimeConstraint, operator:{self.operator}, required_time:{self.required_time} sec"
 
 
 class Transition:
@@ -277,6 +295,10 @@ class SingleTransition(Transition):
             return True,self.to_state
         else:
             return False,self.from_state
+        
+    def __repr__(self) -> str:
+        ##Incomplete for now until I get the constraints __repr__ working.
+        return f"Transition {self.from_state.name} to {self.to_state.name} with constraint {self.constraints}"
 
 
 class FSM:
@@ -290,6 +312,7 @@ class FSM:
         assert "Unknown" in states.keys()
         self.states = states
         self.transitions = transitions
+        ###maybe current state should be passed in the general case?
         self.current_state = StateStatus(states["Unknown"])
         ##TODO I don't like this. We shouldn't have to do this and we're oversubscribing to topics for the time being.
         self.control_points = self.get_relevant_points()
@@ -368,7 +391,9 @@ class FSM:
         
     def in_desired_state(self):
         #If the current state is the desired state, return True
-        if self.current_state.in_same_state(self.desired_state):
+        #TODO Make this more robust.  Maybe we should check the outputs too.
+        print(self.current_state.state.name,self.desired_state.name)
+        if self.current_state.state.name == self.desired_state.name:
             return True
         return False
 

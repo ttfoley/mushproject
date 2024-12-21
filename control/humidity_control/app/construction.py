@@ -1,8 +1,9 @@
 import json
 import os
 from typing import Dict, Any,Tuple
-from controller import ControlPoint,State,FSM,Outputs,StateStatus,Transition,SingleTransition,StateTimeConstraint,StateStatus,output_value,transition_rule
+from controller import ControlPoint,State,FSM,Outputs,StateStatus,Transition,SingleTransition,StateTimeConstraint,StateStatus,output_value,statetime_transition_rule
 from mqtt_handler import MQTTHandler
+from collections import defaultdict
 
 def load_json(file_path:str):
     with open(file_path) as f:
@@ -21,6 +22,7 @@ class Configuration(object):
         #Should just be the relative path to the config file, ./config
         #note "output" and "control" are synonyms for topics, for reasons
         self._config_location = relative_config_path
+        self._path_to_config = os.path.dirname(os.path.dirname(__file__)) + self._config_location
         self._topics_config = self.get_topics()
         self._control_point_names,self._control_points_config = self.get_control_points()
         self._state_names, self._states_config = self.get_states()
@@ -28,10 +30,15 @@ class Configuration(object):
 
 
 
+
+    def get_config_file_location(self,file_name)->str:
+        return f"{self._path_to_config}/{file_name}"
+    
     def get_topics(self)->Dict[str,Any]:
         #Should be a dictionary of topics, with the key being the type of topic from (control,readback,sensor)
         #and the value being a list of topics (blah/blah/topic_type/topic_name)
-        topics_dict = load_json(self._config_location + "/topics.json")
+
+        topics_dict = load_json(self.get_config_file_location("topics.json"))
 
         for topic_type,topics in topics_dict.items():
             assert topic_type in ["control","readback","sensor"], "Invalid topic type in topics.json"
@@ -43,7 +50,7 @@ class Configuration(object):
     def get_control_points(self)->Tuple[list[str],Dict[str,Any]]:
         ##Dictionary of point names, with "output" and "readback" keys.
         ##I guess readbacks shouldn't strictly be necessary, but I'm keeping them for now
-        control_points = load_json(self._config_location + "/control_points.json")
+        control_points = load_json(self.get_config_file_location("control_points.json"))
         point_names = []
         for point_name,point in control_points.items():
             point_names.append(point_name)
@@ -56,16 +63,18 @@ class Configuration(object):
     def get_states(self)->Tuple[list[str],Dict[str,Any]]:
         ##Dictionary of states, with the key being the state name, and the value being a dictionary of control points and values
         ##{"state_name":[{"point_name":"value"}]}
-        states_config = load_json(self._config_location + "/states.json")
-        valid_outputs = ["On","Off"]
+        states_config = load_json(self.get_config_file_location("states.json"))
+        valid_outputs = ["On","Off","Unknown"]
         assert isinstance(states_config,dict), "States should be a dictionary"
         state_names = []
         for state_name,output_values in states_config.items():
             state_names.append(state_name)
             assert isinstance(output_values,list), "Output values should be a list of [{point_name:value}}]"
             for point_value in output_values:
+                print(point_value)
+                #print(state_name,point_value)
                 assert point_value["control_point"] in self._control_point_names, "Invalid control point in states.json"
-                assert point_value["value"] in valid_outputs, "Values should be strings"
+                assert point_value["value"] in valid_outputs, "Values should be in ['On','Off','Unknown']"
         return state_names, states_config
     
     def get_transitions(self)->Dict[str,Dict[Tuple[str,str],float]]:
@@ -76,21 +85,20 @@ class Configuration(object):
         In the future we need to figure out format for other types of transitions
         For every type of transition, there better only be one of each pair of (oriented) states 
         """
-        transitions = load_json(self._config_location + "/transitions.json")
-        assert isinstance(transitions,dict), "Transitions should be a dictionary"
-        all_transitions = {}
+        transitions_config = load_json(self.get_config_file_location("transitions.json"))
+        assert isinstance(transitions_config,dict), "Transitions should be a dictionary"
+        transitions = defaultdict(dict)
         #for state_time transitions
-        state_time_transitions = transitions["state_time_transitions"]
+        state_time_transitions = transitions_config["state_time_transitions"]
         for from_state,transition in state_time_transitions.items():
             assert "to_state" in transition.keys() and "time" in transition.keys(), "Invalid transition in state_time_transitions"
             assert transition["to_state"] in self._state_names, "Invalid to_state in state_time_transitions"
-            assert isinstance(transition["time"],int) or isinstance(transition["time"],float), "Time should be a number"
-            assert transition["time"] > 0, "Times should be positive"
-            state_time_transitions[(from_state,transition["to_state"])] = float(transition["time"])
+            typed_time = float(transition["time"])
+            assert typed_time >=0, "Times should be positive"
+            transitions["state_time_transitions"][(from_state,transition["to_state"])] = typed_time
     
-        all_transitions["state_time_transitions"] = state_time_transitions
         ##other transitions will be added here
-        return all_transitions
+        return transitions
     
     
     def change_statetime_transition(self,from_state:str,to_state:str,time:float):
@@ -144,7 +152,8 @@ class Initializer(object):
     def make_outputs(self)->Dict[str,Outputs]:
         state_outputs = {}
         for state_name,outputs in self._config._states_config.items():
-            state_outputs[state_name] = Outputs({self._control_points[point_name]:output_value(point_name,output) for point_name,output in outputs.items()})
+
+            state_outputs[state_name] = Outputs({self._control_points[entry["control_point"]]:output_value(entry["control_point"],entry["value"]) for entry in outputs})
         return state_outputs
     
     def make_states(self)->Dict[str,State]:
@@ -170,7 +179,8 @@ class Initializer(object):
         #They should be in better places but I want to test this.
         #TODO put these where they belong
         print("Checking final assertions")
-        assert self._initial_desired_state in self._states, "Initial state not in known states"
+        print(self._initial_desired_state,self._states.keys())
+        assert self._initial_desired_state.name in list(self._states.keys()), "Initial state not in known states"
         assert "Unknown" in self._states.keys(), "Unknown state must be in known states"
         return True
 
