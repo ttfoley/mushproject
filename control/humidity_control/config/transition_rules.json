@@ -1,5 +1,5 @@
 {
-  "state_timers": {
+  "state_time_transitions": {
     "Off": {"to_state": "HumidOn", "time": "30"},
     "HumidOn": {"to_state": "Humidify", "time": "45"},
     "Humidify": {"to_state": "FanOff", "time": "30"},

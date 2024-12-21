@@ -1,0 +1,184 @@
+import json
+import os
+from typing import Dict, Any,Tuple
+from controller import ControlPoint,State,FSM,Outputs,StateStatus,Transition,SingleTransition,StateTimeConstraint,StateStatus,output_value,transition_rule
+from mqtt_handler import MQTTHandler
+
+def load_json(file_path:str):
+    with open(file_path) as f:
+        return json.load(f)
+
+class Configuration(object):
+    """"
+    Will be run from the main.py, will read the configuration files and set up the control loop.
+    Will have files for States, Outputs, Transitions, and points
+    Design around being able to change transition parameters (state_time, cutoffs..), nothing else should be modified
+    after the control loop start. When transitions params are changed, there should be some sanity check and a return code
+    if it's rejected.  
+    """
+
+    def __init__(self,relative_config_path:str) -> None:
+        #Should just be the relative path to the config file, ./config
+        #note "output" and "control" are synonyms for topics, for reasons
+        self._config_location = relative_config_path
+        self._topics_config = self.get_topics()
+        self._control_point_names,self._control_points_config = self.get_control_points()
+        self._state_names, self._states_config = self.get_states()
+        self._transitions = self.get_transitions()
+
+
+
+    def get_topics(self)->Dict[str,Any]:
+        #Should be a dictionary of topics, with the key being the type of topic from (control,readback,sensor)
+        #and the value being a list of topics (blah/blah/topic_type/topic_name)
+        topics_dict = load_json(self._config_location + "/topics.json")
+
+        for topic_type,topics in topics_dict.items():
+            assert topic_type in ["control","readback","sensor"], "Invalid topic type in topics.json"
+            assert isinstance(topics,list), "values should be a list"
+            for topic in topics:
+                assert topic.split("/")[-2] in ["control","readback","sensor"], "Invalid topic (../topic/var_name) in topics.json"
+        return topics_dict
+    
+    def get_control_points(self)->Tuple[list[str],Dict[str,Any]]:
+        ##Dictionary of point names, with "output" and "readback" keys.
+        ##I guess readbacks shouldn't strictly be necessary, but I'm keeping them for now
+        control_points = load_json(self._config_location + "/control_points.json")
+        point_names = []
+        for point_name,point in control_points.items():
+            point_names.append(point_name)
+            assert isinstance(point,dict), "Control points should be a dictionary"
+            assert "output" in point.keys() and "readback" in point.keys(), "Control points should have output and readback keys"
+            assert point["output"] in self._topics_config["control"], "Invalid output topic in control_points.json"
+            assert point["readback"] in self._topics_config["readback"], "Invalid readback topic in control_points.json"
+        return point_names,control_points
+    
+    def get_states(self)->Tuple[list[str],Dict[str,Any]]:
+        ##Dictionary of states, with the key being the state name, and the value being a dictionary of control points and values
+        ##{"state_name":[{"point_name":"value"}]}
+        states_config = load_json(self._config_location + "/states.json")
+        valid_outputs = ["On","Off"]
+        assert isinstance(states_config,dict), "States should be a dictionary"
+        state_names = []
+        for state_name,output_values in states_config.items():
+            state_names.append(state_name)
+            assert isinstance(output_values,list), "Output values should be a list of [{point_name:value}}]"
+            for point_value in output_values:
+                assert point_value["control_point"] in self._control_point_names, "Invalid control point in states.json"
+                assert point_value["value"] in valid_outputs, "Values should be strings"
+        return state_names, states_config
+    
+    def get_transitions(self)->Dict[str,Dict[Tuple[str,str],float]]:
+        """
+        Dictionary of states.
+        For state time transitions, the key is thestate name(where transition from), and the value being a dictionary of {"to_state":value1,"time":value2} and  and times
+        output should be index by pairs {(from_state,to_state):time} and the value should be the time {}.
+        In the future we need to figure out format for other types of transitions
+        For every type of transition, there better only be one of each pair of (oriented) states 
+        """
+        transitions = load_json(self._config_location + "/transitions.json")
+        assert isinstance(transitions,dict), "Transitions should be a dictionary"
+        all_transitions = {}
+        #for state_time transitions
+        state_time_transitions = transitions["state_time_transitions"]
+        for from_state,transition in state_time_transitions.items():
+            assert "to_state" in transition.keys() and "time" in transition.keys(), "Invalid transition in state_time_transitions"
+            assert transition["to_state"] in self._state_names, "Invalid to_state in state_time_transitions"
+            assert isinstance(transition["time"],int) or isinstance(transition["time"],float), "Time should be a number"
+            assert transition["time"] > 0, "Times should be positive"
+            state_time_transitions[(from_state,transition["to_state"])] = float(transition["time"])
+    
+        all_transitions["state_time_transitions"] = state_time_transitions
+        ##other transitions will be added here
+        return all_transitions
+    
+    
+    def change_statetime_transition(self,from_state:str,to_state:str,time:float):
+        #This should be called carefully! It may trigger a transition when applied, or invalidate an existing transition underway. Bad side effects.
+        #The caller should check the aren't in from_state when calling this
+        #This will be called by the main loop, and will change the time of a transition
+        #It will return a boolean indicating if the change was successful. I can't remember why I'm returning the bool but thought it might be useful
+        time_transitions = self._transitions["state_time_transitions"]
+        existing_pairs = time_transitions.keys()
+        assert (from_state,to_state) in existing_pairs, "Invalid transition, doesn't already exist"
+        assert isinstance(time,int) or isinstance(time,float), "Time should be a number"
+        assert time > 0, "Times should be positive"
+        self._transitions["state_time_transitions"][(from_state,to_state)] = float(time)
+        return True
+    
+    def all_topics(self):
+        #this isn't elegant, just want to test things
+        ##TODO make idiomatic
+        all_topics = []
+        for topic_type in self._topics_config.keys():
+            topics = self._topics_config[topic_type]
+            if len(topics) > 0:
+                all_topics.extend(topics)
+        return all_topics
+
+    
+
+class Initializer(object):
+    """
+    A helper to construct FSM from the Configuration object.
+    Any extra sanity checks not applied in the Configuration object should be done here.
+    I'm trying to prepare for when I have other types of transitions.
+    """
+
+    def __init__(self,config:Configuration,initial_desired_state:str) -> None:
+        self._config = config
+        
+        self._control_points = self.make_control_points()
+        self._outputs = self.make_outputs()
+        self._states = self.make_states()
+        self._initial_desired_state = self._states[initial_desired_state]
+        self._transitions = self.make_transitions()
+
+    def make_control_points(self)->Dict[str,ControlPoint]:
+        control_points = {}
+        for point_name,point in self._config._control_points_config.items():
+            control_points[point_name] = ControlPoint(point_name,point["output"],point["readback"])
+        return control_points
+    
+
+    def make_outputs(self)->Dict[str,Outputs]:
+        state_outputs = {}
+        for state_name,outputs in self._config._states_config.items():
+            state_outputs[state_name] = Outputs({self._control_points[point_name]:output_value(point_name,output) for point_name,output in outputs.items()})
+        return state_outputs
+    
+    def make_states(self)->Dict[str,State]:
+        states = {}
+        for state_name in self._config._state_names:
+            states[state_name] = State(state_name,self._outputs[state_name])
+        return states
+    
+    def make_transitions(self)->Dict[str,Dict[Tuple[State,State],Transition]]:
+        
+        #For now only state_time transitions
+        transitions = {"state_time_transitions":{}}
+        state_time_transitions = self._config._transitions["state_time_transitions"]
+        for (from_state_name,to_state_name),time in state_time_transitions.items():
+            from_state,to_state = self._states[from_state_name],self._states[to_state_name]
+            assert (from_state,to_state) not in transitions["state_time_transitions"].keys(), "Duplicate state time transition!!"
+            transitions["state_time_transitions"][(from_state,to_state)] = SingleTransition(from_state,to_state,[StateTimeConstraint(time)])
+            
+        return transitions
+    
+    def any_final_assertions_sat(self)->bool:
+        #This is a placeholder for any final assertions that should be made before returning the FSM
+        #They should be in better places but I want to test this.
+        #TODO put these where they belong
+        print("Checking final assertions")
+        assert self._initial_desired_state in self._states, "Initial state not in known states"
+        assert "Unknown" in self._states.keys(), "Unknown state must be in known states"
+        return True
+
+
+    def make_fsm(self,mqtt_handler:MQTTHandler)->FSM:
+        assert self.any_final_assertions_sat(), "Final assertions not satisfied"##this is silly, will never be reached
+        return FSM(self._states,self._transitions,self._initial_desired_state,mqtt_handler)
+    
+
+
+  

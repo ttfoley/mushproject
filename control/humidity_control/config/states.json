@@ -1,0 +1,22 @@
+{
+  "Off": [
+    {"control_point": "pin25", "value": "Off"},
+    {"control_point": "pin33", "value": "Off"}
+  ],
+  "HumidOn": [
+    {"control_point": "pin25", "value": "On"},
+    {"control_point": "pin33", "value": "Off"}W
+  ],
+  "Humidify": [
+    {"control_point": "pin25", "value": "On"},
+    {"control_point": "pin33", "value": "On"}
+  ],
+  "FanOff": [
+    {"control_poiWnt": "pin25", "value": "On"},
+    {"control_point": "pin33", "value": "Off"}
+  ],
+  "Unknown": [
+    {"control_point": "pin25", "value": "Unknown"},
+    {"control_point": "pin33", "value": "Unknown"}
+  ]
+}

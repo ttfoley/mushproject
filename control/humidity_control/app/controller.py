@@ -1,7 +1,7 @@
 import paho.mqtt.client as mqtt
 from collections import namedtuple
 from datetime import datetime
-from typing import Tuple, Sequence
+from typing import Tuple, Sequence,Dict
 import time
 
 #value better be ("On","Off","Unknown") 
@@ -159,10 +159,9 @@ class Outputs:
 class State:
     #Every state better have the same control points
     #TODO: Would it better to have an "any" option for control points that don't matter, so we don't have to filter them out?
-    def __init__(self,name,outputs:Outputs,rules:transition_rule):
+    def __init__(self,name,outputs:Outputs):
         self.name = name
         self.outputs = outputs
-        self.rules = rules
 
     def same_outputs(self,other):
         assert isinstance(other,State)
@@ -222,7 +221,7 @@ class StateTimeConstraint(Constraint):
     [gt,lt](greater than,less than) are  the only valid operators for now.
     I don't know if I should require the state it's expecting to be in. Seems better to leave that up to the Transition.
     """
-    def __init__(self,required_time:int,operator:str = "gt"):
+    def __init__(self,required_time:float,operator:str = "gt"):
         assert operator in ["gt","lt"]
         self.operator = operator
         self.required_time = required_time
@@ -251,13 +250,14 @@ class Transition:
     I wanted active to be a property, but I couldn't make it work while keeping Transition abstract.
     TODO A transition may eventually have more than one constraint.
     TODO A transition's constraints will be evaluated based on some joing with logical operators.
+    I think that that current state should be passed in to active
     """
     def __init__(self,from_state:State,to_state:State,constraints:Sequence[Constraint]):
         self.from_state = from_state
         self.to_state = to_state
         self.constraints = constraints
     
-    def active(self)->Tuple[bool,State]:
+    def active(self,current_state:StateStatus)->Tuple[bool,State]:
         ## If not active, return current state(to_state)
         raise NotImplementedError
 
@@ -284,7 +284,7 @@ class FSM:
     #You need an unknown state, and you need to know the initial desired state.
     #States will have rules for when to switch to the next state..
     #READ THIS Current state is StateStatus, desired and previous states are State. This is kind of confusing.  I need better names.
-    def __init__(self, states:dict[str,State],transitions:dict[State,dict[State,SingleTransition]],initial_desired_state:State,mqtt_handler):
+    def __init__(self, states:dict[str,State],transitions:Dict[str,Dict[Tuple[State,State],Transition]],initial_desired_state:State,mqtt_handler):
         self.desired_state = initial_desired_state
         self.mqtt_handler = mqtt_handler
         assert "Unknown" in states.keys()
@@ -379,17 +379,37 @@ class FSM:
                 point.set_requested_state(output)
                 point.publish(self.mqtt_handler,immediately)
 
+    def get_possible_transitions(self,type = "single_state_transitions")->list[Tuple[State,Transition]]:
+        #Return the possible states to transition to.
+        possible_transitions = []
+        for transition_type in self.transitions.keys():
+            for (from_state,to_state),transition in self.transitions[transition_type].items():
+                if from_state == self.current_state.state:
+                    possible_transitions.append((to_state,transition))
+        return possible_transitions
+
     def get_transition_to(self)->State:
         #Return the state to transition to.  If no transition is active, return the current state.
         active_transitions = []
-        for transition in self.transitions[self.current_state.state].values():
+        possible_transitions = self.get_possible_transitions()
+        for to_state,transition in possible_transitions:
+            ##I guess returning new_state is redundant.
+            ##TODO think about whether we should return the transition or the new state.
+            ##TODOShould we make a transition named_tuple? Seems like it would enforce the structure.
             active,new_state = transition.active(self.current_state)
             if active:
                 active_transitions.append(new_state)
         if len(active_transitions) == 1:
             return active_transitions[0]
         elif len(active_transitions) > 1:
-            raise ValueError("More than one active transition")
+            #I think we can do this since we hashed the states
+            if len(set(active_transitions)) == 1:
+                #More than one active transition, but they all go to the same state, hopefully you never see this.
+                return active_transitions[0]
+                
+            else:
+                #Should definitely never see this.
+                raise ValueError("More than one active transition to different states")
         else:
             return self.current_state.state
     
