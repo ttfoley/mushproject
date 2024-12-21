@@ -1,7 +1,8 @@
 import json
 import os
 from typing import Dict, Any,Tuple
-from controller import ControlPoint,State,FSM,Outputs,StateStatus,Transition,SingleTransition,StateTimeConstraint,StateStatus,output_value,statetime_transition_rule
+#The fact that I'm importing so many separate things seems like a bad smell.
+from controller import ControlPoint,State,FSM,Outputs,Transition,SingleTransition,StateTimeConstraint,StateOutputs
 from mqtt_handler import MQTTHandler
 from collections import defaultdict
 
@@ -60,7 +61,7 @@ class Configuration(object):
             assert point["readback"] in self._topics_config["readback"], "Invalid readback topic in control_points.json"
         return point_names,control_points
     
-    def get_states(self)->Tuple[list[str],Dict[str,Any]]:
+    def get_states(self)->Tuple[list[str],Dict[str,list[Dict[str,str]]]]:
         ##Dictionary of states, with the key being the state name, and the value being a dictionary of control points and values
         ##{"state_name":[{"point_name":"value"}]}
         states_config = load_json(self.get_config_file_location("states.json"))
@@ -77,9 +78,9 @@ class Configuration(object):
                 assert point_value["value"] in valid_outputs, "Values should be in ['On','Off','Unknown']"
         return state_names, states_config
     
-    def get_transitions(self)->Dict[str,Dict[Tuple[str,str],float]]:
+    def get_transitions(self)->Dict[str,Dict[Tuple[str,str],Any]]:
         """
-        Dictionary of states.
+        #TODO Generalize this past state_time transitions.
         For state time transitions, the key is thestate name(where transition from), and the value being a dictionary of {"to_state":value1,"time":value2} and  and times
         output should be index by pairs {(from_state,to_state):time} and the value should be the time {}.
         In the future we need to figure out format for other types of transitions
@@ -135,13 +136,17 @@ class Initializer(object):
 
     def __init__(self,config:Configuration,initial_desired_state:str) -> None:
         self._config = config
-        
         self._control_points = self.make_control_points()
-        self._outputs = self.make_outputs()
+        self._state_outputs = self.make_state_outputs()
+        self._live_outputs = self.make_live_outputs()
         self._states = self.make_states()
         self._initial_desired_state = self._states[initial_desired_state]
         self._transitions = self.make_transitions()
 
+    @property
+    def control_points(self):
+        return [self._control_points[point_name] for point_name in sorted(self._config._control_point_names)]
+    
     def make_control_points(self)->Dict[str,ControlPoint]:
         control_points = {}
         for point_name,point in self._config._control_points_config.items():
@@ -149,17 +154,20 @@ class Initializer(object):
         return control_points
     
 
-    def make_outputs(self)->Dict[str,Outputs]:
+    def make_state_outputs(self)->Dict[str,StateOutputs]:
         state_outputs = {}
         for state_name,outputs in self._config._states_config.items():
-
-            state_outputs[state_name] = Outputs({self._control_points[entry["control_point"]]:output_value(entry["control_point"],entry["value"]) for entry in outputs})
+            outputs_values = {op["control_point"]:op["value"] for op in outputs}
+            state_outputs[state_name] = StateOutputs(outputs_values,self.control_points)
         return state_outputs
     
+    def make_live_outputs(self):
+        return Outputs(self.control_points)
+
     def make_states(self)->Dict[str,State]:
         states = {}
         for state_name in self._config._state_names:
-            states[state_name] = State(state_name,self._outputs[state_name])
+            states[state_name] = State(state_name,self._state_outputs[state_name])
         return states
     
     def make_transitions(self)->Dict[str,Dict[Tuple[State,State],Transition]]:
@@ -187,7 +195,7 @@ class Initializer(object):
 
     def make_fsm(self,mqtt_handler:MQTTHandler)->FSM:
         assert self.any_final_assertions_sat(), "Final assertions not satisfied"##this is silly, will never be reached
-        return FSM(self._states,self._transitions,self._initial_desired_state,mqtt_handler)
+        return FSM(self.control_points,self._states,self._transitions,self._initial_desired_state,mqtt_handler)
     
 
 

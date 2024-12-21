@@ -6,9 +6,9 @@ import time
 
 #value better be ("On","Off","Unknown") 
 #TODO: maybe this should be a class so we can do type checking and easier comparisons use __eq__ and __ne__?
-output_value = namedtuple("output_value",["point_name","value"])
 statetime_transition_rule = namedtuple("transition_rule",["rule_name","from_state","to_state","required_time"])
-
+VALID_OUTPUT_STATES = ["On","Off","Unknown"]
+VALID_STATETIME_TRANSITION_COMPARATORS = ["gt","lt","eq"]
 
 """
 Here we'll build controller class to handle writing and reading from output using MQTT and keeping trace of state and times. Maybe
@@ -19,13 +19,13 @@ class ControlPoint:
     """
     Right now this does not verify its state with readback.  It's just a container for the state. I want control points to have a liveness/staleness, but
     I don't know if this is the best place to do it.  Something like a separate health monitor class?
+    I made some stuff properties because I want to protect them, but I should be even more careful probably.
     """
     def __init__(self, name, write_point, readback_point,republish_frequency_match = 60,republish_frequency_mismatch = 5):
-        self.name = name
-        self.write_point = write_point
-        self.readback_point = readback_point
-        self.state = "Unknown"
-        self.output_value = output_value(self.name,self.state)
+        self._name = name
+        self._write_point = write_point
+        self._readback_point = readback_point
+        self._state = "Unknown"
         self.requested_state = None
         self.time_start_state = datetime.now()
         self.time_last_published = datetime.now()
@@ -36,10 +36,21 @@ class ControlPoint:
     def set_known_state(self, state):
         #This should only be used if you know the state from readback.
         #If state changed, restart the timer
-        if self.state != state:
+        if self._state != state:
             self.time_start_state = datetime.now()
-        self.state = state
-        self.output_value = output_value(self.name,self.state)
+        self._state = state
+    
+    @property
+    def status(self)->dict[str,str]:
+        return {"point_name":self._name,"value":self._state}
+    
+    @property
+    def state(self):
+        return self._state
+    
+    @property
+    def name(self):
+        return self._name
 
     def time_in_state(self):
         return (datetime.now() - self.time_start_state).total_seconds()
@@ -47,23 +58,23 @@ class ControlPoint:
     def time_since_last_published(self):
         return (datetime.now() - self.time_last_published).total_seconds()    
 
-    def set_requested_state(self, state:output_value):
-        assert state.value in ["On","Off"]
-        self.requested_state = state.value
+    def set_requested_state(self, state:str):
+        assert state in ["On","Off"]
+        self.requested_state = state
 
     def publish_requested_state(self, mqtt_handler):
         #Setting this at beginning so we don't spam mqtt channel.
         self.time_last_published = datetime.now()
         if self.requested_state == "On":
-            mqtt_handler.publish(self.write_point, "on")
+            mqtt_handler.publish(self._write_point, "on")
         elif self.requested_state == "Off":
-            mqtt_handler.publish(self.write_point, "off")
+            mqtt_handler.publish(self._write_point, "off")
         else:
             raise ValueError("Requested state must be On or Off")
         
     def publish(self,mqtt_handler,immediately=False):
-        assert self.state in ["On","Off","Unknown"]
-        if self.state != self.requested_state:
+        assert self._state in ["On","Off","Unknown"]
+        if self._state != self.requested_state:
             if immediately:
                 self.publish_requested_state(mqtt_handler)
             elif self.time_since_last_published() > self.republish_frequency_mismatch:
@@ -76,47 +87,83 @@ class ControlPoint:
         #This is obviously not good enough, but it's a start.
         if not isinstance(other, ControlPoint):
             return False
-        return self.name == other.name
+        return (self._name == other._name) and (self._state == other._state)
 
     def __hash__(self):
-        return hash(self.name)
+        return hash(self._name)
     
     def __repr__(self) -> str:
-        return f"ControlPoint {self.name}, state: {self.state}, requested_state: {self.requested_state}"
+        return f"ControlPoint {self._name}, state: {self._state}, requested_state: {self.requested_state}"
 
+
+class StateOutputs(object):
+    """Just a basic immutable type to define the outputs of a state.  This is just a dictionary of control points and their states."""
+    def __init__(self,outputs:dict[str,str],control_points:Sequence[ControlPoint]):
+        self.outputs = self.validated_outputs(outputs,control_points)
+
+    def validated_outputs(self,outputs:dict[str,str],control_points:Sequence[ControlPoint])->dict[str,str]:
+        #Make sure the outputs are valid
+        available_cps = [cp.name for cp in control_points]
+        for key,value in outputs.items():
+            assert key in available_cps, f"Invalid control point {key}, doesn't exist in control points"
+            assert value in VALID_OUTPUT_STATES, f"Invalid state for control point {key}:{value}"
+        return outputs
+    
+
+
+    def __eq__(self, other):
+        if not isinstance(other, StateOutputs):
+            return False
+        return self.outputs == other.outputs
+
+class State:
+    #Every state better have the same control points
+    #TODO: Would it better to have an "any" option for control points that don't matter, so we don't have to filter them out?
+    def __init__(self,name,outputs:StateOutputs):
+        self.name = name
+        self.outputs = outputs
 
 class Outputs:
     """
-    To keep track of groups of outputs.  Used for defining states. Methods for equality and comparison.
-    Include "Unknown" as a valid control point state.  Able to update, as this will track the live output values as determined by readback.
+    To keep track of groups of outputs.  Methods for equality and comparison.
+    Include "Unknown" as a valid control point state. 
     Valid value of outputs are "On","Off","Unknown"
     #TODO: I don't like that this is a named_tuple.  I don't like that I have to use output_value to keep the name and value together. 
+    #Note that the control points are sorted by name.  This is to make sure that the hash is consistent.
+    #There should be no way to change the values of control points from here, but they should be kept live by the mqtt_handler.
     ## It seems redundant
     """
-    def __init__(self,outputs_values:dict[ControlPoint,output_value]):
-        self.control_points = outputs_values.keys()
-        self.outputs = self.sort_and_validate(outputs_values)
-        self.is_unknown = self.any_unknown()
+    def __init__(self,control_points:list[ControlPoint]):
+        self._control_points = self.sort_and_validate(control_points)
+        self.lookup = {cp._name:cp for cp in control_points}
 
-    def sort_and_validate(self,outputs_values:dict[ControlPoint,output_value])->dict[ControlPoint,output_value]:
-        #Sort the outputs by control point name. Python now preserves dictionary order. It shouldn't matter but thought it would make testing easier.
 
-        sorted_outputs_values = dict(sorted(outputs_values.items(), key=lambda item: item[0].name))
-        #Check that all the outputs are valid values
-        for _,output_value in outputs_values.items():
-
-            if output_value.value not in ["On","Off","Unknown"]:
-                raise ValueError(f"Invalid output value {output_value.value}")
-
-        return sorted_outputs_values
+    @property
+    def point_names(self):
+        return [cp._name for cp in self._control_points]
     
-    def update_single_output(self,control_point:ControlPoint,output_value:output_value):
-        assert control_point in self.outputs.keys()
-        assert output_value.value in ["On","Off","Unknown"]
-        self.outputs[control_point] = output_value
+    @property
+    def outputs(self):
+        return {cp:cp._state for cp in self._control_points}  
+      
+    @property
+    def outputs_str(self):
+        return {cp._name:cp._state for cp in self._control_points}
 
-    def any_unknown(self):
-        return any([output_value.value == "Unknown" for output_value in self.outputs.values()])
+    @property
+    def is_unknown(self):
+        return any([cp.state == "Unknown" for cp in self._control_points])
+
+    def sort_and_validate(self,control_points:list[ControlPoint])->list[ControlPoint]:
+        #Make sure the outputs are valid
+        for cp in control_points:
+            assert cp.state in ["On","Off","Unknown"], f"Invalid state for control point {cp.name}:{cp.state}"
+        #Sort the outputs by name
+        return sorted(control_points,key = lambda x: x._name)
+    
+    def match_state_output(self,state:State)->bool:
+        #Check if the state outputs match the outputs of the actual.
+        return state.outputs == self.outputs_str
 
     def __eq__(self, other):
         """To compare two Outputs, they must have the same control points and the same values for each control point.
@@ -125,24 +172,25 @@ class Outputs:
         if not isinstance(other, Outputs):
             return False
         
-        if len(self.outputs) != len(other.outputs):
+        if len(self._control_points) != len(other._control_points):
             print("Different number of outputs")
             return False
         
-        elif self.outputs.keys() != other.outputs.keys():
+        elif self.point_names != other.point_names:
             print("Different control points")
             return False
 
-        elif self.any_unknown():
+        elif self.is_unknown:
             #This is comparing two unknown states, which is always true.
-            if other.any_unknown():
+            if other.is_unknown:
                 return True
+            #If I'm unknown, and the other isn't, then they're not equal.
             else:
                 return False
 
         else:
-            for key in self.outputs.keys():
-                if self.outputs[key] != other.outputs[key]:
+            for point_name in self.point_names:
+                if self.outputs[point_name] != other.outputs[point_name]:
                     return False
             return True
         
@@ -151,11 +199,11 @@ class Outputs:
         
     def __hash__(self):
         #This is ugly, one example of why I want to get rid of type named_tuple
-        point_names = sorted([point.name for point in self.outputs.keys()])
+        point_names = sorted([point._name for point in self.outputs.keys()])
         output_values = []
         for point in point_names:
             for key in self.outputs.keys():
-                if key.name == point:
+                if key._name == point:
                     output_values.append(self.outputs[key])
         hashed = ""
         for point_name,output_value in zip(point_names,output_values):
@@ -163,22 +211,6 @@ class Outputs:
         hashed = hashed[:-1]
 
         return hash(hashed)
-
-
-
-class State:
-    #Every state better have the same control points
-    #TODO: Would it better to have an "any" option for control points that don't matter, so we don't have to filter them out?
-    def __init__(self,name,outputs:Outputs):
-        self.name = name
-        self.outputs = outputs
-
-    def same_outputs(self,other):
-        assert isinstance(other,State)
-        return self.outputs == other.outputs
-    
-
-
 
 
 
@@ -198,7 +230,6 @@ class StateStatus(object):
         self.time_started = datetime.now()
 
 
-
     @property
     def time_in_state(self):
         return (datetime.now() - self.time_started).total_seconds()
@@ -211,7 +242,8 @@ class StateStatus(object):
         return self.state == other
     
     def __repr__(self) -> str:
-        pass
+        #this probably isn't the best repr since the time object might have a lot of digits.
+        return f"In state {self.state.name} from {self.time_started}"
 
 
 class Constraint:
@@ -238,7 +270,7 @@ class StateTimeConstraint(Constraint):
     required_time in seconds.
     """
     def __init__(self,required_time:float,operator:str = "gt"):
-        assert operator in ["gt","lt"]
+        assert operator in VALID_STATETIME_TRANSITION_COMPARATORS
         self.operator = operator
         self.required_time = required_time
 
@@ -250,6 +282,10 @@ class StateTimeConstraint(Constraint):
             return False
         elif self.operator == "lt":    
             if time_in_state < self.required_time:
+                return True
+            return False
+        elif self.operator == "eq":    
+            if time_in_state == self.required_time:
                 return True
             return False
         else:
@@ -305,26 +341,29 @@ class FSM:
     #A FSM for controlling the humidity.
     #You need an unknown state, and you need to know the initial desired state.
     #States will have rules for when to switch to the next state..
+    #Note that control point state and thus outputs is updated by the mqtt_handler. 
     #READ THIS Current state is StateStatus, desired and previous states are State. This is kind of confusing.  I need better names.
-    def __init__(self, states:dict[str,State],transitions:Dict[str,Dict[Tuple[State,State],Transition]],initial_desired_state:State,mqtt_handler):
+    def __init__(self,control_points:list[ControlPoint], states:dict[str,State],transitions:Dict[str,Dict[Tuple[State,State],Transition]],initial_desired_state:State,mqtt_handler):
         self.desired_state = initial_desired_state
         self.mqtt_handler = mqtt_handler
         assert "Unknown" in states.keys()
         self.states = states
         self.transitions = transitions
+        self.control_points = control_points
+        self.outputs = self.initialize_outputs()
         ###maybe current state should be passed in the general case?
         self.current_state = StateStatus(states["Unknown"])
-        ##TODO I don't like this. We shouldn't have to do this and we're oversubscribing to topics for the time being.
-        self.control_points = self.get_relevant_points()
-        #This is the state of the outputs as determined by readback. I guess I could try to fetch known states from the start...
-        self.outputs_state = self.initialize_outputs_unknown()
         self.previous_state = self.states["Unknown"]
         self.desired_state =  initial_desired_state
           
+
+    def initialize_outputs(self)->Outputs:
+        #We don't know in the very beginning what the outputs are.
+        return Outputs(self.control_points)
+    
     def update_state(self)->bool:
-        #This compares against readbacks.
+        #Outputs are updated by the mqtt_handler.  This just updates the current state.
         #Since we start in unknown, it will think we're in unknown for some nonzero amount of time regardless
-        self.update_outputs_state()
         self.previous_state = self.current_state.state
         new_state = self.get_validated_state()
         if new_state != self.current_state.state:
@@ -332,22 +371,17 @@ class FSM:
             return True
         else:
             return False
-
-    def update_outputs_state(self):
-        #Look up the current state of the outputs and update the outputs_state
-        for control_point in self.outputs_state.control_points:
-            #I don't like using output_value here, or anywhere really. But I guess it never lets us separate the name from the value.
-            current_output = output_value(control_point.name,control_point.state)
-            self.outputs_state.update_single_output(control_point,current_output)
-
+    @property
+    def control_point_lookup(self):
+        return {cp._name:cp for cp in self.control_points}
 
     def get_compatible_states(self)->Tuple[bool,list[State]]:
         #bool indicates if any were found
         # Returns a list of states that have the same outputs as the current outputs.
-        compatible_states = []
         found = False
-        for state in self.states.values():
-            if state.outputs == self.outputs_state:
+        compatible_states = []
+        for _,state in self.states.items():
+            if self.outputs.match_state_output(state):
                 found = True
                 compatible_states.append(state)
         return found, compatible_states
@@ -385,7 +419,7 @@ class FSM:
         else:
             #This shouldn't be possible.
             print("Something really weird happened, here are the outputs.")
-            print([f"{cp.name}:{cp.state}" for cp in self.outputs_state.control_points])
+            print([f"{cp._name}:{cp._state}" for cp in self.control_points])
             print("The compatible states were: ",[s.name for s in compatible_states])
             raise ValueError("Something went wrong in get_validated_state")
         
@@ -400,12 +434,14 @@ class FSM:
     def write_desired_state(self,immediately=False):
         #If the desired state is different from the current state, write the state.
         if not self.in_desired_state():
-            for point,output in self.desired_state.outputs.outputs.items():
-                point.set_requested_state(output)
-                point.publish(self.mqtt_handler,immediately)
+            for point,output_value in self.desired_state.outputs.outputs.items():
+                live_point = self.control_point_lookup[point]
+                live_point.set_requested_state(output_value)
+                live_point.publish(self.mqtt_handler,immediately)
 
-    def get_possible_transitions(self,type = "single_state_transitions")->list[Tuple[State,Transition]]:
+    def get_possible_transitions(self)->list[Tuple[State,Transition]]:
         #Return the possible states to transition to.
+        #TODO
         possible_transitions = []
         for transition_type in self.transitions.keys():
             for (from_state,to_state),transition in self.transitions[transition_type].items():
@@ -451,14 +487,6 @@ class FSM:
         else:
             #I'm not sure exactly where the logic should be for being in limbo for too long should be.
             return False
-
-    def initialize_outputs_unknown(self):
-        #We don't know in the very beginning what the outputs are.
-        return Outputs({cp:output_value(cp.name,"Unknown") for cp in self.control_points})
-
-    def get_relevant_points(self):
-        #The relevant points should be the same for any state.  
-        return [control_point for control_point in self.current_state.state.outputs.control_points]
 
     def print_update(self):
         print(self.current_state.state.name,self.desired_state.name,self.current_state.time_in_state)
