@@ -135,7 +135,7 @@ void loop() {
       
       //For DHT22
       dht_humidity = dht.readHumidity();
-      dht_temperature = celsiusToFahrenheit(sht.readTemperature());
+      dht_temperature = celsiusToFahrenheit(dht.readTemperature());
       Serial.print("DHT Humidity: ");
       dtostrf(dht_humidity, 1, 2, printString);
       Serial.print(printString);
