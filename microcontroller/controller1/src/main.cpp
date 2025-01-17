@@ -8,6 +8,7 @@
 #include "PubSubClient.h"
 #include <SensirionCore.h>
 #include "SparkFun_SCD4x_Arduino_Library.h"
+#include <DHT.h>
 
 #define WIFI_SSID SECRET_WIFI_SSID
 #define WIFI_PASSWORD SECRET_WIFI_PWD
@@ -18,6 +19,10 @@ SCD4x SCD41;
 bool enableHeater = false;
 Adafruit_SHT31 sht = Adafruit_SHT31();
 
+#define DHTPIN 4
+#define DHTTYPE DHT22
+DHT dht(DHTPIN, DHTTYPE);
+
 // MQTT
 const char* mqtt_server = "192.168.1.17";  // IP of the MQTT broker
 const char* sht_humidity_topic = "mush/controller1/sht/humidity";
@@ -25,6 +30,8 @@ const char* sht_temperature_topic = "mush/controller1/sht/temperature";
 const char* scd_humidity_topic = "mush/controller1/scd/humidity";
 const char* scd_temperature_topic = "mush/controller1/scd/temperature";
 const char* scd_co2_topic = "mush/controller1/scd/co2";
+const char* dht_humidity_topic = "mush/controller1/dht/humidity";
+const char* dht_temperature_topic = "mush/controller1/dht/temperature";
 const char* mqtt_username = "ttfoley"; // MQTT username
 const char* mqtt_password = "password"; // MQTT password
 const char* clientID = "controller1"; // MQTT client ID
@@ -54,6 +61,7 @@ void setup() {
   Wire.begin();
   WiFi.mode(WIFI_STA);
   sht.begin(SHT_ADDR);
+  dht.begin();
   delay(2000);
   if (! sht.begin(SHT_ADDR)) 
   {   
@@ -75,6 +83,8 @@ void loop() {
   static unsigned long chrono;  // For timing in states (static means only initialized once?)
   static float sht_temperature;
   static float sht_humidity;
+  static float dht_temperature;
+  static float dht_humidity;
   static float scd_temperature;
   static float scd_humidity;
   static float scd_co2;
@@ -91,6 +101,7 @@ void loop() {
     case WIFI_CONNECT:
       Serial.println("State: WIFI_CONNECT");
       connect_WiFi();
+      delay(10000);
       if (WiFi.status() == WL_CONNECTED) 
       {
         state = READ_SENSORS;
@@ -121,6 +132,18 @@ void loop() {
       dtostrf(sht_temperature, 1, 2, printString);
       Serial.print(printString);
       Serial.print("\n");
+      
+      //For DHT22
+      dht_humidity = dht.readHumidity();
+      dht_temperature = celsiusToFahrenheit(dht.readTemperature());
+      Serial.print("DHT Humidity: ");
+      dtostrf(dht_humidity, 1, 2, printString);
+      Serial.print(printString);
+      Serial.print("\tDHT Temperature(F): ");
+      dtostrf(dht_temperature, 1, 2, printString);
+      Serial.print(printString);
+      Serial.print("\n");
+
       if (SCD41.readMeasurement()) // readMeasurement will return true when fresh data is available
       {
         scd_temperature = celsiusToFahrenheit(SCD41.getTemperature());
@@ -189,6 +212,17 @@ void loop() {
       if (client.publish(sht_humidity_topic, tempString)) 
       {
         Serial.println("SHT Humidity sent!");
+      }
+
+      dtostrf(dht_temperature, 1, 2, tempString);
+      if (client.publish(dht_temperature_topic, tempString)) 
+      {
+        Serial.println("DHT Temperature sent!");
+      }
+      dtostrf(dht_humidity, 1, 2, tempString);
+      if (client.publish(dht_humidity_topic, tempString)) 
+      {
+        Serial.println("DHT Humidity sent!");
       }
 
       dtostrf(scd_humidity, 1, 2, tempString);
