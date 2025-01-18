@@ -57,9 +57,9 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length);
 void SubscribeMQTT(PinControl pinControls[], size_t numPins);
 void write_delay(String content, PinControl& pinControl, int delay_time = 10);
 
-enum State {START, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, RESTART};
+enum State {START, WAIT, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, RESTART};
 State state = START;
-
+#define WAIT_WAIT 10
 #define WIFI_WAIT 10000
 #define MQTT_WAIT 10000
 
@@ -99,6 +99,22 @@ void loop() {
       Serial.println("State: START");
       state = WIFI_CONNECT;
       chrono = millis();//This starts timer for wifi connection attempt, it's like a transition actions in statecharts
+      break;
+
+    case WAIT:
+      //Serial.println("State: WAIT");
+      if (WiFi.status() != WL_CONNECTED) 
+      {
+        state = WIFI_CONNECT;
+      }
+      else if (!client.connected()) 
+      {
+        state = MQTT_CONNECT;
+      }
+      else 
+      {
+        state = MQTT_PUBLISH;
+      }
       break;
 
     case WIFI_CONNECT:
@@ -159,7 +175,7 @@ void loop() {
           {
             Serial.println(tempString);
             Serial.println("Sent!");
-            pinControl.setLastEqual();
+            pinControl.setLastEqual(); //If successful, update last to be current, so it doesn't trigger another publish.
             /*
              * If it succeeds, we'll update readback_last to be current. Note that in the meantime a new value could have been sent from MQTT,
              * meaning we'll miss this value by the next loop. PubSubClient doesn't keep a queue of messages, so unsent values are lost.
@@ -171,7 +187,7 @@ void loop() {
       }
       
       chrono = millis();
-      WIFI_CONNECT;
+      state = WAIT;
       break;
 
 
@@ -224,8 +240,7 @@ void SubscribeMQTT(PinControl pinControls[], size_t numPins){
 
 /*
  * This takes action! write delay is called if matching topic is found, it write_delay is called, writing to the point and updating readback.
- * 
-*/ 
+ */ 
 void mqtt_callback(char *topic, byte *payload, unsigned int length)
 {
     Serial.print("Received on ");
