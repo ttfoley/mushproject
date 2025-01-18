@@ -13,9 +13,6 @@
 
 
 const int ledPin = 4;
-
-
-
 const int pin_26 = 26;
 const int pin_25 = 25;
 const int pin_33 = 33;
@@ -34,8 +31,6 @@ PinControl pinControls[] = {
 //I wish I passed pinControls to things like subscribeMQTT, but it looks like I need to add a whole new library to do that to get sizeof pinControls.
 
 const size_t numPins = sizeof(pinControls) / sizeof(pinControls[0]);
-
-
 
 // MQTT
 const char* mqtt_server = "192.168.1.17";  // IP of the MQTT broker
@@ -167,8 +162,8 @@ void loop() {
     case MQTT_PUBLISH: 
 
 
-      Serial.println("State: MQTT_PUBLISH");
-      for (auto& pinControl : pinControls) {
+      //Serial.println("State: MQTT_PUBLISH");
+      for (auto& pinControl : pinControls){
         if (pinControl.rb != pinControl.rb_last) {
           dtostrf(pinControl.rb, 1, 2, tempString);
           if (client.publish(pinControl.readback_topic, tempString)) 
@@ -176,6 +171,7 @@ void loop() {
             Serial.println(tempString);
             Serial.println("Sent!");
             pinControl.setLastEqual(); //If successful, update last to be current, so it doesn't trigger another publish.
+
             /*
              * If it succeeds, we'll update readback_last to be current. Note that in the meantime a new value could have been sent from MQTT,
              * meaning we'll miss this value by the next loop. PubSubClient doesn't keep a queue of messages, so unsent values are lost.
@@ -186,6 +182,8 @@ void loop() {
         }
       }
       
+
+
       chrono = millis();
       state = WAIT;
       break;
