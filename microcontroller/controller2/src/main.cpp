@@ -142,15 +142,17 @@ void loop() {
       */
      //Note this has a side effect: If publish  succeeds, we'll update readback_last to be current. This is probably not optimal.
       Serial.println("State: MQTT_PUBLISH");
-      for (const auto& pinControl : pinControls) {
+      for (auto& pinControl : pinControls) {
         if (pinControl.rb != pinControl.rb_last) {
           dtostrf(pinControl.rb, 1, 2, tempString);
           if (client.publish(pinControl.readback_topic, tempString)) 
           {
             Serial.println(tempString);
             Serial.println("Sent!");
-            pinControl.setlastEqual();
-            //If it succeeds, we'll update readback_last to be current.
+            pinControl.setLastEqual();
+            //If it succeeds, we'll update readback_last to be current. Note that in the meantime a new value could have been sent from mqtt
+            //Meaning we'll miss this value by the next loop. PubSubClient doesn't keep a queue of messages, so unsent values are lost.
+            //But it's very unlikely we'll receive new value in the meantime if the client is failing to publish.
           }
         }
       }
@@ -196,7 +198,7 @@ void connect_MQTT() {
   } else {
     Serial.print("failed, rc=");
     Serial.print(client.state());
-    delay(2000); //delays oh here because we can't possible receive message
+    delay(2000); //delays ok here because we can't possible receive message if client is borken
   }
 }
 
@@ -232,7 +234,7 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
     {
         if (str_output_topic == pinControl.output_topic)
         {
-            write_delay(content, pinControl.pin);
+            write_delay(content, pinControl);
             topic_found = true;
             break;
         }
@@ -245,8 +247,10 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
 }
 
 
-void write_delay(String content, PinControl& pinControl, int delay_time = 10)
+void write_delay(String content, PinControl& pinControl, int delay_time)
 // This writes to pin (HIGH, LOW) and sets readback to (1, 0) depending on the content.
+//The delay time was to give the give relay time to switch before we read back the value,
+// but it really doesn't matter since we're not reading a physically manifested value, only a bad proxy.
 {
   if (content == "on") 
   {

@@ -19,9 +19,10 @@ struct PinControl {
         }
     }
 
-    void setlastEqual() {
-            rb_last = rb;
+    void setLastEqual() {
+        rb_last = rb;
     }
+
 
 };
 
