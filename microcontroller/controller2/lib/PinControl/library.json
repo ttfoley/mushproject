@@ -1,0 +1,12 @@
+{
+    "name": "PinControl",
+    "version": "1.0.0",
+    "description": "A library for controlling pins with MQTT",
+    "authors": [
+      {
+        "name": "Your Name",
+        "email": "your.email@example.com"
+      }
+    ],
+    "license": "MIT"
+  }

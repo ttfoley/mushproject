@@ -6,7 +6,7 @@
 #include "PubSubClient.h"
 #include <SensirionCore.h>
 #include "SparkFun_SCD4x_Arduino_Library.h"
-
+#include <pincontrol.h>
 
 #define WIFI_SSID SECRET_WIFI_SSID
 #define WIFI_PASSWORD SECRET_WIFI_PWD
@@ -16,25 +16,24 @@ const int ledPin = 4;
 
 // readbacks for the pins. when controller comes on, they start low. Only change if sent from mqtt.
 //Floats for now because topic parsing in telegraf sucks.
-float ledPin_rb = 0.0;
-float pin26_rb = 0.0;
-float pin25_rb = 0.0;
-float pin33_rb = 0.0;
-float pin32_rb = 0.0; 
+
+const int pin_26 = 26;
+const int pin_25 = 25;
+const int pin_33 = 33;
+const int pin_32 = 32;
+
+// Create instances of PinControl
+PinControl pinControls[] = {
+    PinControl(ledPin, 0.0,-2.0, "led",  "mush/controller2/readback/led1", "mush/controller2/control/led1"),
+    PinControl(26, 0.0,-2.0,"pin26", "mush/controller2/readback/pin26", "mush/controller2/control/pin26"),
+    PinControl(25, 0.0,-2.0,"pin25", "mush/controller2/readback/pin25", "mush/controller2/control/pin25"),
+    PinControl(33, 0.0,-2.0,"pin33", "mush/controller2/readback/pin33", "mush/controller2/control/pin33"),
+    PinControl(32, 0.0,-2.0,"pin32", "mush/controller2/readback/pin32", "mush/controller2/control/pin32")
+};
 
 // MQTT
 const char* mqtt_server = "192.168.1.17";  // IP of the MQTT broker
 
-const char* led1_output_topic = "mush/controller2/control/led1";
-const char* pin26_output_topic = "mush/controller2/control/pin26";
-const char* pin25_output_topic = "mush/controller2/control/pin25";
-const char* pin33_output_topic = "mush/controller2/control/pin33";
-const char* pin32_output_topic = "mush/controller2/control/pin32";
-const char* led1_readback_topic = "mush/controller2/readback/led1";
-const char* pin26_readback_topic = "mush/controller2/readback/pin26";
-const char* pin25_readback_topic = "mush/controller2/readback/pin25";
-const char* pin33_readback_topic = "mush/controller2/readback/pin33";
-const char* pin32_readback_topic = "mush/controller2/readback/pin32";
 
 
 const char* mqtt_username = "ttfoley"; // MQTT username
@@ -51,9 +50,9 @@ void connect_WiFi();
 void mqtt_callback(char *topic, byte *payload, unsigned int length);
 void SuscribeMqtt();
 float celsiusToFahrenheit(float celsius);
-void write_delay(String content, int write_pin, float& readback, int delay_time=25);
+void write_delay(String content, PinControl& pinControl, int delay_time = 10);
 
-enum State {START, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, READ_SENSORS, WAIT, RESTART};
+enum State {START, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, RESTART};
 State state = START;
 #define DEFAULT_WAIT 1000
 #define WAIT_WAIT 5000
@@ -67,11 +66,9 @@ void setup() {
   Serial.println("Hello from the setup");
   Serial.println("Connected");
   Serial.setTimeout(2000);
-  pinMode(ledPin, OUTPUT);
-  pinMode(26, OUTPUT);
-  pinMode(25, OUTPUT);
-  pinMode(33, OUTPUT);
-  pinMode(32, OUTPUT);
+  for (const auto& pinControl : pinControls) {
+      pinMode(pinControl.pin, OUTPUT);
+  }
   delay(2000);
 
   //MQTT setup
@@ -101,7 +98,7 @@ void loop() {
       connect_WiFi();
       if (WiFi.status() == WL_CONNECTED) 
       {
-        state = READ_SENSORS;
+        state = MQTT_CONNECT;
         chrono = millis();
       }
       else if (millis() - chrono > WIFI_WAIT) //We've tried too many times, restarted the board
@@ -114,30 +111,12 @@ void loop() {
       }
       break;
 
-    case READ_SENSORS: 
-    /*
-    TODO: Make functions for the different sensors. 
-    */
-      if (true) // readMeasurement will return true when fresh data is available
-      {
-        Serial.println("State: READ_SENSORS");
-        state = MQTT_CONNECT;
-        chrono = millis();
-      }
-      else
-      {
-        Serial.print(F("Measurement not ready\n"));
-        state = WAIT; // We'll try again in a bit
-        delay(250); //just so we don't cycle wait-read too fast
-      }    
-
-      break;
 
     case MQTT_CONNECT:
       Serial.println("State: MQTT_CONNECT");
       if (client.connected())
       {
-        SuscribeMqtt();
+
         state = MQTT_PUBLISH;
         chrono = millis();
       }
@@ -161,51 +140,25 @@ void loop() {
       /*
       If we made it here we were connected like 0.00001 seconds ago, not checking again
       */
+     //Note this has a side effect: If publish  succeeds, we'll update readback_last to be current. This is probably not optimal.
       Serial.println("State: MQTT_PUBLISH");
-
-      dtostrf(ledPin_rb, 1, 2, tempString);
-      if (client.publish(led1_readback_topic, tempString)) 
-      {
-        Serial.println(tempString);
-        Serial.println("LED RB sent!");
+      for (const auto& pinControl : pinControls) {
+        if (pinControl.rb != pinControl.rb_last) {
+          dtostrf(pinControl.rb, 1, 2, tempString);
+          if (client.publish(pinControl.readback_topic, tempString)) 
+          {
+            Serial.println(tempString);
+            Serial.println("Sent!");
+            pinControl.setlastEqual();
+            //If it succeeds, we'll update readback_last to be current.
+          }
+        }
       }
-
-      dtostrf(pin25_rb, 1, 2, tempString);
-      if (client.publish(pin25_readback_topic, tempString)) 
-      {
-        Serial.println("Pin25 RB sent!");
-      }
-
-      dtostrf(pin26_rb, 1, 2, tempString);
-      if (client.publish(pin26_readback_topic, tempString)) 
-      {
-        Serial.println("Pin26 RB sent!");
-      }
-      dtostrf(pin33_rb, 1, 2, tempString);  
-      if (client.publish(pin33_readback_topic, tempString)) 
-      {
-        Serial.println("Pin33 RB sent!");
-      }
-      dtostrf(pin32_rb, 1, 2, tempString);
-      if (client.publish(pin32_readback_topic, tempString)) 
-      {
-        Serial.println("Pin32 RB sent!");
-      }
-
-
+      
       chrono = millis();
-      state = WAIT;
+      WIFI_CONNECT;
       break;
 
-    case WAIT:
-      //Serial.println("State: WAIT");
-      if (millis() - chrono > WAIT_WAIT)
-      {
-        state = READ_SENSORS;
-        chrono = millis();
-      }
-
-      break;   
 
     case RESTART:
       Serial.println("State: RESTART");
@@ -238,6 +191,7 @@ void connect_MQTT() {
   // Attempt to connect
   if (client.connect(clientID, mqtt_username, mqtt_password)) {
     Serial.println("connected");
+    SuscribeMqtt(); // only called once when connected
     // Subscribe
   } else {
     Serial.print("failed, rc=");
@@ -246,24 +200,18 @@ void connect_MQTT() {
   }
 }
 
-float celsiusToFahrenheit(float celsius) {
-    return celsius * 9.0 / 5.0 + 32;
-}
-
 
 void SuscribeMqtt()
+//Ideally we'd keep track of what we're subscribed to and only subscribe when needed, 
 {
-    client.subscribe("mush/controller2/control/led1");
-    client.subscribe("mush/controller2/control/pin32");
-    client.subscribe("mush/controller2/control/pin33");
-    client.subscribe("mush/controller2/control/pin25");
-    client.subscribe("mush/controller2/control/pin26");
+  for (auto& pinControl : pinControls)
+  {  client.subscribe(pinControl.output_topic);
+  }
 }
 
 void mqtt_callback(char *topic, byte *payload, unsigned int length)
 {
-    //TODO: make all this crap functions, check if pin in valid range and writable.
-    //TODO: Should probably make a switch statement for the different pins/topics.
+    // This takes action! write delay is called if matching topic is found, thereby updating pinControl.readback
     Serial.print("Received on ");
     Serial.print(topic);
     Serial.print(": ");
@@ -279,52 +227,41 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
     Serial.print(content);
     Serial.println();
 
-    if (str_output_topic == led1_output_topic) 
+    bool topic_found = false;
+    for (auto& pinControl : pinControls)
     {
-      write_delay(content, ledPin, ledPin_rb,10); //reduced delay time
+        if (str_output_topic == pinControl.output_topic)
+        {
+            write_delay(content, pinControl.pin);
+            topic_found = true;
+            break;
+        }
     }
 
-    else if (str_output_topic == pin25_output_topic) 
+    if (!topic_found)
     {
-      write_delay(content, 25, pin25_rb); 
+        Serial.println("Invalid topic");
     }
-    else if (str_output_topic == pin26_output_topic) 
-    {
-      write_delay(content, 26, pin26_rb); 
-    }
-    else if (str_output_topic == pin33_output_topic) 
-    {
-      write_delay(content, 33, pin33_rb); 
-    }
-    else if (str_output_topic == pin32_output_topic) 
-    {
-      write_delay(content, 32, pin32_rb); 
-    }
-    else 
-    {
-      Serial.println("Invalid topic");
-    }
-
 }
 
 
-void write_delay(String content, int write_pin, float& readback, int delay_time)
-//This writes to pin (HIGH,LOW) and sets readback to (1,0) depending on the content.
+void write_delay(String content, PinControl& pinControl, int delay_time = 10)
+// This writes to pin (HIGH, LOW) and sets readback to (1, 0) depending on the content.
 {
   if (content == "on") 
   {
-    digitalWrite(write_pin, HIGH);
-    readback = 1.0;
+    digitalWrite(pinControl.pin, HIGH);
+    pinControl.updateReadback(1.0);
     delay(delay_time);
   }
   else if (content == "off") 
   {
-    digitalWrite(write_pin, LOW);
-    readback = -1.0;
+    digitalWrite(pinControl.pin, LOW);
+    pinControl.updateReadback(-1.0);
     delay(delay_time);
   }
   else 
   {
-    Serial.println("Invalid command");
+    Serial.println("Invalid content");
   }
 }
