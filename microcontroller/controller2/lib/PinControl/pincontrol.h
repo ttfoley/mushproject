@@ -24,7 +24,7 @@ struct PinControl {
         rb_last = rb;
     }
 
-    void reset_last_published() {
+    void resetLastPublished() {
         time_last_published = millis();
     }
 
