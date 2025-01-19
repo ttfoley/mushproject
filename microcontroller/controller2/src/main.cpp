@@ -11,20 +11,21 @@
 #define WIFI_SSID SECRET_WIFI_SSID
 #define WIFI_PASSWORD SECRET_WIFI_PWD
 
-
-const int ledPin = 4;
+//output pin definitions
+const int pin_4 = 4; //I've been using this for LED on the board
 const int pin_26 = 26;
 const int pin_25 = 25;
 const int pin_33 = 33;
 const int pin_32 = 32;
 
 // Create instances of PinControl
+unsigned long initial_time = millis();
 PinControl pinControls[] = {
-    PinControl(ledPin, 0.0,-2.0, "led",  "mush/controller2/readback/led1", "mush/controller2/control/led1"),
-    PinControl(26, 0.0,-2.0,"pin26", "mush/controller2/readback/pin26", "mush/controller2/control/pin26"),
-    PinControl(25, 0.0,-2.0,"pin25", "mush/controller2/readback/pin25", "mush/controller2/control/pin25"),
-    PinControl(33, 0.0,-2.0,"pin33", "mush/controller2/readback/pin33", "mush/controller2/control/pin33"),
-    PinControl(32, 0.0,-2.0,"pin32", "mush/controller2/readback/pin32", "mush/controller2/control/pin32")
+    PinControl(pin_4, 0.0,0.0, "led",  "mush/controller2/readback/led1", "mush/controller2/control/led1",initial_time),
+    PinControl(26, 0.0,0.0,"pin26", "mush/controller2/readback/pin26", "mush/controller2/control/pin26",initial_time),
+    PinControl(25, 0.0,0.0,"pin25", "mush/controller2/readback/pin25", "mush/controller2/control/pin25",initial_time),
+    PinControl(33, 0.0,0.0,"pin33", "mush/controller2/readback/pin33", "mush/controller2/control/pin33",initial_time),
+    PinControl(32, 0.0,0.0,"pin32", "mush/controller2/readback/pin32", "mush/controller2/control/pin32",initial_time)
 };
 // readbacks for the pins. when controller comes on, they start low. Only change if sent from mqtt.
 //Floats for now because topic parsing in telegraf sucks.
@@ -34,9 +35,6 @@ const size_t numPins = sizeof(pinControls) / sizeof(pinControls[0]);
 
 // MQTT
 const char* mqtt_server = "192.168.1.17";  // IP of the MQTT broker
-
-
-
 const char* mqtt_username = "ttfoley"; // MQTT username
 const char* mqtt_password = "password"; // MQTT password
 const char* clientID = "controller2"; // MQTT client ID
@@ -51,13 +49,18 @@ void connect_MQTT(PinControl pinControls[], size_t numPins);
 void mqtt_callback(char *topic, byte *payload, unsigned int length);
 void SubscribeMQTT(PinControl pinControls[], size_t numPins);
 void write_delay(String content, PinControl& pinControl, int delay_time = 10);
+bool publish_and_update_Readback(PinControl& pinControl);
 
+//State machine states
 enum State {START, WAIT, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, RESTART};
 State state = START;
+
 #define WAIT_WAIT 10
 #define WIFI_WAIT 10000
 #define MQTT_WAIT 10000
+#define FORCE_REPUBLISH_FREQ 6000
 
+String INITIAL_VALUE = "off"; //On startup, set all outputs off
 
 void setup() {
   Serial.begin(115200);
@@ -73,6 +76,7 @@ void setup() {
   //MQTT setup
   client.setCallback(mqtt_callback);
 }
+
 /* 
   * It seems like the way arduino does things is via globals, so lots of globals are flying around here.
   * client.loop() starts the mqtt loops. The rest of the code is a state machine that basically keeps wifi and mqtt connecte, AND
@@ -84,18 +88,22 @@ void loop() {
 
 
   static unsigned long chrono;  // For timing in states (static means only initialized once?)
-
-  static char tempString[16];
-  static char printString[16];
-
+  static bool times_up = false;
 
   switch (state) {
+    // This is the initial state, it sets all the pins to the initial value
     case START:
       Serial.println("State: START");
+      for (auto& pinControl : pinControls)
+      {
+        write_delay(INITIAL_VALUE, pinControl);
+      }
       state = WIFI_CONNECT;
       chrono = millis();//This starts timer for wifi connection attempt, it's like a transition actions in statecharts
       break;
 
+    //A convenience state, to decide where to go next based on the current state of the system with a little bit of time delay
+    // It adds a state that's not really necessary, but it simplifies some other states
     case WAIT:
       //Serial.println("State: WAIT");
       if (WiFi.status() != WL_CONNECTED) 
@@ -156,34 +164,23 @@ void loop() {
       break;
 
     /*
+     *Checks if changed value or republish time up, publishes if so
      *If we made it here we were connected like 0.00001 seconds ago, not checking again.
      *Note this has a side effect: If publish  succeeds, we'll update readback_last to be current. This just seems to be the way things are done in MQTT land.
     */
     case MQTT_PUBLISH: 
-
-
       //Serial.println("State: MQTT_PUBLISH");
-      for (auto& pinControl : pinControls){
-        if (pinControl.rb != pinControl.rb_last) {
-          dtostrf(pinControl.rb, 1, 2, tempString);
-          if (client.publish(pinControl.readback_topic, tempString)) 
-          {
-            Serial.println(tempString);
-            Serial.println("Sent!");
-            pinControl.setLastEqual(); //If successful, update last to be current, so it doesn't trigger another publish.
-
-            /*
-             * If it succeeds, we'll update readback_last to be current. Note that in the meantime a new value could have been sent from MQTT,
-             * meaning we'll miss this value by the next loop. PubSubClient doesn't keep a queue of messages, so unsent values are lost.
-             * But it's very unlikely we'll receive a new value in the meantime if the client is failing to publish.
-             */
-
+      {
+        for (auto& pinControl : pinControls){
+          times_up = ((millis() - pinControl.time_last_published) > FORCE_REPUBLISH_FREQ);
+          if ((pinControl.rb != pinControl.rb_last) || times_up)  {
+            if (!publish_and_update_Readback(pinControl)) {
+              Serial.println("Failed to publish");
+            }
           }
         }
       }
       
-
-
       chrono = millis();
       state = WAIT;
       break;
@@ -297,3 +294,25 @@ void write_delay(String content, PinControl& pinControl, int delay_time)
     Serial.println("Invalid content");
   }
 }
+
+/*
+  * This publishes the readback value to the readback topic. If successful, it updates the last readback value to be current.
+  * This is the only way to update the readback value.
+  * 
+*/
+bool publish_and_update_Readback(PinControl& pinControl) {
+    char tempString[16];
+    dtostrf(pinControl.rb, 1, 2, tempString);
+    if (client.publish(pinControl.readback_topic, tempString)) {
+        Serial.println(tempString);
+        Serial.println("Sent!");
+        pinControl.setLastEqual(); 
+        pinControl.reset_last_published();
+        return true;
+    }
+    return false;
+}
+/* If it succeeds, we'll update readback_last to be current. Note that in the meantime a new value could have been sent from MQTT,
+* meaning we'll miss this value by the next loop. PubSubClient doesn't keep a queue of messages, so unsent values are lost.
+* But it's very unlikely we'll receive a new value in the meantime if the client is failing to publish.
+*/
