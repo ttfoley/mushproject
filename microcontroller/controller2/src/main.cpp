@@ -56,9 +56,16 @@ enum State {START, WAIT, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, RESTART};
 State state = START;
 
 #define WAIT_WAIT 10
-#define WIFI_WAIT 10000
+#define WIFI_WAIT 60000
 #define MQTT_WAIT 10000
 #define FORCE_REPUBLISH_FREQ 30000
+
+//Keep track of how long wifi has been connected
+unsigned long wifiConnectedTime = 0;
+unsigned long wifiConnectionDuration = 0;
+unsigned long lastWifiDurationPostTime = 0;
+const unsigned long WIFI_DURATION_POST_INTERVAL = 60000; // 1 minute
+const char* wifi_topic = "mush/controller2/status/wifi_uptime";
 
 String INITIAL_VALUE = "off"; //On startup, set all outputs off
 
@@ -89,6 +96,11 @@ void loop() {
 
   static unsigned long chrono;  // For timing in states (static means only initialized once?)
   static bool times_up = false;
+
+  if (WiFi.status() == WL_CONNECTED) {
+    wifiConnectionDuration = millis() - wifiConnectedTime; // Calculate the duration of the WiFi connection
+  }
+
 
   switch (state) {
     // This is the initial state, it sets all the pins to the initial value
@@ -180,7 +192,19 @@ void loop() {
           }
         }
       }
-      
+            // Check if it's time to post wifiConnectionDuration
+      if (millis() - lastWifiDurationPostTime > WIFI_DURATION_POST_INTERVAL) {
+        char durationString[16];
+        dtostrf(wifiConnectionDuration / 1000.0, 1, 2, durationString); // Convert to seconds
+        if (client.publish(wifi_topic, durationString)) {
+          Serial.print("WiFi connection duration: ");
+          Serial.println(durationString);
+          lastWifiDurationPostTime = millis(); // Update the last post time
+        } else {
+          Serial.println("Failed to publish WiFi connection duration");
+        }
+      }
+
       chrono = millis();
       state = WAIT;
       break;
@@ -208,6 +232,7 @@ void connect_WiFi() {
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
     Serial.print("\n");
+    wifiConnectedTime = millis(); // Set the timestamp when WiFi is connected
   }
 
 }
