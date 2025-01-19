@@ -58,7 +58,7 @@ State state = START;
 #define WAIT_WAIT 10
 #define WIFI_WAIT 10000
 #define MQTT_WAIT 10000
-#define FORCE_REPUBLISH_FREQ 6000
+#define FORCE_REPUBLISH_FREQ 30000
 
 String INITIAL_VALUE = "off"; //On startup, set all outputs off
 
