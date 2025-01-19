@@ -194,7 +194,7 @@ void loop() {
             // Check if it's time to post wifiConnectionDuration
       if (millis() - lastWifiDurationPostTime > WIFI_DURATION_POST_INTERVAL) {
         char durationString[16];
-        dtostrf(wifiConnectionDuration / 1000.0, 1, 2, durationString); // Convert to seconds
+        dtostrf(wifiConnectionDuration / 60000.0, 1, 2, durationString); // Convert to minutes
         if (client.publish(wifiTopic, durationString)) {
           Serial.print("WiFi connection duration: ");
           Serial.println(durationString);
