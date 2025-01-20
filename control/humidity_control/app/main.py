@@ -2,6 +2,8 @@ import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 from datetime import datetime
 import time
+import sys
+sys.path.append("/control/lib")
 from mqtt_handler import MQTTHandler
 from controller import FSM
 from construction import Configuration, Initializer
