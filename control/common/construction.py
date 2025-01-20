@@ -19,27 +19,25 @@ class Configuration(object):
     if it's rejected.  
     """
 
-    def __init__(self,relative_config_path:str) -> None:
+    def __init__(self,abs_config_path:str) -> None:
         #Should just be the relative path to the config file, ./config
         #note "output" and "control" are synonyms for topics, for reasons
-        self._config_location = relative_config_path
-        self._path_to_config = os.path.dirname(os.path.dirname(__file__)) + self._config_location
+        self._config_location = abs_config_path
         self._topics_config = self.get_topics()
         self._control_point_names,self._control_points_config = self.get_control_points()
         self._state_names, self._states_config = self.get_states()
         self._transitions = self.get_transitions()
 
 
-
-
-    def get_config_file_location(self,file_name)->str:
-        return f"{self._path_to_config}/{file_name}"
+    def get_config_file_location(self,file_name:str)->str:
+        return os.path.join(self._config_location, file_name)
     
     def get_topics(self)->Dict[str,Any]:
         #Should be a dictionary of topics, with the key being the type of topic from (control,readback,sensor)
         #and the value being a list of topics (blah/blah/topic_type/topic_name)
-
-        topics_dict = load_json(self.get_config_file_location("topics.json"))
+        config_path = self.get_config_file_location("topics.json")
+        print(f"Loading topics from: {config_path}")  # Debugging
+        topics_dict = load_json(config_path)
 
         for topic_type,topics in topics_dict.items():
             assert topic_type in ["control","readback","sensor"], "Invalid topic type in topics.json"
@@ -51,7 +49,9 @@ class Configuration(object):
     def get_control_points(self)->Tuple[list[str],Dict[str,Any]]:
         ##Dictionary of point names, with "output" and "readback" keys.
         ##I guess readbacks shouldn't strictly be necessary, but I'm keeping them for now
-        control_points = load_json(self.get_config_file_location("control_points.json"))
+        config_path = self.get_config_file_location("control_points.json")
+        print(f"Loading control points from: {config_path}")  # Debugging
+        control_points = load_json(config_path)
         point_names = []
         for point_name,point in control_points.items():
             point_names.append(point_name)
@@ -61,9 +61,12 @@ class Configuration(object):
             assert point["readback"] in self._topics_config["readback"], "Invalid readback topic in control_points.json"
         return point_names,control_points
     
+    #TODO: There's too much repetition happening with these get_ methods. I should make a generic one.
     def get_states(self)->Tuple[list[str],Dict[str,list[Dict[str,str]]]]:
         ##Dictionary of states, with the key being the state name, and the value being a dictionary of control points and values
         ##{"state_name":[{"point_name":"value"}]}
+        config_path = self.get_config_file_location("states.json")
+        print(f"Loading topics from: {config_path}") 
         states_config = load_json(self.get_config_file_location("states.json"))
         valid_outputs = ["On","Off","Unknown"]
         assert isinstance(states_config,dict), "States should be a dictionary"
@@ -92,7 +95,10 @@ class Configuration(object):
         In the future we need to figure out format for other types of transitions
         For every type of transition, there better only be one of each pair of (oriented) states 
         """
-        transitions_config = load_json(self.get_config_file_location("transitions.json"))
+        config_path = self.get_config_file_location("transitions.json")
+        print(f"Loading transitions from: {config_path}") 
+        transitions_config = load_json(config_path)
+
         assert isinstance(transitions_config,dict), "Transitions should be a dictionary"
         transitions = defaultdict(dict)
         #for state_time transitions

@@ -3,7 +3,11 @@ from paho.mqtt.enums import CallbackAPIVersion
 from datetime import datetime
 import time
 import sys
-sys.path.append("/control/lib")
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+lib_path = os.path.join(current_dir, '../../common')
+config_path = os.path.join(current_dir, '../config')
+sys.path.append(lib_path)
 from mqtt_handler import MQTTHandler
 from controller import FSM
 from construction import Configuration, Initializer
@@ -13,7 +17,6 @@ mqtt_pwd = "password"
 mqtt_broker = "192.168.1.17"
 mqtt_port = 1883
 mqtt_client_id = "control_test"
-
 
 def main(fsm:FSM, mqtt_handler:MQTTHandler):
     #TODO: verify the connection, add reconnect logic
@@ -60,7 +63,7 @@ def main(fsm:FSM, mqtt_handler:MQTTHandler):
 
 if __name__ == "__main__":
 
-    config = Configuration("/config")
+    config = Configuration(config_path)
     initializer = Initializer(config,"Off")
     mqtt_handler = MQTTHandler(mqtt_client_id, mqtt_broker, mqtt_port, mqtt_uname, mqtt_pwd,userdata=initializer._control_points)
     mqtt_handler.connect()
