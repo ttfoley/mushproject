@@ -27,7 +27,7 @@ class ControlPoint:
         self._readback_point = readback_point
         self._state = "Unknown"
         self.requested_state = None
-        self.time_start_state = datetime.now()
+        self.time_start_state = datetime.now() #these really shouldn't be initialized on creation.
         self.time_last_published = datetime.now()
         self.republish_frequency_match = republish_frequency_match
         self.republish_frequency_mismatch = republish_frequency_mismatch
@@ -64,6 +64,7 @@ class ControlPoint:
 
     def publish_requested_state(self, mqtt_handler):
         #Setting this at beginning so we don't spam mqtt channel.
+        #TODO should have exception catching on the publish command.
         self.time_last_published = datetime.now()
         if self.requested_state == "On":
             mqtt_handler.publish(self._write_point, "on")
@@ -97,7 +98,7 @@ class ControlPoint:
 
 
 class StateOutputs(object):
-    """Just a basic immutable type to define the outputs of a state.  This is just a dictionary of control points and their states."""
+    """Just a basic immutable type to DEFINE the outputs of a state.  This is just a dictionary of control points and their states."""
     def __init__(self,outputs:dict[str,str],control_points:Sequence[ControlPoint]):
         self.outputs = self.validated_outputs(outputs,control_points)
 
@@ -113,7 +114,6 @@ class StateOutputs(object):
     def relevant_control_points_names(self):
         return self.outputs.keys()
     
-
 
     def __eq__(self, other):
         if not isinstance(other, StateOutputs):
@@ -280,6 +280,7 @@ class StateTimeConstraint(Constraint):
         self.required_time = required_time
 
     def satisfied(self,current_state:StateStatus)->bool:
+        ##All that's required is that the current_state object has a .time_in_state attribute. Should we just be passing that value instead?
         time_in_state = current_state.time_in_state
         if self.operator == "gt":
             if time_in_state > self.required_time:
@@ -298,7 +299,7 @@ class StateTimeConstraint(Constraint):
             raise ValueError("Invalid operator")
         
     def __repr__(self) -> str:
-        return "StateTimeConstraint, operator:{self.operator}, required_time:{self.required_time} sec"
+        return f"StateTimeConstraint, operator:{self.operator}, required_time:{self.required_time} sec"
 
 
 class Transition:
