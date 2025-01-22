@@ -1,0 +1,67 @@
+{
+    "transitions": {
+        "from_state": {
+            "to_state": {
+                "constraint_groups": {
+                    "cg_1": {
+                        "constraints": {
+                            "constraint_0": {
+                                "definition": {
+                                    "value": "from_state.time_in_state",
+                                    "threshold": "30",
+                                    "comparator": ">="
+                                },
+                                "description": "description for constraint_0"
+                            },
+                            "constraint_1": {
+                                "definition": {
+                                    "value": "sensors.t1",
+                                    "threshold": "70",
+                                    "comparator": "<="
+                                },
+                                "description": "description fo r constraint_1"
+                            }
+                        }
+                    }
+                }
+            },
+            "off": {
+                "constraint_groups": {
+                    "cg_1": {
+                        "constraints": {
+                            "constraint_0": {
+                                "definition": {
+                                    "value": "from_state.time_in_state",
+                                    "threshold": "60000",
+                                    "comparator": ">="
+                                },
+                                "description": "description for constraint_0"
+                            }
+                        },
+                        "description": "if you spend too much time here, we're assuming something is wrong and going back to off."
+                    },
+                    "cg_2": {
+                        "constraints": {
+                            "constraint_0": {
+                                "definition": {
+                                    "value": "from_state.time_in_state",
+                                    "threshold": "70",
+                                    "comparator": ">="
+                                },
+                                "description": "description for constraint_0"
+                            },
+                            "constraint_1": {
+                                "definition": {
+                                    "value": "sensors.t1",
+                                    "threshold": "80",
+                                    "comparator": ">="
+                                },
+                                "description": "description for constraint_1"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
