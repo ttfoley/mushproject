@@ -36,6 +36,7 @@ class ControlPoint:
     def set_known_state(self, state):
         #This should only be used if you know the state from readback.
         #If state changed, restart the timer
+        #only used within mqtt_handler callback
         if self._state != state:
             self.time_start_state = datetime.now()
         self._state = state
@@ -373,7 +374,7 @@ class FSM:
         self.previous_state = self.current_state.state
         new_state = self.get_validated_state()
         if new_state != self.current_state.state:
-            self.current_state = StateStatus(new_state)
+            self.current_state = StateStatus(new_state)## Triggers time upon initialization.
             return True
         else:
             return False

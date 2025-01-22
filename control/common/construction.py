@@ -84,6 +84,7 @@ class Configuration(object):
     @property
     def needed_control_points(self):
         #The names of those control points needed by the states
+        # This should really come from searching over all control points, which would include a consistency check.
         ref_state = self._states_config["Unknown"] ## I'm assuming Unknown is a state, and all states have the same need control points.
         return [point["control_point"] for point in ref_state]
 
@@ -206,7 +207,7 @@ class Initializer(object):
             
         return transitions
     
-    def any_final_assertions_sat(self)->bool:
+    def all_final_assertions_sat(self)->bool:
         #This is a placeholder for any final assertions that should be made before returning the FSM
         #They should be in better places but I want to test this.
         #TODO put these where they belong
@@ -218,7 +219,7 @@ class Initializer(object):
 
 
     def make_fsm(self,mqtt_handler:MQTTHandler)->FSM:
-        assert self.any_final_assertions_sat(), "Final assertions not satisfied"##this is silly, will never be reached
+        assert self.all_final_assertions_sat(), "Final assertions not satisfied"##this is silly, will never be reached
         return FSM(self.control_points,self._states,self._transitions,self._initial_desired_state,mqtt_handler)
     
 
