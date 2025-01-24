@@ -10,19 +10,20 @@ def load_json(file_path:str):
 
 
 class Constraint:
-    def __init__(self,name:str,value:str,threshold:str,comparator:str, description = ""):
+    def __init__(self,name:str,value:str,threshold:str,comparator:str,units,description = ""):
         self.name = name
         self.value = value
         self.threshold = threshold
         self.comparator = comparator
         self.description = description
+        self.units = units
 
 
     @property
     def constraint_dict(self):
         D = defaultdict(dict)
         D[self.name] = defaultdict(dict)
-        D[self.name]["definition"] = {"value":self.value, "threshold":self.threshold,"comparator":self.comparator,"description" : self.description}
+        D[self.name]["definition"] = {"value":self.value, "threshold":self.threshold,"comparator":self.comparator,"units":self.units,"description" : self.description}
         D[self.name]["description"] = self.description
         return D
 
@@ -80,3 +81,28 @@ class Transitions:
         
 
     
+
+
+class Node:
+    def __init__(self, value):
+        self.value = value
+        self.children = []
+        self.parent = None
+
+    def add_child(self, child):
+        self.children.append(child)
+        child.parent = self
+
+class Tree(object):
+    def __init__(self):
+        self.nodes = []
+    
+    def add_node(self,node:Node):
+        self.nodes.append(node)
+
+    @property
+    def root(self):
+        #Sloppy
+        for node in self.nodes:
+            if node.parent == "None":
+                return node

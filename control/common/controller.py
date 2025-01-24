@@ -371,6 +371,7 @@ class FSM:
     def update_state(self)->bool:
         #Outputs are updated by the mqtt_handler.  This just updates the current state.
         #Since we start in unknown, it will think we're in unknown for some nonzero amount of time regardless
+        #This creates a new object if the state has changed.
         self.previous_state = self.current_state.state
         new_state = self.get_validated_state()
         if new_state != self.current_state.state:

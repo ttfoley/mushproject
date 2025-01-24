@@ -1,6 +1,6 @@
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
-from controller import ControlPoint
+from controller2 import ControlPoint
 
 class MQTTHandler:
     def __init__(self, client_id, broker, port, username, password,userdata:dict[str,ControlPoint]):
@@ -21,15 +21,17 @@ class MQTTHandler:
         message = msg.payload.decode()
         #print(message,msg.topic)
         #values of 1.00 and -1.00 are from the arduino code, and those seem kind of silly.
-        for _,point in self.userdata.items():
-            if point._readback_point == msg.topic:
-                if message == "1.00":
-                    point.set_known_state("On")
-                elif message == "-1.00":
-                    point.set_known_state("Off")
-                else:
-                    point.set_known_state("Unknown")
-                #print(f"Set state of {point.name} to {point.state}")
+        for _,point in self.userdata["Control_Points"].items():
+            if point.readback_point.read_address == msg.topic:
+                print(point.readback_point.read_address)
+                print(message)
+                point.readback_point.value = message ##GOING TO BE A STING OF A FLOAT
+                #print(f"Set value of {point.name} to {point.value}")
+
+        for _,point in self.userdata["Sensor_Points"].items():
+            if point.read_address == msg.topic:
+                point.value = float(message)
+                #print(f"Set value of {point.name} to {point.value}")
 
     def on_connect(self, client:mqtt.Client, userdata, flags, rc, properties=None):
         if rc == 0:
