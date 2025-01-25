@@ -66,7 +66,5 @@ if __name__ == "__main__":
     constructor.subscribe_mqtt(mqtt_handler)
     fsm = constructor.fsm
 
-    #I don't like how this is separate, but you can't add args to the callbacks...
-
 
     main(fsm, mqtt_handler,constructor.surveyor)
