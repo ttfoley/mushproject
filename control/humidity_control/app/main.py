@@ -10,15 +10,11 @@ config_path = os.path.join(current_dir, '../config')
 sys.path.append(lib_path)
 from mqtt_handler import MQTTHandler
 from controller import FSM
-from construction import Configuration, Initializer
+from construction import Configuration, Constructor
+from surveyor import Surveyor
 
-mqtt_uname = "ttfoley"
-mqtt_pwd = "password"
-mqtt_broker = "192.168.1.17"
-mqtt_port = 1883
-mqtt_client_id = "control_test"
 
-def main(fsm:FSM, mqtt_handler:MQTTHandler):
+def main(fsm:FSM, mqtt_handler:MQTTHandler,surveyor:Surveyor):
     #TODO: verify the connection, add reconnect logic
     mqtt_handler.loop_start()
     fsm.print_update()
@@ -64,15 +60,13 @@ def main(fsm:FSM, mqtt_handler:MQTTHandler):
 if __name__ == "__main__":
 
     config = Configuration(config_path)
-    initializer = Initializer(config,"Off")
-    mqtt_handler = MQTTHandler(mqtt_client_id, mqtt_broker, mqtt_port, mqtt_uname, mqtt_pwd,userdata=initializer._control_points)
+    constructor = Constructor(config)
+    mqtt_handler = constructor.mqtt_handler
     mqtt_handler.connect()
-    for topic in config.readback_topics:
-        print(topic)
-        mqtt_handler.client.subscribe(topic)
-    fsm = initializer.make_fsm(mqtt_handler)
+    constructor.subscribe_mqtt(mqtt_handler)
+    fsm = constructor.fsm
 
     #I don't like how this is separate, but you can't add args to the callbacks...
 
 
-    main(fsm, mqtt_handler)
+    main(fsm, mqtt_handler,constructor.surveyor)

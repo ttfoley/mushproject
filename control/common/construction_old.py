@@ -2,7 +2,7 @@ import json
 import os
 from typing import Dict, Any,Tuple
 #The fact that I'm importing so many separate things seems like a bad smell.
-from controller import ControlPoint,State,FSM,Outputs,Transition,SingleTransition,StateTimeConstraint,StateOutputs
+from controller_old import ControlPoint,State,FSM,Outputs,Transition,SingleTransition,StateTimeConstraint,StateOutputs
 from mqtt_handler import MQTTHandler
 from collections import defaultdict
 

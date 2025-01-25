@@ -1,5 +1,4 @@
 from collections import defaultdict
-
 import json
 from datetime import datetime
 """
@@ -44,7 +43,6 @@ class Remote_Write(RemoteValue):
 
         self.valid_values = valid_values
 
-        
     @property
     def value(self):
         #
@@ -70,6 +68,7 @@ class Remote_Read(RemoteValue):
         super().__init__(uuid,raw_value,description)
         self._read_address = read_addr
         self.valid_values = valid_values
+        self.value = raw_value
 
 
     @property
@@ -82,16 +81,12 @@ class Remote_Read(RemoteValue):
         ##Checks here for type, valid values, etc.
         ##Also converts (like "off" to "Off")
         self.raw_value = new_value
-        new_value = int(float(new_value))
-        print(f"NEW VALUE  {new_value}")
-        if not self.value_valid(new_value):
-            self._value = "Unknown" ## Unknown state for control points
-            raise ValueError(f"New value {new_value} not in valid values {self.valid_values}")
-        if new_value == 1:
-            self._value = "On"
-        if new_value == -1:
-            print(new_value)
-            self._value = "Off"
+        cast_value = self.cast_int_str(int(float(new_value)))
+        if self.value_valid(cast_value): #("On" or "Off",or "Unknown")
+            self._value = cast_value 
+        else:
+            raise ValueError(f"New value {cast_value} not in valid values {self.valid_values}")
+
 
     @property
     def read_address(self):
@@ -99,6 +94,16 @@ class Remote_Read(RemoteValue):
     
     def value_valid(self,new_value)-> bool: 
         return new_value in self.valid_values
+    
+    def cast_int_str(self,value:int)->str:
+        if value == 1:
+            return "On"
+        elif value == -1:
+            return "Off"
+        elif value == 0:
+            return "Unknown"
+        else:
+            return "Nonsense"
         
 
 
@@ -119,7 +124,7 @@ class Remote_Sensor(RemoteValue):
         return self._value
     
     @value.setter
-    def value(self,new_value):
+    def set_value(self,new_value):
         ##Checks here for type, valid values, etc.
         ##Also converts (like "off" to "Off")
         ## Need to put in all of the helpful typing and conversion I could do here.
@@ -157,11 +162,13 @@ class ControlPoint:
     Right now this does not verify its state with readback.  It's just a container for the state. I want control points to have a liveness/staleness, but
     I don't know if this is the best place to do it.  Something like a separate health monitor class?
     I made some stuff properties because I want to protect them, but I should be even more careful probably.
+    Now this whole thing is kind of backwards, I don't think the control point itself should have to 
     """
-    def __init__(self, name, write_point:Remote_Write, readback_point:Remote_Read,republish_frequency_match = 60,republish_frequency_mismatch = 5):
+    def __init__(self, name, write_point:Remote_Write, readback_point:Remote_Read,republish_frequency_match = 60,republish_frequency_mismatch = 5,mqtt_handler = None):
         self._name = name
         self.write_point = write_point
         self.readback_point = readback_point
+        self._mqtt_handler = mqtt_handler
         self._value = self.readback_point.value
         self.requested_value = None
         self.time_start_value = datetime.now() #these really shouldn't be initialized on creation.
@@ -170,14 +177,20 @@ class ControlPoint:
         self.republish_frequency_mismatch = republish_frequency_mismatch
         #So we're resigning ourselves to no memory of the last state after a reboot, which seems fine for now
 
-    def set_known_value(self, new_value):
-        #This should only be used if you know the state from readback.
-        #If state changed, restart the timer
-        #only used within mqtt_handler callback
-        #Validation should happen here.
-        if self.readback_point.value != new_value:
-            self.time_start_value = datetime.now()
-        self.readback_point.value = new_value
+
+    @property
+    def is_connected(self):
+        if self.mqtt_handler != None:
+            if self.mqtt_handler.is_connected():
+                return True
+        else:
+            print("You don't even have a handler set up!")
+            return False
+    
+
+    @property
+    def value(self):
+        return self.readback_point.value
     
     @property
     def status(self)->dict[str,str]:
@@ -190,7 +203,15 @@ class ControlPoint:
     @property
     def name(self):
         return self._name
-
+    
+    @property
+    def mqtt_handler(self):
+        return self._mqtt_handler
+    
+    @mqtt_handler.setter
+    def set_mqtt_handler(self,handler):
+        self._mqtt_handler = handler
+    
     def time_in_value(self):
         return (datetime.now() - self.time_start_value).total_seconds()
     
@@ -201,26 +222,32 @@ class ControlPoint:
         assert state in ["On","Off"]
         self.requested_value = state
 
-    def publish_requested_value(self, mqtt_handler):
+    def publish_requested_value(self):
         #Setting this at beginning so we don't spam mqtt channel.
         #TODO should have exception catching on the publish command.
-        self.time_last_published = datetime.now()
-        if self.requested_value == "On":
-            mqtt_handler.publish(self.write_point.write_address, "on")
-        elif self.requested_value == "Off":
-            mqtt_handler.publish(self.write_point.write_address, "off")
+
+
+        if self.mqtt_handler != None:
+            if self.requested_value == "On":
+                self.mqtt_handler.publish(self.write_point.write_address, "on")
+            elif self.requested_value == "Off":
+                self.mqtt_handler.publish(self.write_point.write_address, "off")
+            else:
+                raise ValueError("Requested state must be On or Off")
+            self.time_last_published = datetime.now()
         else:
-            raise ValueError("Requested state must be On or Off")
-        
-    def publish(self,mqtt_handler,immediately=False):
-        assert self._value in ["On","Off","Unknown"]
-        if self._value != self.requested_value:
+            raise AttributeError("MQTTHandler is not set yet")
+
+    def publish(self,immediately=False):
+        print(self.value,self.requested_value)
+        assert self.value in ["On","Off","Unknown"]
+        if self.value != self.requested_value:
             if immediately:
-                self.publish_requested_value(mqtt_handler)
+                self.publish_requested_value()
             elif self.time_since_last_published() > self.republish_frequency_mismatch:
-                self.publish_requested_value(mqtt_handler)
+                self.publish_requested_value()
         elif self.time_since_last_published() > self.republish_frequency_match:
-            self.publish_requested_value(mqtt_handler)
+            self.publish_requested_value()
         
 
     def __eq__(self, other):
@@ -241,7 +268,6 @@ class Outputs:
     To keep track of groups of outputs.  Methods for equality and comparison.
     Include "Unknown" as a valid control point state. 
     Valid value of outputs are "On","Off","Unknown"
-    #TODO: I don't like that this is a named_tuple.  I don't like that I have to use output_value to keep the name and value together. 
     #Note that the control points are sorted by name.  This is to make sure that the hash is consistent.
     #There should be no way to change the values of control points from here, but they should be kept live by the mqtt_handler.
     ## It seems redundant

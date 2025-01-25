@@ -1,9 +1,109 @@
 {
-  "state_time_transitions": {
-    "Off": {"to_state": "HumidOn", "time": "30"},
-    "HumidOn": {"to_state": "Humidify", "time": "45"},
-    "Humidify": {"to_state": "FanOff", "time": "30"},
-    "FanOff": {"to_state": "Off", "time": "15"},
-    "Unknown": {"to_state": "Off", "time": "0"}
+  "Transitions": {
+    "Off": {
+      "HumidOn": {
+        "constraint_groups": {
+          "CG_1": {
+            "constraints": {
+              "0": {
+                "definition": {
+                  "value": "R.fsm.sensors.time_in_state",
+                  "threshold": "30",
+                  "comparator": ">",
+                  "units": "float",
+                  "description": ""
+                },
+                "description": ""
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "HumidOn": {
+      "Humidify": {
+        "constraint_groups": {
+          "CG_2": {
+            "constraints": {
+              "0": {
+                "definition": {
+                  "value": "R.fsm.sensors.time_in_state",
+                  "threshold": "30",
+                  "comparator": ">",
+                  "units": "float",
+                  "description": ""
+                },
+                "description": ""
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "Humidify": {
+      "FanOff": {
+        "constraint_groups": {
+          "CG_3": {
+            "constraints": {
+              "0": {
+                "definition": {
+                  "value": "R.fsm.sensors.time_in_state",
+                  "threshold": "30",
+                  "comparator": ">",
+                  "units": "float",
+                  "description": ""
+                },
+                "description": ""
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "FanOff": {
+      "Off": {
+        "constraint_groups": {
+          "CG_4": {
+            "constraints": {
+              "0": {
+                "definition": {
+                  "value": "R.fsm.sensors.time_in_state",
+                  "threshold": "30",
+                  "comparator": ">",
+                  "units": "float",
+                  "description": ""
+                },
+                "description": ""
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "Unknown": {
+      "Off": {
+        "constraint_groups": {
+          "CG_5": {
+            "constraints": {
+              "0": {
+                "definition": {
+                  "value": "R.fsm.sensors.time_in_state",
+                  "threshold": "0",
+                  "comparator": ">",
+                  "units": "float",
+                  "description": ""
+                },
+                "description": ""
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    }
   }
 }

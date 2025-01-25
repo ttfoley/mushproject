@@ -10,7 +10,7 @@ from mqtt_handler import MQTTHandler
 import json
 from datetime import datetime
 from points import Remote_Write,Remote_Read, Remote_Sensor
-from controller2 import ControlPoint
+from controller import ControlPoint
 
 
 D = defaultdict(dict)

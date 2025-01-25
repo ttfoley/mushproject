@@ -21,11 +21,12 @@ print(surveyor)
 transitions_config = json.load(open(os.path.join(config_path, 'transitions_testing.json')))["Transitions"]
 print(transitions_config["Off"]["HumidOn"])
 
-def build_transition(start_state,end_state,transition_config):
+def build_transition(start_state,end_state,transition_config)->Transition:
     try:
         D= transition_config[start_state][end_state]["constraint_groups"]
     except:
-        return None
+        raise ValueError(f"Transition from {start_state} to {end_state} not found in transitions_config")
+
     D_CGs = dict()
     for CG_name,values in D.items():
         D_CGs[CG_name] = {}
@@ -36,6 +37,9 @@ def build_transition(start_state,end_state,transition_config):
         D_CGs[CG_name] = ConstraintGroup(CG_name,constraints_d)
 
     return Transition(start_state,end_state,D_CGs)
+
+
+
 
 class dummy_fsm():
     def __init__(self):

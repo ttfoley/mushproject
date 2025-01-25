@@ -10,8 +10,10 @@ from config_helpers import Node,Tree
 """Herein we're going to try to build the hierarchy of the systems, starting with the lowest level (control points and sensors) and working
 our way up to the physical system as whole + the FSM. Try to keep individual dictionaries as shallow as possible.
 Every leaf MUST have a .value attribute attached to it.
+I don't even use the UUIDs right now, but thought they may come in handy down the road.
 Now all of the manually typed config info could be passed via another config as well, but I feel like having this as config script is ok middle ground for now.
-Note that every leaf for the sys.sensors and sys.control points better have enough info to construct its Value class.
+Note that every leaf for the sys.sensors and sys.control points better have enough info to construct its Value class, including the class of the value. Ideally we would
+encode more at the base level and things like the class would be enforced/follow by construction.
 And even the topology could be defined using a bare json I guess.
 Speaking of "Topology":
 R
@@ -70,6 +72,7 @@ co2_sensors = {
 }
 
 #Define the parent level of the considered hierarchy
+#I separated out types of sensors, so that's one more key you need to access.
 sensors = defaultdict(dict)
 for p,d in zip(["temperature","humidity","co2"],[temp_sensors,humid_sensor,co2_sensors]):
     sensors[p] = defaultdict(dict)
