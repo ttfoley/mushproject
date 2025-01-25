@@ -23,7 +23,7 @@ class FSM:
         self.surveyor = surveyor
         self.transitions = transitions
         ###maybe current state should be passed in the general case?
-        self.current_state = StateStatus(states["Unknown"])
+        self.current_state = StateStatus(self.states["Unknown"])
         self.previous_state = self.states["Unknown"]
         self.desired_state =  initial_desired_state
         #the use of the word "state" is getting confusing. Sorry future me.

@@ -49,7 +49,7 @@ class ConstraintGroup:
 
 
 
-class Transitions:
+class Transitions_Maker:
     def __init__(self):
         self.configuration = self.initialize_configurations()
     
