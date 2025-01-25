@@ -1,22 +1,22 @@
 {
   "Off": [
-    {"control_point": "pin25", "value": "Off"},
-    {"control_point": "pin33", "value": "Off"}
+    {"control_point": "CP_25", "value": "Off"},
+    {"control_point": "CP_33", "value": "Off"}
   ],
   "HumidOn": [
-    {"control_point": "pin25", "value": "On"},
-    {"control_point": "pin33", "value": "Off"}
+    {"control_point": "CP_25", "value": "On"},
+    {"control_point": "CP_33", "value": "Off"}
   ],
   "Humidify": [
-    {"control_point": "pin25", "value": "On"},
-    {"control_point": "pin33", "value": "On"}
+    {"control_point": "CP_25", "value": "On"},
+    {"control_point": "CP_33", "value": "On"}
   ],
   "FanOff": [
-    {"control_point": "pin25", "value": "On"},
-    {"control_point": "pin33", "value": "Off"}
+    {"control_point": "CP_25", "value": "On"},
+    {"control_point": "CP_33", "value": "Off"}
   ],
   "Unknown": [
-    {"control_point": "pin25", "value": "Unknown"},
-    {"control_point": "pin33", "value": "Unknown"}
+    {"control_point": "CP_25", "value": "Unknown"},
+    {"control_point": "CP_33", "value": "Unknown"}
   ]
 }
