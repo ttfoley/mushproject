@@ -1,0 +1,7 @@
+#ifndef CALIBRATION_H
+#define CALIBRATION_H
+
+const float DHT_TEMPERATURE_OFFSET = -1.1;
+const float DHT_HUMIDITY_OFFSET = 7.0;
+
+#endif // CALIBRATION_H
