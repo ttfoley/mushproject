@@ -14,13 +14,13 @@ states = ["Off","HumidOn","Humidify","FanOff","Unknown"]
 #This whole thing could definitely be prettier. But I want to move on to control now.
 #Could have separate file of state_time constraint params, but then that's one more place where names could start differing.
 # Like if state names change, or if the sensor naming conventions changes... the dependendencies should be built in.
-# Like we should be using a survery class while constructing transitions here to know what sensors are available and what they're called. 
+# Maybe use surveyor class while constructing transitions here to know what sensors are available and what they're called. 
 state_time_sensor = "R.fsm.sensors.time_in_state"
 timed_constraints = {}
 constraint_Off_HumidOn = Constraint("0","R.fsm.sensors.time_in_state","30",">","float")
-constraint_HumidOn_Humidify = Constraint("0","R.fsm.sensors.time_in_state","30",">","float")
-constraint_Humidify_Fan_Off = Constraint("0","R.fsm.sensors.time_in_state","30",">","float")
-constraint_FanOff_Off = Constraint("0","R.fsm.sensors.time_in_state","7200",">","float")
+constraint_HumidOn_Humidify = Constraint("0","R.fsm.sensors.time_in_state","600",">","float")
+constraint_Humidify_Fan_Off = Constraint("0","R.fsm.sensors.time_in_state","0",">","float")
+constraint_FanOff_Off = Constraint("0","R.fsm.sensors.time_in_state","600",">","float")
 constraint_Unknown_Off= Constraint("0","R.fsm.sensors.time_in_state","0",">","float")
 
 #COnstraint groups by themselves aren't tied to pairs of states. They're just a collection of constraints.

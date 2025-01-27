@@ -9,6 +9,7 @@
 #include <SensirionCore.h>
 #include "SparkFun_SCD4x_Arduino_Library.h"
 #include <DHT.h>
+#include "calibration.h"
 
 #define WIFI_SSID SECRET_WIFI_SSID
 #define WIFI_PASSWORD SECRET_WIFI_PWD
@@ -134,8 +135,8 @@ void loop() {
       Serial.print("\n");
       
       //For DHT22
-      dht_humidity = dht.readHumidity();
-      dht_temperature = celsiusToFahrenheit(dht.readTemperature());
+      dht_humidity = dht.readHumidity() + DHT_HUMIDITY_OFFSET;
+      dht_temperature = celsiusToFahrenheit(dht.readTemperature()) + DHT_TEMPERATURE_OFFSET;
       Serial.print("DHT Humidity: ");
       dtostrf(dht_humidity, 1, 2, printString);
       Serial.print(printString);

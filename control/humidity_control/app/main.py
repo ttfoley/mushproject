@@ -29,7 +29,8 @@ def main(fsm:FSM, mqtt_handler:MQTTHandler,surveyor:Surveyor):
     update_frequency = 10
     gap_between_set_readback = 0
     desired_set = datetime.now()
-    
+
+    start_time = datetime.now()
     while True:
 
         fsm.update_state()
@@ -54,6 +55,8 @@ def main(fsm:FSM, mqtt_handler:MQTTHandler,surveyor:Surveyor):
         if (datetime.now()-last_update_time).total_seconds() > update_frequency:
             fsm.print_update()
             last_update_time = datetime.now()
+
+    mqtt_handler.loop_stop()
 
 
 if __name__ == "__main__":

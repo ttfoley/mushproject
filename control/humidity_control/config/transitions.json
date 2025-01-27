@@ -8,7 +8,7 @@
               "0": {
                 "definition": {
                   "value": "R.fsm.sensors.time_in_state",
-                  "threshold": "1200",
+                  "threshold": "30",
                   "comparator": ">",
                   "units": "float",
                   "description": ""
@@ -29,7 +29,7 @@
               "0": {
                 "definition": {
                   "value": "R.fsm.sensors.time_in_state",
-                  "threshold": "30",
+                  "threshold": "600",
                   "comparator": ">",
                   "units": "float",
                   "description": ""
@@ -50,7 +50,7 @@
               "0": {
                 "definition": {
                   "value": "R.fsm.sensors.time_in_state",
-                  "threshold": "300",
+                  "threshold": "0",
                   "comparator": ">",
                   "units": "float",
                   "description": ""
@@ -71,7 +71,7 @@
               "0": {
                 "definition": {
                   "value": "R.fsm.sensors.time_in_state",
-                  "threshold": "30",
+                  "threshold": "600",
                   "comparator": ">",
                   "units": "float",
                   "description": ""
