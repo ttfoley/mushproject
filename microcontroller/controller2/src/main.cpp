@@ -191,7 +191,7 @@ void loop() {
           }
         }
       }
-            // Check if it's time to post wifiConnectionDuration
+      // Check if it's time to post wifiConnectionDuration
       if (millis() - lastWifiDurationPostTime > WIFI_DURATION_POST_INTERVAL) {
         char durationString[16];
         dtostrf(wifiConnectionDuration / 60000.0, 1, 2, durationString); // Convert to minutes
