@@ -14,25 +14,25 @@
 #define WIFI_SSID SECRET_WIFI_SSID
 #define WIFI_PASSWORD SECRET_WIFI_PWD
 
-#define SHT_ADDR 0x44
-SCD4x SCD41;
+#define SHT0_ADDR 0x44
+SCD4x scd_0;
 
 bool enableHeater = false;
-Adafruit_SHT31 sht = Adafruit_SHT31();
+Adafruit_SHT31 sht_0 = Adafruit_SHT31();
 
-#define DHTPIN 4
-#define DHTTYPE DHT22
-DHT dht(DHTPIN, DHTTYPE);
+#define DHT_0_PIN 4
+#define DHT_0_TYPE DHT22
+DHT dht_0(DHT_0_PIN, DHT_0_TYPE);
 
 // MQTT
 const char* mqtt_server = "192.168.1.17";  // IP of the MQTT broker
-const char* sht_humidity_topic = "mush/controller1/sht/humidity";
-const char* sht_temperature_topic = "mush/controller1/sht/temperature";
-const char* scd_humidity_topic = "mush/controller1/scd/humidity";
-const char* scd_temperature_topic = "mush/controller1/scd/temperature";
-const char* scd_co2_topic = "mush/controller1/scd/co2";
-const char* dht_humidity_topic = "mush/controller1/dht/humidity";
-const char* dht_temperature_topic = "mush/controller1/dht/temperature";
+const char* sht_0_humidity_topic = "mush/controllers/C1/sensors/sht_0/humidity";
+const char* sht_0_temperature_topic = "mush/controllers/C1/sensors/sht_0/temperature";
+const char* scd_0_humidity_topic = "mush/controllers/C1/sensors/scd_0/humidity";
+const char* scd_0_temperature_topic = "mush/controllers/C1/sensors/scd_0/temperature";
+const char* scd_0_co2_topic = "mush/controllers/C1/sensors/scd_0/co2";
+const char* dht_0_humidity_topic = "mush/controllers/C1/sensors/dht_0/humidity";
+const char* dht_0_temperature_topic = "mush/controllers/C1/sensors/dht_0/temperature";
 const char* mqtt_username = "ttfoley"; // MQTT username
 const char* mqtt_password = "password"; // MQTT password
 const char* clientID = "controller1"; // MQTT client ID
@@ -61,18 +61,18 @@ void setup() {
   Serial.setTimeout(2000);
   Wire.begin();
   WiFi.mode(WIFI_STA);
-  sht.begin(SHT_ADDR);
-  dht.begin();
+  sht_0.begin(SHT0_ADDR);
+  dht_0.begin();
   delay(2000);
-  if (! sht.begin(SHT_ADDR)) 
+  if (! sht_0.begin(SHT0_ADDR)) 
   {   
   Serial.println("Couldn't find SHT31");
   while (1) delay(1);
   }
   
-  if (SCD41.begin(true,false) == false) //sets autocalibration false
+  if (scd_0.begin(true,false) == false) //sets autocalibration false
   {
-    Serial.println(F("SCD41 not detected. Please check wiring. Freezing..."));
+    Serial.println(F("scd_0 not detected. Please check wiring. Freezing..."));
     while (1);
   }
 
@@ -82,13 +82,13 @@ void loop() {
 
   client.loop();
   static unsigned long chrono;  // For timing in states (static means only initialized once?)
-  static float sht_temperature;
-  static float sht_humidity;
-  static float dht_temperature;
-  static float dht_humidity;
-  static float scd_temperature;
-  static float scd_humidity;
-  static float scd_co2;
+  static float sht_0_temperature;
+  static float sht_0_humidity;
+  static float dht_0_temperature;
+  static float dht_0_humidity;
+  static float scd_0_temperature;
+  static float scd_0_humidity;
+  static float scd_0_co2;
   static char tempString[16];
   static char printString[16];
 
@@ -124,43 +124,43 @@ void loop() {
     */
       Serial.println("State: READ_SENSORS");
 
-      sht_humidity = sht.readHumidity();
-      sht_temperature = celsiusToFahrenheit(sht.readTemperature());
+      sht_0_humidity = sht_0.readHumidity();
+      sht_0_temperature = celsiusToFahrenheit(sht_0.readTemperature());
       Serial.print("SHT Humidity: ");
-      dtostrf(sht_humidity, 1, 2, printString);
+      dtostrf(sht_0_humidity, 1, 2, printString);
       Serial.print(printString);
       Serial.print("\tSHT Temperature(F): ");
-      dtostrf(sht_temperature, 1, 2, printString);
+      dtostrf(sht_0_temperature, 1, 2, printString);
       Serial.print(printString);
       Serial.print("\n");
       
-      //For DHT22
-      dht_humidity = dht.readHumidity() + DHT_HUMIDITY_OFFSET;
-      dht_temperature = celsiusToFahrenheit(dht.readTemperature()) + DHT_TEMPERATURE_OFFSET;
-      Serial.print("DHT Humidity: ");
-      dtostrf(dht_humidity, 1, 2, printString);
+      //For DHT0
+      dht_0_humidity = dht_0.readHumidity() + DHT_HUMIDITY_OFFSET;
+      dht_0_temperature = celsiusToFahrenheit(dht_0.readTemperature()) + DHT_TEMPERATURE_OFFSET;
+      Serial.print("dht_0 Humidity: ");
+      dtostrf(dht_0_humidity, 1, 2, printString);
       Serial.print(printString);
-      Serial.print("\tDHT Temperature(F): ");
-      dtostrf(dht_temperature, 1, 2, printString);
+      Serial.print("\tdht_0 Temperature(F): ");
+      dtostrf(dht_0_temperature, 1, 2, printString);
       Serial.print(printString);
       Serial.print("\n");
 
-      if (SCD41.readMeasurement()) // readMeasurement will return true when fresh data is available
+      if (scd_0.readMeasurement()) // readMeasurement will return true when fresh data is available
       {
-        scd_temperature = celsiusToFahrenheit(SCD41.getTemperature());
-        scd_humidity = SCD41.getHumidity();
-        scd_co2 = SCD41.getCO2();
+        scd_0_temperature = celsiusToFahrenheit(scd_0.getTemperature());
+        scd_0_humidity = scd_0.getHumidity();
+        scd_0_co2 = scd_0.getCO2();
 
         Serial.print(F("SCD CO2(ppm):"));
-        dtostrf(scd_co2, 1, 2, printString);
+        dtostrf(scd_0_co2, 1, 2, printString);
         Serial.print(printString);
 
         Serial.print(F("\tSCD Temperature(F):"));
-        dtostrf(scd_temperature, 1, 2, printString);
+        dtostrf(scd_0_temperature, 1, 2, printString);
         Serial.print(printString);
 
         Serial.print(F("\tSCD Humidity(%RH):"));
-        dtostrf(scd_humidity, 1, 2, printString);
+        dtostrf(scd_0_humidity, 1, 2, printString);
         Serial.print(printString);
 
         Serial.println();
@@ -204,44 +204,44 @@ void loop() {
       char tempString[16];
 
 
-      dtostrf(sht_temperature, 1, 2, tempString);
-      if (client.publish(sht_temperature_topic, tempString)) 
+      dtostrf(sht_0_temperature, 1, 2, tempString);
+      if (client.publish(sht_0_temperature_topic, tempString)) 
       {
         Serial.println("SHT Temperature sent!");
       }
-      dtostrf(sht_humidity, 1, 2, tempString);
-      if (client.publish(sht_humidity_topic, tempString)) 
+      dtostrf(sht_0_humidity, 1, 2, tempString);
+      if (client.publish(sht_0_humidity_topic, tempString)) 
       {
         Serial.println("SHT Humidity sent!");
       }
 
-      dtostrf(dht_temperature, 1, 2, tempString);
-      if (client.publish(dht_temperature_topic, tempString)) 
+      dtostrf(dht_0_temperature, 1, 2, tempString);
+      if (client.publish(dht_0_temperature_topic, tempString)) 
       {
-        Serial.println("DHT Temperature sent!");
+        Serial.println("dht_0 Temperature sent!");
       }
-      dtostrf(dht_humidity, 1, 2, tempString);
-      if (client.publish(dht_humidity_topic, tempString)) 
+      dtostrf(dht_0_humidity, 1, 2, tempString);
+      if (client.publish(dht_0_humidity_topic, tempString)) 
       {
-        Serial.println("DHT Humidity sent!");
+        Serial.println("dht_0 Humidity sent!");
       }
 
-      dtostrf(scd_humidity, 1, 2, tempString);
-      if (client.publish(scd_humidity_topic, tempString)) 
+      dtostrf(scd_0_humidity, 1, 2, tempString);
+      if (client.publish(scd_0_humidity_topic, tempString)) 
       {
         Serial.println("SCD Humidity sent!");
       }
       
-      dtostrf(scd_temperature, 1, 2, tempString);
-      if (client.publish(scd_temperature_topic, tempString)) 
+      dtostrf(scd_0_temperature, 1, 2, tempString);
+      if (client.publish(scd_0_temperature_topic, tempString)) 
       {
         Serial.println("SCD Temperature sent!");
       }
 
 
 
-      dtostrf(scd_co2, 1, 2, tempString);
-      if (client.publish(scd_co2_topic, tempString)) 
+      dtostrf(scd_0_co2, 1, 2, tempString);
+      if (client.publish(scd_0_co2_topic, tempString)) 
       {
         Serial.println("SCD CO2 sent!");
       }

@@ -6,7 +6,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 lib_path = os.path.join(current_dir, '../../common')
 config_path = os.path.join(current_dir, '../config')
 sys.path.append(lib_path)
-from config_helpers import Node,Tree
+
 """Herein we're going to try to build the hierarchy of the systems, starting with the lowest level (control points and sensors) and working
 our way up to the physical system as whole + the FSM. Try to keep individual dictionaries as shallow as possible.
 Every leaf MUST have a .value attribute attached to it.
@@ -64,6 +64,7 @@ temp_sensors = {
     "t_scd_0": "mush/controller1/scd/temperature"
 }
 humid_sensor = {
+    "s_dht_0": "mush/controller1/sht/humidity",
     "h_dht_0": "mush/controller1/dht/humidity",
     "h_scd_0": "mush/controller1/scd/humidity"
 }
@@ -77,7 +78,7 @@ sensors = defaultdict(dict)
 for p,d in zip(["temperature","humidity","co2"],[temp_sensors,humid_sensor,co2_sensors]):
     sensors[p] = defaultdict(dict)
     for k,v in d.items():
-        #Defaults like this shouldn't be stored in a python file probably. Just creates confusion about where things are.
+        #Defaults like this shouldn't be stored in a python ficle probably. Just creates confusion about where things are.
         upper_bound = 100
         lower_bound = 0
         if p == "co2":
@@ -86,7 +87,7 @@ for p,d in zip(["temperature","humidity","co2"],[temp_sensors,humid_sensor,co2_s
         UUID +=1
 
 #Then the fsm stuff.
-#Note sure how to make it seems like it's on the same level as the control points and sensors, since it doesn't have all of that extra info needed.
+#Not sure how to make it seems like it's on the same level as the control points and sensors, since it doesn't have all of that extra info needed.
 fsm = defaultdict(dict)
 fsm["sensors"] = {"time_in_state": None, "state": None}##
 

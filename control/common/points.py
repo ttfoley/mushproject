@@ -183,6 +183,9 @@ class ControlPoint:
         if self.mqtt_handler != None:
             if self.mqtt_handler.is_connected():
                 return True
+            else:
+                print("MQTTHandler is not connected")
+                return False
         else:
             print("You don't even have a handler set up!")
             return False
@@ -338,7 +341,6 @@ class Outputs:
         return f"Outputs: {self.outputs}"
         
     def __hash__(self):
-        #This is ugly, one example of why I want to get rid of type named_tuple
         point_names = sorted([point._name for point in self.outputs.keys()])
         output_values = []
         for point in point_names:

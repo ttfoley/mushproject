@@ -1,7 +1,5 @@
-from collections import namedtuple
 from datetime import datetime
 from typing import Tuple, Sequence,Dict
-from points import ControlPoint
 
 VALID_OUTPUT_STATES = ["On","Off","Unknown"]
 

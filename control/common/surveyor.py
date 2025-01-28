@@ -8,9 +8,9 @@ from states import State
 This is a middle man that holds all of the information about the system, sans transitions. It has a notion of topology/groupings of the the points.
 It's primary purpose was to serve as a means to eval arbitrary expressions from Constraints classes used in Transitions.
 It will also be useful as a global source of truth on the state of the systems, including things like point staleness, failed point writes, etc.
-The main object is a big dicrionary with "leaves" are of class Value, meaning they have a .value attribute (important for the transition design).
+The main object is a big dicrionary where "leaves" are of class Value, meaning they have a .value attribute (important for the transition design).
 The leaves are the lowest level of the hierarchy.
-Surveyor also holds the control_points and sensors, except "virtual sensors" like fsm.time_in_state and fsm.state.
+Surveyor also holds the control_points and sensors.
 """
 
 
