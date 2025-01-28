@@ -22,10 +22,10 @@ const int pin_32 = 32;
 unsigned long initial_time = millis();
 PinControl pinControls[] = {
     PinControl(pin_4, 0.0,0.0, "led",  "mush/controllers/C2/control_points/led1/readback", "mush/controllers/C2/control_points/led1/write",initial_time),
-    PinControl(pin_26, 0.0, 0.0, "pin26", "mush/controllers/C2/control_points/pin26/readback", "mush/controllers/C2/control_points/pin26/write", initial_time),
-    PinControl(pin_25, 0.0, 0.0, "pin25", "mush/controllers/C2/control_points/pin25/readback", "mush/controllers/C2/control_points/pin25/write", initial_time),
-    PinControl(pin_33, 0.0, 0.0, "pin33", "mush/controllers/C2/control_points/pin33/readback", "mush/controllers/C2/control_points/pin33/write", initial_time),
-    PinControl(pin_32, 0.0, 0.0, "pin32", "mush/controllers/C2/control_points/pin32/readback", "mush/controllers/C2/control_points/pin32/write", initial_time)
+    PinControl(pin_26, 0.0, 0.0, "pin26", "mush/controllers/C2/control_points/CP_26/readback", "mush/controllers/C2/control_points/CP_26/write", initial_time),
+    PinControl(pin_25, 0.0, 0.0, "pin25", "mush/controllers/C2/control_points/CP_25/readback", "mush/controllers/C2/control_points/CP_25/write", initial_time),
+    PinControl(pin_33, 0.0, 0.0, "pin33", "mush/controllers/C2/control_points/CP_33/readback", "mush/controllers/C2/control_points/CP_33/write", initial_time),
+    PinControl(pin_32, 0.0, 0.0, "pin32", "mush/controllers/C2/control_points/CP_32/readback", "mush/controllers/C2/control_points/CP_32/write", initial_time)
 };
 // readbacks for the pins. when controller comes on, they start low. Only change if sent from mqtt.
 //Floats for now because topic parsing in telegraf sucks.
