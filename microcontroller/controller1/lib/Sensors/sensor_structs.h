@@ -68,7 +68,7 @@ public:
     }
 
     float readTemperature() override {
-        return sht31.readTemperature() * temperature_slope + temperature_offset;
+        return celsiusToFahrenheit(sht31.readTemperature()) * temperature_slope + temperature_offset;
     }
 
     const char* getHumidityTopic() override {
@@ -101,7 +101,7 @@ public:
     }
 
     float readTemperature() override {
-        return dht.readTemperature() * temperature_slope + temperature_offset;
+        return celsiusToFahrenheit(dht.readTemperature()) * temperature_slope + temperature_offset;
     }
 
     const char* getHumidityTopic() override {
@@ -138,7 +138,7 @@ public:
     }
 
     float readTemperature() override {
-        return scd4x.getTemperature() * temperature_slope + temperature_offset;
+        return celsiusToFahrenheit(scd4x.getTemperature()) * temperature_slope + temperature_offset;
     }
 
     float readCO2() override {

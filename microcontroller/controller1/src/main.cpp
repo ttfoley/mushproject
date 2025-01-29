@@ -186,7 +186,7 @@ void loop() {
     /*Only reads and posts if time to update.
     Only resets publish time if successfuly published.
     */
-      Serial.println("State: READ_AND_PUBLISH_SENSOR");
+      //Serial.println("State: READ_AND_PUBLISH_SENSOR");
       for (size_t i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
         if (millis() - sensors[i]->getTimeLastPublished() > publish_frequency) {
           if (publishSensorData(sensors[i])) {
