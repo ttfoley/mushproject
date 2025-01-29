@@ -10,11 +10,13 @@
 #include "SparkFun_SCD4x_Arduino_Library.h"
 #include <DHT.h>
 #include "calibration.h"
+#include "sensor_structs.h"
+#include "utils.h"
 
 #define WIFI_SSID SECRET_WIFI_SSID
 #define WIFI_PASSWORD SECRET_WIFI_PWD
 
-#define SHT0_ADDR 0x44
+#define SHT_0_ADDR 0x44
 SCD4x scd_0;
 
 bool enableHeater = false;
@@ -26,13 +28,6 @@ DHT dht_0(DHT_0_PIN, DHT_0_TYPE);
 
 // MQTT
 const char* mqtt_server = "192.168.1.17";  // IP of the MQTT broker
-const char* sht_0_humidity_topic = "mush/controllers/C1/sensors/sht_0/humidity";
-const char* sht_0_temperature_topic = "mush/controllers/C1/sensors/sht_0/temperature";
-const char* scd_0_humidity_topic = "mush/controllers/C1/sensors/scd_0/humidity";
-const char* scd_0_temperature_topic = "mush/controllers/C1/sensors/scd_0/temperature";
-const char* scd_0_co2_topic = "mush/controllers/C1/sensors/scd_0/co2";
-const char* dht_0_humidity_topic = "mush/controllers/C1/sensors/dht_0/humidity";
-const char* dht_0_temperature_topic = "mush/controllers/C1/sensors/dht_0/temperature";
 const char* mqtt_username = "ttfoley"; // MQTT username
 const char* mqtt_password = "password"; // MQTT password
 const char* clientID = "controller1"; // MQTT client ID
@@ -44,6 +39,12 @@ PubSubClient client(mqtt_server, 1883, wifiClient);
 void connect_MQTT();
 void connect_WiFi();
 float celsiusToFahrenheit(float celsius);
+
+SHTSensor sht_0_Sensor(SHT_0_ADDR, "mush/controllers/C1/sensors/sht_0/humidity", "mush/controllers/C1/sensors/sht_0/temperature", "SHT_0");
+DHTSensor dht_0_Sensor(DHT_0_PIN, DHT_0_TYPE, "mush/controllers/C1/sensors/dht_0/humidity", "mush/controllers/C1/sensors/dht_0/temperature", "DHT_0");
+SCDSensor scd_0_Sensor("mush/controllers/C1/sensors/scd_0/humidity", "mush/controllers/C1/sensors/scd_0/temperature", "mush/controllers/C1/sensors/scd_0/co2", "SCD_0");
+
+Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &scd_0_Sensor };
 
 enum State {START, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, READ_SENSORS, WAIT, RESTART};
 State state = START;
@@ -163,9 +164,6 @@ void loop() {
         dtostrf(scd_0_humidity, 1, 2, printString);
         Serial.print(printString);
 
-        Serial.println();
-        state = MQTT_CONNECT;
-        chrono = millis();
       }
 
 

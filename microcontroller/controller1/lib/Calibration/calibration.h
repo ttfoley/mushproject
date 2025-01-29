@@ -1,7 +1,34 @@
 #ifndef CALIBRATION_H
 #define CALIBRATION_H
 
-const float DHT_TEMPERATURE_OFFSET = -1.1;
-const float DHT_HUMIDITY_OFFSET = 7.0;
+#include <unordered_map>
+#include <string>
+// Define calibration parameters for each sensor instance
+struct CalibrationParams {
+    float humidity_slope;
+    float humidity_offset;
+    float temperature_slope;
+    float temperature_offset;
+    float co2_slope;
+    float co2_offset;
+};
+
+// Calibration parameters for specific sensor instances
+const CalibrationParams SHT_SENSOR_0_PARAMS = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
+const CalibrationParams DHT_SENSOR_0_PARAMS = {1.0, 7.0, 1.0, -1.1, 1.0, 0.0};
+const CalibrationParams SCD_SENSOR_0_PARAMS = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
+
+// Map sensor instance names to their calibration parameters
+std::unordered_map<std::string, CalibrationParams> calibration_map = {
+    {"SHT_0", SHT_SENSOR_0_PARAMS},
+    {"DHT_0", DHT_SENSOR_0_PARAMS},
+    {"SCD_0", SCD_SENSOR_0_PARAMS}
+};
+
+// Function to retrieve calibration parameters for a given sensor instance
+CalibrationParams getCalibrationParams(const std::string& sensor_instance) {
+    return calibration_map[sensor_instance];
+}
+
 
 #endif // CALIBRATION_H
