@@ -25,7 +25,7 @@ const char* mqtt_server = "192.168.1.17";  // IP of the MQTT broker
 const char* mqtt_username = "ttfoley"; // MQTT username
 const char* mqtt_password = "password"; // MQTT password
 const char* clientID = "controller1"; // MQTT client ID
-const long publish_frequency = 10000; // How often to publish sensor data (ms)
+const long publish_frequency = 15000; // How often to publish sensor data (ms)
 
 // Initialise the WiFi and MQTT Client objects
 WiFiClient wifiClient;
