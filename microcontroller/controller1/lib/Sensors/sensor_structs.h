@@ -26,13 +26,15 @@ public:
           co2_slope(params.co2_slope), co2_offset(params.co2_offset) {}
 
     virtual bool begin() = 0;
-    virtual void read() = 0;
+    virtual bool hasHumidity() { return false; }
+    virtual bool hasTemperature() { return false; }
+    virtual bool hasCO2() { return false; }
+    virtual float readHumidity() { return 0.0; }
+    virtual float readTemperature() { return 0.0; }
+    virtual float readCO2() { return 0.0; }
     virtual const char* getHumidityTopic() = 0;
     virtual const char* getTemperatureTopic() = 0;
     virtual const char* getCO2Topic() { return nullptr; }
-    virtual float getHumidity() = 0;
-    virtual float getTemperature() = 0;
-    virtual float getCO2() { return 0.0; }
 
     void resetTimeLastPublished() {
         time_last_published = millis();
@@ -41,32 +43,32 @@ public:
     unsigned long getTimeLastPublished() {
         return time_last_published;
     }
-
-    float applySlopeAndOffset(float reading, float slope, float offset) {
-        return reading * slope + offset;
-    }
 };
 
+// Derived classes for specific sensors
 class SHTSensor : public Sensor {
 private:
-    float humidity;
-    float temperature;
-    Adafruit_SHT31 sensor;
+    Adafruit_SHT31 sht31;
+    uint8_t addr;
     const char* humidity_topic;
     const char* temperature_topic;
 
 public:
-    SHTSensor(uint8_t addr, const char* hum_topic, const char* temp_topic, const std::string& sensor_instance)
-        : Sensor(getCalibrationParams(sensor_instance)), humidity(0.0), temperature(0.0), sensor(addr),
-          humidity_topic(hum_topic), temperature_topic(temp_topic) {}
-
+    SHTSensor(uint8_t addr, const char* humidity_topic, const char* temperature_topic, const CalibrationParams& params)
+        : Sensor(params), sht31(), addr(addr), humidity_topic(humidity_topic), temperature_topic(temperature_topic) {}
     bool begin() override {
-        return sensor.begin();
+        return sht31.begin(addr); // replace 0x44 with the actual address if different
     }
 
-    void read() override {
-        humidity = applySlopeAndOffset(sensor.readHumidity(), humidity_slope, humidity_offset);
-        temperature = applySlopeAndOffset(celsiusToFahrenheit(sensor.readTemperature()), temperature_slope, temperature_offset);
+    bool hasHumidity() override { return true; }
+    bool hasTemperature() override { return true; }
+
+    float readHumidity() override {
+        return sht31.readHumidity() * humidity_slope + humidity_offset;
+    }
+
+    float readTemperature() override {
+        return sht31.readTemperature() * temperature_slope + temperature_offset;
     }
 
     const char* getHumidityTopic() override {
@@ -75,38 +77,31 @@ public:
 
     const char* getTemperatureTopic() override {
         return temperature_topic;
-    }
-
-    float getHumidity() override {
-        return humidity;
-    }
-
-    float getTemperature() override {
-        return temperature;
     }
 };
 
 class DHTSensor : public Sensor {
 private:
-    float humidity;
-    float temperature;
-    DHT sensor;
-    const char* humidity_topic;
-    const char* temperature_topic;
+    DHT dht;
 
 public:
-    DHTSensor(uint8_t pin, uint8_t type, const char* hum_topic, const char* temp_topic, const std::string& sensor_instance)
-        : Sensor(getCalibrationParams(sensor_instance)), humidity(0.0), temperature(0.0), sensor(pin, type),
-          humidity_topic(hum_topic), temperature_topic(temp_topic) {}
+    DHTSensor(uint8_t pin, uint8_t type, const char* humidity_topic, const char* temperature_topic, const CalibrationParams& params)
+        : Sensor(params), dht(pin, type), humidity_topic(humidity_topic), temperature_topic(temperature_topic) {}
 
     bool begin() override {
-        sensor.begin();
-        return true; // DHT library does not provide a way to check if the sensor began successfully
+        dht.begin();
+        return true;
     }
 
-    void read() override {
-        humidity = applySlopeAndOffset(sensor.readHumidity(), humidity_slope, humidity_offset);
-        temperature = applySlopeAndOffset(celsiusToFahrenheit(sensor.readTemperature()), temperature_slope, temperature_offset);
+    bool hasHumidity() override { return true; }
+    bool hasTemperature() override { return true; }
+
+    float readHumidity() override {
+        return dht.readHumidity() * humidity_slope + humidity_offset;
+    }
+
+    float readTemperature() override {
+        return dht.readTemperature() * temperature_slope + temperature_offset;
     }
 
     const char* getHumidityTopic() override {
@@ -117,40 +112,37 @@ public:
         return temperature_topic;
     }
 
-    float getHumidity() override {
-        return humidity;
-    }
-
-    float getTemperature() override {
-        return temperature;
-    }
+private:
+    const char* humidity_topic;
+    const char* temperature_topic;
 };
 
 class SCDSensor : public Sensor {
 private:
-    float humidity;
-    float temperature;
-    float co2;
-    SCD4x sensor;
-    const char* humidity_topic;
-    const char* temperature_topic;
-    const char* co2_topic;
+    SCD4x scd4x;
 
 public:
-    SCDSensor(const char* hum_topic, const char* temp_topic, const char* co2_topic, const std::string& sensor_instance)
-        : Sensor(getCalibrationParams(sensor_instance)), humidity(0.0), temperature(0.0), co2(0.0),
-          humidity_topic(hum_topic), temperature_topic(temp_topic), co2_topic(co2_topic) {}
+    SCDSensor(const char* humidity_topic, const char* temperature_topic, const char* co2_topic, const CalibrationParams& params)
+        : Sensor(params), scd4x(), humidity_topic(humidity_topic), temperature_topic(temperature_topic), co2_topic(co2_topic) {}
 
     bool begin() override {
-        return sensor.begin();
+        return scd4x.begin();
     }
 
-    void read() override {
-        if (sensor.readMeasurement()) {
-            humidity = applySlopeAndOffset(sensor.getHumidity(), humidity_slope, humidity_offset);
-            temperature = applySlopeAndOffset(celsiusToFahrenheit(sensor.getTemperature()), temperature_slope, temperature_offset);
-            co2 = applySlopeAndOffset(sensor.getCO2(), co2_slope, co2_offset);
-        }
+    bool hasHumidity() override { return true; }
+    bool hasTemperature() override { return true; }
+    bool hasCO2() override { return true; }
+
+    float readHumidity() override {
+        return scd4x.getHumidity() * humidity_slope + humidity_offset;
+    }
+
+    float readTemperature() override {
+        return scd4x.getTemperature() * temperature_slope + temperature_offset;
+    }
+
+    float readCO2() override {
+        return scd4x.getCO2() * co2_slope + co2_offset;
     }
 
     const char* getHumidityTopic() override {
@@ -165,17 +157,10 @@ public:
         return co2_topic;
     }
 
-    float getHumidity() override {
-        return humidity;
-    }
-
-    float getTemperature() override {
-        return temperature;
-    }
-
-    float getCO2() override {
-        return co2;
-    }
+private:
+    const char* humidity_topic;
+    const char* temperature_topic;
+    const char* co2_topic;
 };
 
 #endif // SENSOR_STRUCTS_H
