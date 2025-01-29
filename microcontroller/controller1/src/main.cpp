@@ -257,19 +257,37 @@ bool publishSensorData(Sensor* sensor) {
   // Read and publish sensor data if available
   if (sensor->hasHumidity()) {
     float humidity = sensor->readHumidity();
-    if (!client.publish(sensor->getHumidityTopic(), String(humidity).c_str())) {
+    const char* topic = sensor->getHumidityTopic();
+    if (client.publish(topic, String(humidity).c_str())) {
+      Serial.print("Published humidity: ");
+      Serial.print(humidity);
+      Serial.print(" to topic: ");
+      Serial.println(topic);
+    } else {
       success = false;
     }
   }
   if (sensor->hasTemperature()) {
     float temperature = sensor->readTemperature();
-    if (!client.publish(sensor->getTemperatureTopic(), String(temperature).c_str())) {
+    const char* topic = sensor->getTemperatureTopic();
+    if (client.publish(topic, String(temperature).c_str())) {
+      Serial.print("Published temperature: ");
+      Serial.print(temperature);
+      Serial.print(" to topic: ");
+      Serial.println(topic);
+    } else {
       success = false;
     }
   }
   if (sensor->hasCO2()) {
     float co2 = sensor->readCO2();
-    if (!client.publish(sensor->getCO2Topic(), String(co2).c_str())) {
+    const char* topic = sensor->getCO2Topic();
+    if (client.publish(topic, String(co2).c_str())) {
+      Serial.print("Published CO2: ");
+      Serial.print(co2);
+      Serial.print(" to topic: ");
+      Serial.println(topic);
+    } else {
       success = false;
     }
   }
