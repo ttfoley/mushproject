@@ -258,7 +258,7 @@ bool publishSensorData(Sensor* sensor) {
   if (sensor->hasHumidity()) {
     float humidity = sensor->readHumidity();
     const char* topic = sensor->getHumidityTopic();
-    if (client.publish(topic, String(humidity).c_str())) {
+    if (client.publish(topic, String(humidity,2).c_str())) {
       Serial.print("Published humidity: ");
       Serial.print(humidity);
       Serial.print(" to topic: ");
@@ -270,7 +270,7 @@ bool publishSensorData(Sensor* sensor) {
   if (sensor->hasTemperature()) {
     float temperature = sensor->readTemperature();
     const char* topic = sensor->getTemperatureTopic();
-    if (client.publish(topic, String(temperature).c_str())) {
+    if (client.publish(topic, String(temperature,2).c_str())) {
       Serial.print("Published temperature: ");
       Serial.print(temperature);
       Serial.print(" to topic: ");
@@ -282,7 +282,7 @@ bool publishSensorData(Sensor* sensor) {
   if (sensor->hasCO2()) {
     float co2 = sensor->readCO2();
     const char* topic = sensor->getCO2Topic();
-    if (client.publish(topic, String(co2).c_str())) {
+    if (client.publish(topic, String(co2,2).c_str())) {
       Serial.print("Published CO2: ");
       Serial.print(co2);
       Serial.print(" to topic: ");
