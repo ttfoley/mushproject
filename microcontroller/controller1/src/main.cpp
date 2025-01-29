@@ -30,8 +30,10 @@ const long publish_frequency = 10000; // How often to publish sensor data (ms)
 // Initialise the WiFi and MQTT Client objects
 WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, wifiClient);
-void connect_MQTT();
-void connect_WiFi();
+bool connect_MQTT();
+bool connect_WiFi();
+bool exceedMaxSensorPublishTime();
+bool publishSensorData(Sensor* sensor);
 
 //Make sensors. The last arg is the sensor instance name for lookup in calibration map
 SHTSensor sht_0_Sensor(SHT_0_ADDR, "mush/controllers/C1/sensors/sht_0/humidity", "mush/controllers/C1/sensors/sht_0/temperature", getCalibrationParams("SHT_0"));
@@ -48,6 +50,7 @@ State state = START;
 #define MQTT_WAIT 10000
 #define MQTT_CONNECT_WAIT 1000
 #define WIFI_CONNECT_WAIT 5000
+#define MAX_TIME_NO_PUBLISH 60000 //failsafe in case a sensor breaks or something
 
 
 void setup() {
@@ -98,91 +101,104 @@ void loop() {
       if (WiFi.status() != WL_CONNECTED) {
         state = WIFI_CONNECT;
         chrono = millis();
-      } else if (!client.connected()) {
+      } 
+      else if (!client.connected()) {
         state = MQTT_CONNECT;
         chrono = millis();
-      } else if (millis() - chrono > WAIT_WAIT) {
+      } 
+      else if (millis() - chrono > WAIT_WAIT) {
         state = READ_AND_PUBLISH_SENSOR;
         chrono = millis();
       }
-        else { //stay in this state, don't reset chrono.
+      else if (exceedMaxSensorPublishTime()) {
+        state = RESTART;
+      }
+      else { //stay in this state, don't reset chrono.
         state = WAIT;
-        }
+      }
       break;
 
     case WIFI_CONNECT:
       Serial.println("State: WIFI_CONNECT");
-      if (WiFi.status() == WL_CONNECTED) 
-      {
-        state = WAIT;
+      if (WiFi.status() == WL_CONNECTED) {
+        state = MQTT_CONNECT;
         chrono = millis();
-      }
-      else if (millis() - chrono > WIFI_WAIT) //We've tried too many times, restart the board
-      {
-        state = RESTART;
-      }
-      else // try to connect again
-      {
+      } 
+      else if (millis() - chrono < WIFI_WAIT) {
+        /**This tries to connect to wifi in the background, but doesn't wait for it to connect, so it will always return false.
+        On the next loop, if it's connected, it will be caught in the first if statement.
+        */
+        Serial.print("Last WiFi attempt failed, current status:");
+        Serial.println(WiFi.status());
         connect_WiFi();
-        //Give it time to connect
-        delay(WIFI_CONNECT_WAIT);
-        state = WIFI_CONNECT; //this doesn't do anything but just to be explicit. Note we don't restart timer.
-        //don't reset chrono because we're going back to the same state
+        delay(WIFI_CONNECT_WAIT); //give it time to try to connect
+        if (WiFi.status() == WL_CONNECTED) {
+          connect_WiFi(); //Will just print IP address
+          /*Hack so we can see the IP address, still go back to WiFi_CONNECT state to not break the pattern.
+          I could put the transition to MQTT_CONNECT here, but then it would be inside two if statements, breaking the pattern.
+          */
+        } 
+        state = WIFI_CONNECT;
+
+      } 
+      else {
+        state = RESTART;
       }
       break;
 
+
+    case MQTT_CONNECT:
+      Serial.println("State: MQTT_CONNECT");
+      if (client.connected()) {
+        state = READ_AND_PUBLISH_SENSOR;
+        chrono = millis();
+      } 
+
+      else if (WiFi.status() != WL_CONNECTED) {
+        //if we're not connected to wifi, we can't connect to MQTT
+        state = WIFI_CONNECT;
+        chrono = millis();
+      } 
+
+      else if (millis() - chrono < MQTT_WAIT) {
+        /**  Try to connect to the MQTT broker. Even if this returns false (likely, not giving it any time to connect),
+        it's trying to connect in the background.
+        On next loop to MQTT_CONNECT, if it's connected it's caught in the first if statement.
+        */
+        Serial.print("Last attemp failed with code rc=");
+        Serial.print(client.state());
+        Serial.print("Attempting MQTT connection...");
+        connect_MQTT();
+        //give it time to try to connect
+        delay(MQTT_CONNECT_WAIT);
+        state = MQTT_CONNECT;
+      } 
+
+      else {
+        //We've tried for too long, restart the board.
+        state = RESTART;
+      }
+
+      break;
+
+
     case READ_AND_PUBLISH_SENSOR:
+    /*Only reads and posts if time to update.
+    Only resets publish time if successfuly published.
+    */
       Serial.println("State: READ_AND_PUBLISH_SENSOR");
       for (size_t i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
         if (millis() - sensors[i]->getTimeLastPublished() > publish_frequency) {
-          // Read and publish sensor data if available
-          if (sensors[i]->hasHumidity()) {
-            float humidity = sensors[i]->readHumidity();
-            client.publish(sensors[i]->getHumidityTopic(), String(humidity).c_str());
+          if (publishSensorData(sensors[i])) {
+            sensors[i]->resetTimeLastPublished();
+          } 
+          else {
+            Serial.println("Failed to publish sensor data");
           }
-          if (sensors[i]->hasTemperature()) {
-            float temperature = sensors[i]->readTemperature();
-            client.publish(sensors[i]->getTemperatureTopic(), String(temperature).c_str());
-          }
-          if (sensors[i]->hasCO2()) {
-            float co2 = sensors[i]->readCO2();
-            client.publish(sensors[i]->getCO2Topic(), String(co2).c_str());
-          }
-
-          // Update time_last_published
-          sensors[i]->resetTimeLastPublished();
         }
       }
       state = WAIT;
       chrono = millis();
-      break;
-
-    case MQTT_CONNECT:
-      Serial.println("State: MQTT_CONNECT");
-      if (client.connected())
-      {
-        state = WAIT;
-        chrono = millis();
-      }
-      else if (WiFi.status() != WL_CONNECTED) //Note we lose track of our data when we do this, restarts whole machine
-      {
-        //I don't know why I do this instead of going back to WAIT, I think it's more direct I guess.
-        state = WIFI_CONNECT;
-        chrono = millis();
-      }
-      else if (millis() - chrono < MQTT_WAIT) // Try again if we haven't run out of time
-      {
-        connect_MQTT();
-        //Give it time to try to connect
-        delay(MQTT_CONNECT_WAIT);
-        //Should we add delay here, to give MQTT time to respond?
-        state = MQTT_CONNECT; // just to be explicit
-        //don't reset chrono because we're going back to same state
-      }
-      else  // We're out of time and tried everything, let's give up
-      {
-        state = RESTART;
-      }
       break;
 
 
@@ -196,38 +212,66 @@ void loop() {
 }
 
 
-void connect_WiFi() {
+bool connect_WiFi() {
+  //With current construction, we never get to see IP address..
+  // Connect to the WiFi
 
-  if (WiFi.status() == WL_CONNECTED)
-  {
-    return;
+  //First check if we're already connected
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("WiFi connected");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+    return true;
   }
   else {
     WiFi.disconnect(); //advised to disconnect first.
-    // Connect to the WiFi
     Serial.println("Connecting to WiFi...");
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    delay(5000);
-    Serial.print("WiFi status: ");
-    Serial.println(WiFi.status());
-    if (WiFi.status() == WL_CONNECTED){
-      Serial.println("WiFi connected");
-      Serial.print("IP address: ");
-      Serial.println(WiFi.localIP());
-      Serial.print("\n");
-    }
+    return (WiFi.status() == WL_CONNECTED); // This should always be false, since we're not giving it any time to connect.
   }
-
 }
 
-void connect_MQTT() {
-  Serial.print("Attempting MQTT connection...");
-  // Attempt to connect
-  if (client.connect(clientID, mqtt_username, mqtt_password)) {
-    Serial.println("connected");
-    // Subscribe
-  } else {
-    Serial.print("failed, rc=");
-    Serial.print(client.state());
+bool connect_MQTT() {
+  if (client.connected()) {
+    return true;
   }
+
+  else {
+    // Attempt to connect
+    client.connect(clientID, mqtt_username, mqtt_password);
+    return client.connected();//Since we're giving it no delay, this will basically never return true.
+  }
+}
+
+bool exceedMaxSensorPublishTime() {
+  for (size_t i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
+    if (millis() - sensors[i]->getTimeLastPublished() > MAX_TIME_NO_PUBLISH) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool publishSensorData(Sensor* sensor) {
+  bool success = true;
+  // Read and publish sensor data if available
+  if (sensor->hasHumidity()) {
+    float humidity = sensor->readHumidity();
+    if (!client.publish(sensor->getHumidityTopic(), String(humidity).c_str())) {
+      success = false;
+    }
+  }
+  if (sensor->hasTemperature()) {
+    float temperature = sensor->readTemperature();
+    if (!client.publish(sensor->getTemperatureTopic(), String(temperature).c_str())) {
+      success = false;
+    }
+  }
+  if (sensor->hasCO2()) {
+    float co2 = sensor->readCO2();
+    if (!client.publish(sensor->getCO2Topic(), String(co2).c_str())) {
+      success = false;
+    }
+  }
+  return success;
 }
