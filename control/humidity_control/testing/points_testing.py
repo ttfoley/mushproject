@@ -9,7 +9,7 @@ sys.path.append(lib_path)
 from mqtt_handler import MQTTHandler
 import json
 from datetime import datetime
-from points import Remote_Write,Remote_Read, Remote_Sensor
+from values import Remote_Write,Remote_Read, Remote_Sensor
 from controller import ControlPoint
 
 

@@ -1,7 +1,6 @@
 from datetime import datetime
 from typing import Tuple, Sequence,Dict
 
-VALID_OUTPUT_STATES = ["On","Off","Unknown"]
 
 class State:
     #Every state better have the same control points
@@ -41,6 +40,7 @@ class StateStatus(object):
 
     def __init__(self,state:State):
         self.state = state
+        #Started upon creation. Everytime we recreate the StateStatus in fsm, we reset the time. So be careful.
         self.time_started = datetime.now()
 
 
@@ -59,3 +59,19 @@ class StateStatus(object):
         #1/23 don't even know why we need this?
         #this probably isn't the best repr since the time object might have a lot of digits.
         return f"In state {self.state.name} from {self.time_started}"
+
+
+class States_Manager:
+    def __init__(self,states_config:Dict[str,Dict[str,str]],initial_state:str):
+        self.states = self.build_states(states_config)
+        self.initial_state = self.states[initial_state]
+
+    def build_states(self,states_config:Dict[str,Dict[str,str]])->Dict[str,State]:
+        states = {}
+        for state_name,outputs in states_config.items():
+            states[state_name] = State(state_name,outputs)
+        return states
+    
+    @property
+    def state_names(self)->list[str]:
+        return list(self.states.keys())

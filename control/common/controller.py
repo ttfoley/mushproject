@@ -1,7 +1,4 @@
-import paho.mqtt.client as mqtt
-import json
-
-from points import Virtual_Sensor
+from values import Virtual_Sensor
 from states import State,StateStatus
 from transitions import Transitions_Manager
 from surveyor import Surveyor
@@ -17,15 +14,12 @@ class FSM:
     #READ THIS Current state is type StateStatus, desired and previous states are type State. This is kind of confusing.  I need better names.
     def __init__(self, states:dict[str,State],transitions:Transitions_Manager,surveyor:Surveyor,initial_desired_state:State):
         self.desired_state = initial_desired_state
-        ##Shouldn't be done here, should've already been checked
-        assert "Unknown" in states.keys()
         self.states = states
         self.surveyor = surveyor
         self.transitions = transitions
         ###maybe current state should be passed in the general case?
         self.current_state = StateStatus(self.states["Unknown"])
         self.previous_state = self.states["Unknown"]
-        self.desired_state =  initial_desired_state
         #the use of the word "state" is getting confusing. Sorry future me.
         self.state = Virtual_Sensor(self.current_state.state,"Current State of the FSM.")
         self.time_in_state = Virtual_Sensor(self.current_state.time_in_state,"Time in the current active state.")

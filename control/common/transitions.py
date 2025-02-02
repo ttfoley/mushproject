@@ -90,7 +90,7 @@ class Transition:
 class Transitions_Manager:
     ##Transitions will should be a big  dict of dicts. The outer dict is keyed by the "from" state. The inner dict is keyed by the "to" state, and the value is a list of Constraint_Groups.
     #!!!! As is, this assumes there are no self-transitions.
-    def __init__(self, transitions_config: dict, states: Dict[str, State], surveyor):
+    def __init__(self, transitions_config: dict, states: Dict[str, State], surveyor:Surveyor):
         self.transitions_config = transitions_config
         self.states = states
         self.surveyor = surveyor

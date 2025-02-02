@@ -36,6 +36,8 @@ bool exceedMaxSensorPublishTime();
 bool publishSensorData(Sensor* sensor);
 
 //Make sensors. The last arg is the sensor instance name for lookup in calibration map
+//Should probably have topics in a map like the scaling, and include a name for the sensor instance to make
+//it easier to find configurations (wouldn't need to add extra arguments to the sensor constructors)
 SHTSensor sht_0_Sensor(SHT_0_ADDR, "mush/controllers/C1/sensors/sht_0/humidity", "mush/controllers/C1/sensors/sht_0/temperature", getCalibrationParams("SHT_0"));
 DHTSensor dht_0_Sensor(DHT_0_PIN, DHT_0_TYPE, "mush/controllers/C1/sensors/dht_0/humidity", "mush/controllers/C1/sensors/dht_0/temperature", getCalibrationParams("DHT_0"));
 SCDSensor scd_0_Sensor("mush/controllers/C1/sensors/scd_0/humidity", "mush/controllers/C1/sensors/scd_0/temperature", "mush/controllers/C1/sensors/scd_0/co2", getCalibrationParams("SCD_0"));
