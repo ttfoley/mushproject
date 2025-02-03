@@ -75,6 +75,12 @@ class Points_Manager:
     def next_uuid(self):
         return max(self._uuids)+1
     
+    def value_exists(self,uuid:int):
+        return uuid in self._points_lookup
+    
+    def get_value(self,uuid:int):
+        return self._points_lookup[uuid].value
+
     def build_microcontroller_points(self)->dict:
             """First creates all values according to the initial points config file.
             Then makes all physical control points and sensors.
@@ -163,3 +169,6 @@ class Points_Manager:
         driver_points["state_time"] = point
 
         return {"drivers":{driver_name:{"sensors":{"status":driver_points}}}}
+    
+    def dump_uuid_lookup(self):
+        return self._uuid_lookup

@@ -55,15 +55,13 @@ class StateStatus(object):
         assert isinstance(other,State)
         return self.state == other
     
-    def __repr__(self) -> str:
-        #1/23 don't even know why we need this?
-        #this probably isn't the best repr since the time object might have a lot of digits.
-        return f"In state {self.state.name} from {self.time_started}"
 
 
 class States_Manager:
     def __init__(self,states_config:Dict[str,Dict[str,str]],initial_state:str):
-        self.states = self.build_states(states_config)
+        self.states = self.build_states(states_config) 
+        self.used_control_points = self.cps_used()
+        self.states.update({"unknown":self.make_unknown()})
         self.initial_state = self.states[initial_state]
 
     def build_states(self,states_config:Dict[str,Dict[str,str]])->Dict[str,State]:
@@ -71,6 +69,18 @@ class States_Manager:
         for state_name,outputs in states_config.items():
             states[state_name] = State(state_name,outputs)
         return states
+    
+    def cps_used(self):
+        #Returns the control points used by all states, makes sure they are the same.
+        CPs = set()
+        for state in self.states.values():
+            CPs.update(state.outputs.keys())
+        for state in self.states.values():
+            assert set(state.outputs.keys()) == CPs
+        return list(CPs)
+    
+    def make_unknown(self):
+        return State("unknown",{cp:"unknown" for cp in self.used_control_points})
     
     @property
     def state_names(self)->list[str]:

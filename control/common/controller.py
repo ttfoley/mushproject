@@ -1,4 +1,3 @@
-from values import Virtual_Sensor
 from states import State,StateStatus
 from transitions import Transitions_Manager
 from surveyor import Surveyor
@@ -21,8 +20,8 @@ class FSM:
         self.current_state = StateStatus(self.states["Unknown"])
         self.previous_state = self.states["Unknown"]
         #the use of the word "state" is getting confusing. Sorry future me.
-        self.state = Virtual_Sensor(self.current_state.state,"Current State of the FSM.")
-        self.time_in_state = Virtual_Sensor(self.current_state.time_in_state,"Time in the current active state.")
+        # self.state = Virtual_Sensor(self.current_state.state,"Current State of the FSM.")
+        # self.time_in_state = Virtual_Sensor(self.current_state.time_in_state,"Time in the current active state.")
           
 
         
