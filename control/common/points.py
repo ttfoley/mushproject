@@ -1,5 +1,4 @@
-
-from typing import Dict, NamedTuple
+from typing import Dict, NamedTuple, TypedDict, Union, Literal, Protocol, Optional
 from datetime import datetime
 from values import Value, Discrete_Value,Continuous_Value
 
@@ -12,8 +11,8 @@ class PublishInfo(NamedTuple):
 
 
 class Point:
-    def __init__(self,value_class:Value):
-        self.value_class = value_class## value class
+    def __init__(self, value_class: Value):
+        self.value_class = value_class
         self._uuid = self.value_class.uuid
         self._description = self.value_class.description
         self._addr = self.value_class.addr
@@ -51,16 +50,17 @@ class ReadOnly_Point(Point):
     def __init__(self,value_class:Value):
         super().__init__(value_class)
     
-
 class Writable_Point(Point):
     """
     This is a class that represents a point that can be written to. Information includes how frequently to republish.
     Note that in the subclasses methods are provided to ensure the requested value (for publishing) is valid.
     """
-    def __init__(self,value_class:Value,republish_frequency:float = 60):
+    def __init__(self, value_class: Value, 
+                 republish_frequency: float = 60.0,
+                 retry_interval: float = 5.0):
         super().__init__(value_class)
-
-        self._republish_frequency= republish_frequency
+        self._republish_frequency = republish_frequency
+        self._retry_interval = retry_interval
         self._requested_value = None
         self._time_start_value = datetime.now()
         self._time_last_published = datetime.now()
@@ -90,14 +90,25 @@ class Writable_Point(Point):
     def republish_frequency(self):
         return self._republish_frequency
 
+    @property
+    def retry_interval(self) -> float:
+        """How long to wait before retrying failed publishes"""
+        return self._retry_interval
+
+    def pre_publish(self) -> None:
+        """Called just before publishing to ensure fresh values"""
+        pass
+
 class Writeable_Discrete_Point(Writable_Point):
     """
     From FSM, we're going to need to write both continuous and discrete values.
     Should we 
     """
-    def __init__(self,value_class:Discrete_Value,republish_frequency = 60): 
-        super().__init__(value_class,republish_frequency)
-        self.value_class = value_class # How does this work? Does it just override type checking?
+    def __init__(self, value_class: Discrete_Value,
+                 republish_frequency: float = 60.0,
+                 retry_interval: float = 5.0):
+        super().__init__(value_class, republish_frequency, retry_interval)
+        self.value_class = value_class
         self._valid_values = self.value_class._valid_values
     
     @property
@@ -118,18 +129,21 @@ class Writeable_Continuous_Point(Writable_Point):
     """
     From FSM, we're going to need to write both continuous and discrete values.
     """
-    def __init__(self,value_class:Continuous_Value,republish_frequency= 60):
-        super().__init__(value_class,republish_frequency)
-        self.value_class = value_class # How does this work? Does it just override type checking?
+    def __init__(self, value_class: Continuous_Value,
+                 republish_frequency: float = 60.0,
+                 retry_interval: float = 5.0):
+        super().__init__(value_class, republish_frequency, retry_interval)
+        self.value_class = value_class
         self._valid_range = self.value_class._valid_range
     
     @property
     def requested_value(self):
         return self._requested_value
 
-    ##This is checking requested value, not the value itself.
     @requested_value.setter
     def requested_value(self,candidate_value):
+        #I don't really like that I'm casting here, but it works.
+        candidate_value = self.value_class._value_type(candidate_value)
         assert type(candidate_value) == self.value_class._value_type
         if self.valid_value(candidate_value):
             self._requested_value = candidate_value
@@ -145,22 +159,27 @@ class Writeable_Continuous_Point(Writable_Point):
 
 
 
+
+
 class ControlPoint:
     """
     This is a class that represents a control point, defined/designed to group a writable point with matching readback point. These exist only in
     in reference to the microcontroller. Stripped down from old version. 
     """
-
-
-    def __init__(self, write_point:Writeable_Discrete_Point, readback_point:ReadOnly_Point,republish_frequency_mismatch = 5):
+    def __init__(self, write_point: Writeable_Discrete_Point, readback_point: ReadOnly_Point, republish_frequency_mismatch = 5):
         self._write_point = write_point
         self._readback_point = readback_point
         self._name = self.derive_name()
         self._requested_value = write_point.requested_value
         self._republish_frequency_mismatch = republish_frequency_mismatch
-        #So we're resigning ourselves to no memory of the last state after a reboot, which seems fine for now
 
-
+    @property
+    def write_point(self):
+        return self._write_point
+        
+    @property
+    def readback_point(self):
+        return self._readback_point
 
     @property
     def requested_value(self):
@@ -207,5 +226,27 @@ class ControlPoint:
             return write_owner
         except:
             raise ValueError("Name should be derivable from addr, something went wrong")
+
+
+class TimeProvider(Protocol):
+    def get_time_in_state(self) -> float: ...
+
+class FSM_StateTimePoint(Writeable_Continuous_Point):
+    """Point that gets fresh time values from a time provider"""
+    def __init__(self, value_class: Continuous_Value, time_provider: Optional[TimeProvider] = None, **kwargs):
+        super().__init__(value_class, **kwargs)
+        self._time_provider = time_provider
+        
+    @property
+    def value(self):
+        """Always return fresh time from provider"""
+        if self._time_provider is not None:
+            return self._time_provider.get_time_in_state()
+        return self.value_class.value
+        
+    def pre_publish(self) -> None:
+        """Update requested value before publishing"""
+        if self._time_provider is not None:
+            self.requested_value = self._time_provider.get_time_in_state()
 
 

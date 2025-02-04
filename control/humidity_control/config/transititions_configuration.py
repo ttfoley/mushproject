@@ -70,7 +70,7 @@ for from_state in constraint_groups:
             TM.add_constraint_group(from_state, to_state, cg)
 
 print(TM.configuration)
-TM.save(config_path +"/transitions_test.json")
+TM.save(config_path +"/transitions.json")
 
 
 

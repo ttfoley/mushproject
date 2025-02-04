@@ -6,13 +6,17 @@ lib_path = os.path.join(current_dir, '../../common')
 config_path = os.path.join(current_dir, '../config')
 sys.path.append(lib_path)
 
-from construction import PreTransitionsConstructor
-from transitions import Transitions_Manager
+from construction import Constructor
 
-PTC = PreTransitionsConstructor(config_path)
-print(PTC.PM._uuid_lookup)
+# Create and connect system
+constructor = Constructor(config_path)
+constructor.connect_mqtt()
 
-transitions = json.load(open(config_path +"/transitions_test.json",'r'))
-states_dict = PTC.SM.states
-TM = Transitions_Manager(transitions,states_dict,PTC.PM)
-print(transitions)
+# Get references to components
+fsm = constructor.FSM
+tm = constructor.TM
+pm = constructor.PM
+
+# Print initial state
+print(f"Initial FSM State: {fsm.current_state.state.name}")
+print(f"Available Transitions: {tm.transitions}")

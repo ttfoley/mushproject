@@ -1,8 +1,10 @@
 from collections import defaultdict
 import os
-from typing import Dict,Tuple,List
-from points import PublishInfo,Point,ReadOnly_Point,Writable_Point,ControlPoint,Writeable_Continuous_Point,Writeable_Discrete_Point
+from typing import Dict,Tuple,List, Any
+from points import PublishInfo,Point,ReadOnly_Point,Writable_Point,ControlPoint,Writeable_Continuous_Point,Writeable_Discrete_Point,FSM_StateTimePoint,TimeProvider
 from values import Value,Discrete_Value,Continuous_Value
+from datetime import datetime
+from messaging import MessagePublisher
 
 """
 This is the class that will manage the points. It will be responsible for creating the points, updating the points, and publishing the points.
@@ -35,36 +37,32 @@ def make_value(description,value_dict) -> Value:
     else:
         raise ValueError("Couldn't infer value type (discrete or continuous) from valid_values or valid_range")
     
-def make_point(value:Value,writeable = False) -> Point:
-    if isinstance(value,Continuous_Value):
-        if writeable:
-            return Writeable_Continuous_Point(value,republish_frequency=5)
-        else:
-            return ReadOnly_Point(value)
-        
-    elif isinstance(value,Discrete_Value):
-        if writeable:
-            #maybe republish should be quicker, but it should write on state change.
-            return Writeable_Discrete_Point(value,republish_frequency=60)
-        else:
-            return ReadOnly_Point(value)
-        
-    else:
-        raise ValueError("Invalid value class, should be descrete or continuous.")
-
-    
+def make_sensor_point(value: Value) -> Point:
+    """Create a read-only point for microcontroller sensors"""
+    return ReadOnly_Point(value)
 
 class Points_Manager:
-    def __init__(self,microC_points_config:dict,publish_frequency:float = 60):
+    """Base Points Manager without MQTT functionality"""
+    def __init__(self, microC_points_config: dict, settings: dict):
         self._microC_points_config = microC_points_config
-        self.republish_frequency = publish_frequency
-        self._points_lookup = {} ## for UUID lookup
-        self._uuid_lookup = {} ## To look up UUIDS by topic
-        self._uuids: List[int] = []
+        self._settings = settings.get('points', {}).get('publish', {})
+        self._default_retry = self._settings.get('default_retry_interval', 5)
+        self._default_republish = self._settings.get('default_republish_frequency', 60)
+        self._point_settings = self._settings.get('point_types', {})
+        
+        self._points_lookup = {}
+        self._uuid_lookup = {}
+        self._uuids = []
         self.points = self.build_microcontroller_points()
         self.control_points = self.build_control_points()
 
-
+    def get_point_settings(self, point_type: str) -> dict:
+        """Get publish settings for a point type"""
+        settings = self._point_settings.get(point_type, {})
+        return {
+            'retry_interval': settings.get('retry_interval', self._default_retry),
+            'republish_frequency': settings.get('republish_frequency', self._default_republish)
+        }
 
     def update_uuid_lookup(self,uuid:int,point:Point):
         assert not (uuid  in self._uuids)
@@ -78,8 +76,11 @@ class Points_Manager:
     def value_exists(self,uuid:int):
         return uuid in self._points_lookup
     
-    def get_value(self,uuid:int):
+    def get_value(self,uuid:int)->Value:
         return self._points_lookup[uuid].value
+    
+    def get_point(self,uuid:int)->Point:
+        return self._points_lookup[uuid]
 
     def build_microcontroller_points(self)->dict:
             """First creates all values according to the initial points config file.
@@ -112,7 +113,7 @@ class Points_Manager:
                         controller_points["sensors"][sensor_name] = defaultdict(dict)
                         for reading_type,reading_dict in sensor_dict.items():
                             value = make_value(f"microcontroller:{controller} {sensor_name} {reading_type}",reading_dict)
-                            point = make_point(value)
+                            point = make_sensor_point(value)
                             controller_points["sensors"][sensor_name][reading_type] = point
                             self.update_uuid_lookup(value.uuid,point)
                             
@@ -129,7 +130,8 @@ class Points_Manager:
                                 self.update_uuid_lookup(value.uuid,point)
                             else:
                                 assert isinstance(value,Discrete_Value)
-                                point = Writeable_Discrete_Point(value,republish_frequency=self.republish_frequency)
+                                settings = self.get_point_settings('control_points')
+                                point = Writeable_Discrete_Point(value, **settings)
                                 controller_points["control_points"][cp_name]["write"] = point
                                 self.update_uuid_lookup(value.uuid,point)
 
@@ -137,38 +139,102 @@ class Points_Manager:
 
             return points
     
-    def build_control_points(self)->Dict[str,ControlPoint]:
+    def build_control_points(self) -> Dict[str, Dict[str, ControlPoint]]:
+        """Build control points mapping: controller -> name -> ControlPoint"""
         control_points = {}
-        for controller,controller_dict in self.points["microcontrollers"].items():
+        for controller, controller_dict in self.points["microcontrollers"].items():
             if "control_points" in controller_dict:
                 control_points[controller] = {}
-                for cp_name,cp_dict in controller_dict["control_points"].items():
-                    control_points[controller][cp_name] = ControlPoint(cp_dict["write"],cp_dict["readback"])
+                for cp_name, cp_dict in controller_dict["control_points"].items():
+                    control_points[controller][cp_name] = ControlPoint(cp_dict["write"], cp_dict["readback"])
         return control_points
-    
-
-
-    def build_driver_points(self,driver_name:str,driver_states:list[str]):
-        ##Build mush/drivers/driver_name/sensors/status/(state,state_time), writeable_points
-        driver_points = {}
-        topic_root = f"mush/drivers/{driver_name}/sensors/status/"
-        valid_state_time_range = {"lower":0,"upper":1000000}
-        valid_states = driver_states + ["unknown"]
-
-        uuid = self.next_uuid()
-        value = Discrete_Value(uuid,topic_root+"state","unknown","driver state",valid_states)
-        point = Writeable_Discrete_Point(value,republish_frequency=self.republish_frequency)
-        driver_points["state"] = point  
-        self.update_uuid_lookup(uuid,point)
-    
-        uuid = self.next_uuid()
-        value = Continuous_Value(uuid,topic_root+"state_time",0,f"{driver_name:} state_time",valid_state_time_range)
-        #this guy should be updated frequently. Should probably be in settings.json
-        point = Writeable_Continuous_Point(value,republish_frequency=5)
-        self.update_uuid_lookup(uuid,point)
-        driver_points["state_time"] = point
-
-        return {"drivers":{driver_name:{"sensors":{"status":driver_points}}}}
     
     def dump_uuid_lookup(self):
         return self._uuid_lookup
+
+    def get_point_by_topic(self, topic: str) -> Point:
+        """Get a point by its MQTT topic"""
+        if topic not in self._uuid_lookup:
+            raise ValueError(f"No point found for topic: {topic}")
+        return self._points_lookup[self._uuid_lookup[topic]]
+
+    def get_control_point_pair(self, cp_id: str) -> tuple[ReadOnly_Point, Writeable_Discrete_Point]:
+        """Get (readback, write) points for a control point ID
+        
+        Args:
+            cp_id: Control point ID in format 'controller/name'
+            
+        Returns:
+            Tuple of (readback point, write point)
+        """
+        controller, name = cp_id.split('/')
+        cp_dict = self.points["microcontrollers"][controller]["control_points"][name]
+        rb_point = cp_dict["readback"]
+        write_point = cp_dict["write"]
+        
+        return (rb_point, write_point)
+
+class Active_Points_Manager(Points_Manager):
+    """Points Manager with MQTT capabilities"""
+    def __init__(self, base_manager: Points_Manager, message_publisher: MessagePublisher):
+        # Inherit all attributes from base manager
+        self.__dict__.update(base_manager.__dict__)
+        self._publisher = message_publisher
+        self._subscribed_points = set()
+        self._published_points = set()
+        self._last_periodic_publish = datetime.now()
+        self._pending_publishes = {}  # topic -> (expected_value, time_requested)
+
+    def add_monitored_points(self, read_points: set[str], write_points: set[str]):
+        """Add points to monitor by their topics"""
+        self._subscribed_points.update(read_points)
+        self._published_points.update(write_points)
+        self._subscribe_points()
+
+    def _subscribe_points(self):
+        """Subscribe to monitored ReadOnly points"""
+        for topic in self._subscribed_points:
+            self._publisher.subscribe(topic)
+
+    def publish_point(self, point: Writable_Point, force: bool = False) -> None:
+        """Publish a point's value, optionally forcing republish even if unchanged"""
+        if force or point.value != point.requested_value:
+            success = self._publisher.publish(point.addr, point.requested_value)
+            if success:
+                self._pending_publishes[point.addr] = (point.requested_value, datetime.now())
+                self._publisher.subscribe(point.addr)  # Subscribe to watch for confirmation
+
+    def handle_mqtt_message(self, topic: str, value: Any):
+        """Called when any subscribed topic receives a message"""
+        # First update the point's value
+        point = self.get_point_by_topic(topic)
+        point.value_class.value = value  # This will set is_initialized to True
+        
+        # Then handle any pending publish confirmations
+        if topic in self._pending_publishes:
+            assert isinstance(point, Writable_Point)
+            expected_value, time_requested = self._pending_publishes[topic]
+            if value == expected_value:
+                # Success! Value confirmed
+                point._time_last_published = datetime.now()
+                del self._pending_publishes[topic]
+
+    def periodic_publish(self):
+        """Retry any unconfirmed publishes and handle regular republishing"""
+        now = datetime.now()
+        
+        # Check regular periodic publishes
+        for topic in self._published_points:
+            point = self.get_point_by_topic(topic)
+            if isinstance(point, Writable_Point):
+                point.pre_publish()  # This will update time_in_state for FSM_StateTimePoint
+                time_since_publish = (now - point._time_last_published).total_seconds()
+                if time_since_publish >= point.republish_frequency:
+                    self.publish_point(point, force=True)
+
+        # Check pending publishes for retry using point's retry interval
+        for topic, (value, time_requested) in list(self._pending_publishes.items()):
+            point = self.get_point_by_topic(topic)
+            assert isinstance(point, Writable_Point)
+            if (now - time_requested).total_seconds() >= point.retry_interval:
+                self.publish_point(point, force=True)

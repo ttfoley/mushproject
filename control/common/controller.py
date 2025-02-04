@@ -1,9 +1,9 @@
-from states import State,StateStatus
+from states import State, StateStatus
 from transitions import Transitions_Manager
-from surveyor import Surveyor
-
-
-
+from points_manager import Points_Manager,Active_Points_Manager
+from states import States_Manager
+from fsm_monitor import FSMMonitor
+from typing import Union
 
 class FSM:
     #A FSM for controlling the humidity.
@@ -11,67 +11,98 @@ class FSM:
     #States will have rules for when to switch to the next state..
     #Note that control point state and thus outputs is updated by the mqtt_handler. 
     #READ THIS Current state is type StateStatus, desired and previous states are type State. This is kind of confusing.  I need better names.
-    def __init__(self, states:dict[str,State],transitions:Transitions_Manager,surveyor:Surveyor,initial_desired_state:State):
+    def __init__(self, driver_name: str, SM: States_Manager, 
+                 PM: Union[Points_Manager, Active_Points_Manager],  # Accept either type
+                 TM: Transitions_Manager, initial_desired_state: State,
+                 create_monitor: bool = True):
+        self._driver_name = driver_name
         self.desired_state = initial_desired_state
-        self.states = states
-        self.surveyor = surveyor
-        self.transitions = transitions
-        ###maybe current state should be passed in the general case?
-        self.current_state = StateStatus(self.states["Unknown"])
-        self.previous_state = self.states["Unknown"]
-        #the use of the word "state" is getting confusing. Sorry future me.
-        # self.state = Virtual_Sensor(self.current_state.state,"Current State of the FSM.")
-        # self.time_in_state = Virtual_Sensor(self.current_state.time_in_state,"Time in the current active state.")
-          
-
+        self._SM = SM
+        self._states = SM.states
+        self._PM = PM
+        self.TM = TM
+        self._state_status = StateStatus(self._SM.get_state("unknown"))
+        self.previous_state = self._states["unknown"]
         
-    
-    def update_state(self)->bool:
-        #Outputs are updated by the mqtt_handler.  This just updates the current state.
-        #Since we start in unknown, it will think we're in unknown for some nonzero amount of time regardless
-        #This creates a new object if the state has changed.
-        ##I don't like how these virtual sensors are adding a mess to this whole thing. Should be some sort of wrapper for it.
-        self.previous_state = self.current_state.state
+        self.monitor = None
+        if create_monitor:
+            self.create_monitor(PM)
+
+    @property
+    def PM(self):
+        return self._PM
+
+    @PM.setter
+    def PM(self, new_pm: Active_Points_Manager):
+        self._PM = new_pm
+        if self.monitor:
+            self.monitor.pm = new_pm  # Update monitor's points manager
+        # Update all constraints' points manager
+        self.TM.update_points_manager(new_pm)
+
+    @property
+    def current_state(self) -> StateStatus:
+        return self._state_status
+
+    @current_state.setter
+    def current_state(self, new_state: State):
+        """Set the current state and update related attributes"""
+        self._state_status = StateStatus(new_state)
+        if self.monitor:
+            self.monitor.on_state_change()  # Notify monitor
+
+    def update_state(self) -> bool:
         new_state = self.get_validated_state()
+        # Store the current state before potentially changing it
+        self.previous_state = self.current_state.state
+        
         if new_state != self.current_state.state:
-            self.current_state = StateStatus(new_state)## Triggers time upon initialization.
-            self.state.value = new_state
-            self.time_in_state.value = 0
+            #triggers a state change, which also triggers the monitor
+            self.current_state = new_state
             return True
         else:
-            self.time_in_state.value = self.current_state.time_in_state
+            if self.monitor:
+                self.monitor.update()  # Update time
             return False
 
+    def get_compatible_states(self) -> list[State]:
+        """Returns list of states whose output values match current control point values"""
+        compatible_states = []
+        for state in self._states.values():
+            matches = True
+            #state.listed_output_pairs is a list of (cp_id, desired_value) tuples, 
+            #where cp_id is the id of the control point (With controller and name) and desired_value is the value to write to the control point.
+            for cp_id, desired_value in state.listed_output_pairs:
+                rb_point, _ = self.PM.get_control_point_pair(cp_id)
+                if rb_point.value != desired_value:
+                    matches = False
+                    break
+            if matches:
+                compatible_states.append(state)
+        return compatible_states
 
-    def get_validated_state(self)->State:
-        """ Compatible states now handled by surveyor. Still need logic to try to handle if compatible states.
-        """
-
-        compatible_states = self.surveyor.get_compatible_states(self.states)
-
-        if len(compatible_states) == 0:
-            return self.states["Unknown"]
+    def get_validated_state(self) -> State:
+        """Get state compatible with current control point values"""
+        compatible_states = self.get_compatible_states()
+        
+        if not compatible_states:
+            return self._SM.get_state("unknown")
         
         if len(compatible_states) == 1:
             return compatible_states[0]
-        
-        if len(compatible_states) > 1:
-            #check if the desired state is in the compatible states
-            if self.desired_state in compatible_states:
-                return self.desired_state
-            #else check if it's the current state
-            elif self.current_state.state in compatible_states:
-                return self.current_state.state
-            ###something goofy going on. Should we just set it to unkown? or raise an exception?
-            else:
-                return self.states["Unknown"]
-        
-        # Default return in case all conditions fail, linter told me I was missing a path but i couldn't see it.
-        return self.states["Unknown"]
+            
+        # Multiple compatible states - try to resolve
+        if self.desired_state in compatible_states:
+            return self.desired_state
+        elif self.current_state.state in compatible_states:
+            return self.current_state.state
+        else:
+            print("Warning: No compatible states found. Returning unknown.")
+            return self._SM.get_state("unknown")
                 
         
 
-        
+    @property
     def in_desired_state(self):
         #If the current state is the desired state, return True
         #TODO Make this more robust.  Maybe we should check the outputs too.
@@ -79,23 +110,24 @@ class FSM:
             return True
         return False
 
-    def write_desired_state(self,immediately=False):
-        #If the desired state is different from the current state, write all of the outputs to make the current state the desired state.
-        #Has extra flag to tell point to publish the point immediately, don't know if I ever used it.
-        if not self.in_desired_state():
-            cp_val_pairs  = self.desired_state.listed_output_pairs
-            for (cp,output_value) in cp_val_pairs:
-                live_point = self.surveyor.cp_lookup(cp)
-                live_point.set_requested_value(output_value)
-                live_point.publish(immediately)
+    def write_desired_state(self, immediately=False):
+        """Write all outputs to match desired state"""
+        if isinstance(self.PM, Active_Points_Manager):
+            if not self.in_desired_state:
+                for cp_id, output_value in self.desired_state.listed_output_pairs:
+                    _, write_point = self.PM.get_control_point_pair(cp_id)
+                    write_point.requested_value = output_value
+                    self.PM.publish_point(write_point, force=immediately)
+        else:
+            print("Warning: PM is not an Active_Points_Manager, writing state does nothing.")
 
     
     
     def update_desired_state(self)->bool:
         #If the current state is the desired state, check if it's time to transition.
         #Return true if the desired state is updated.
-        if self.in_desired_state():
-            next_state = self.transitions.next_state(self.current_state)
+        if self.in_desired_state:
+            next_state = self.TM.next_state(self.current_state)
             if next_state != self.current_state.state:
                 self.desired_state = next_state
                 return True
@@ -107,3 +139,19 @@ class FSM:
 
     def print_update(self):
         print(self.current_state.state.name,self.desired_state.name,self.current_state.time_in_state)
+
+    def get_time_in_state(self) -> float:
+        """Implement TimeProvider protocol"""
+        return self.current_state.time_in_state
+
+    def create_monitor(self, points_manager, state_point=None, time_point=None):
+        """Create FSM monitor with given points manager and optional existing points"""
+        monitor = FSMMonitor(
+            fsm=self,
+            points_manager=points_manager,
+            state_point=state_point,
+            time_point=time_point
+        )
+        if isinstance(points_manager, Active_Points_Manager):
+            monitor.pm = points_manager  # Update monitor if we already have an active PM
+        self.monitor = monitor  # Actually set the monitor reference

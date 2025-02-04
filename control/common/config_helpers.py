@@ -47,17 +47,22 @@ class Constraint:
         self.comparator = comparator
         self._description = description
         self.units = units
+        self._type = ""  # Add default type
 
     @property
     def constraint_dict(self):
-        D = defaultdict(dict)
-        D[self.id] = defaultdict(dict)
-        D[self.id]["definition"] = {"value": self.value_uuid, "comparand": self.comparand, "comparator": self.comparator, "units": self.units}
-        D[self.id]["description"] = self._description
-        if hasattr(self, '_type'):
-            D[self.id]["type"] = self._type  # type: ignore
+        D = {
+            "definition": {
+                "id": self.id,
+                "value_uuid": self.value_uuid,
+                "comparand": self.comparand,
+                "comparator": self.comparator,
+                "units": self.units
+            },
+            "description": self._description,
+            "type": self._type
+        }
         return D
-
 
 class StateTimeConstraint(Constraint):
     def __init__(self, id: int, value_uuid: int, comparand: float, comparator: str, units = "float", description: str = ""):
@@ -103,11 +108,12 @@ class ConstraintGroup:
 
     @property
     def group_dict(self):
-        D = defaultdict(dict)
-        D[self._id]["constraints"] = [constraint.constraint_dict for constraint in self._constraints]
-        D[self._id]["description"] = self.description
-        D[self._id]["priority"] = self._priority
-        return D
+        return {
+            "id": self._id,
+            "constraints": [constraint.constraint_dict for constraint in self._constraints],
+            "description": self.description,
+            "priority": self._priority
+        }
 
 
 class Transitions_Maker:
@@ -126,14 +132,16 @@ class Transitions_Maker:
     def add_state_pair(self,state1:str,state2:str):
         self.configuration["Transitions"][state1][state2] = defaultdict(dict)
 
-    def add_constraint_group(self,from_state,to_state,constraint_group:ConstraintGroup):
+    def add_constraint_group(self, from_state, to_state, constraint_group: ConstraintGroup):
         try:
             D = self.configuration["Transitions"][from_state][to_state]
         except:
-            #I thought the point of default dicts was that I don't need to do ths
-            self.add_state_pair(from_state,to_state)
-
-        self.configuration["Transitions"][from_state][to_state]['constraint_groups'].update(constraint_group.group_dict)
+            self.add_state_pair(from_state, to_state)
+            D = self.configuration["Transitions"][from_state][to_state]
+        
+        if 'constraint_groups' not in D:
+            D['constraint_groups'] = []
+        D['constraint_groups'].append(constraint_group.group_dict)
 
     def save(self,file_name):
         #jsonified = json.dumps(self.configuration)

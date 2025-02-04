@@ -1,38 +1,32 @@
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
-from typing import Dict
-from surveyor import MQTT_PointInfo
+from typing import Dict, Any
+from messaging import MessagePublisher
 
-class MQTTHandler:
-    def __init__(self, client_id, broker, port, username, password,userdata:MQTT_PointInfo):
+class MQTTHandler(MessagePublisher):
+    def __init__(self, client_id, broker, port, username, password, points_manager):
         self.client_id = client_id
         self.broker = broker
         self.port = port
         self.username = username
         self.password = password
-        self.userdata = userdata
+
         self.client = mqtt.Client(client_id=self.client_id, callback_api_version=CallbackAPIVersion.VERSION2,userdata=None)
         self.client.username_pw_set(self.username, self.password)
         self.client.on_connect = self.on_connect
-        self.client.on_message = self.on_message
+        self.client.on_message = self._on_message
         self.client.on_publish = self.on_publish
+        self._points_manager = points_manager
 
-    def on_message(self, client, userdata, msg:mqtt.MQTTMessage):
-        #print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
-        message = msg.payload.decode()
-        #print(message,msg.topic)
-        #print(message,msg.topic)
-        #values of 1.00 and -1.00 are from the arduino code, and those seem kind of silly.
-        for _,point in self.userdata.control_points.items():
-            if point.readback_point.read_address == msg.topic:
-                #print(point.readback_point.read_address)
-                point.readback_point.value = message ##GOING TO BE A STING OF A FLOAT
-                #print(f"Set value of {point.name} to {point.value}")
-
-        for _,point in self.userdata.sensor_points.items():
-            if point.read_address == msg.topic:
-                point.set_value = float(message)
-                #print(f"Set value of {point.name} to {point.value}")
+    def _on_message(self, client, userdata, message):
+        """MQTT callback when message received"""
+        topic = message.topic
+        value = message.payload.decode()
+        
+        # Pass message to points manager
+        self._points_manager.handle_mqtt_message(topic, value)
+        
+        # Any other message handling...
 
     def on_connect(self, client:mqtt.Client, userdata, flags, rc, properties=None):
         if rc == 0:
@@ -43,13 +37,9 @@ class MQTTHandler:
     def on_publish(self, client, userdata, mid, reason_code="Success", properties=None):
         print("Message published with mid: " + str(mid))
 
-    def publish(self, topic, msg):
-        result = self.client.publish(topic, msg)
-        status = result[0]
-        if status == 0:
-            print(f"Send `{msg}` to topic `{topic}`")
-        else:
-            print(f"Failed to send message to topic {topic}")
+    def publish(self, topic: str, value: Any) -> bool:
+        result = self.client.publish(topic, value)
+        return result[0] == 0  # Return True if successful
 
     def connect(self):
         self.client.connect(self.broker, self.port)
@@ -69,5 +59,5 @@ class MQTTHandler:
     def reconnect(self):
         self.client.reconnect()
 
-    def subscribe(self, topic):
+    def subscribe(self, topic: str) -> None:
         self.client.subscribe(topic)

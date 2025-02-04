@@ -14,6 +14,25 @@
         "humidity_control": {
             "addr": "mush/governors/humidity_control"
         }
+    },
+    "points": {
+        "publish": {
+            "default_retry_interval": 5,
+            "default_republish_frequency": 60,
+            "point_types": {
+                "state": {
+                    "retry_interval": 2,
+                    "republish_frequency": 60
+                },
+                "state_time": {
+                    "retry_interval": 2,
+                    "republish_frequency": 5
+                },
+                "control_points": {
+                    "retry_interval": 5,
+                    "republish_frequency": 30
+                }
+            }
+        }
     }
-
 }
