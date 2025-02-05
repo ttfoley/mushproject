@@ -136,7 +136,8 @@ class Constructor(PreTransitionsConstructor):
                 read_points.add(cp.readback_point.addr)
                 write_points.add(cp.write_point.addr)
         
-        self.PM.add_monitored_points(read_points=read_points, write_points=write_points)
+        # Only subscribe to readback points
+        self.PM.add_monitored_points(read_points=read_points, write_points=set())
 
 
 
@@ -247,13 +248,17 @@ class FSMBuilder:
                 read_points.add(cp.readback_point.addr)
                 write_points.add(cp.write_point.addr)
         
-        self.PM.add_monitored_points(read_points=read_points, write_points=write_points)
+        # Only subscribe to readback points
+        self.PM.add_monitored_points(read_points=read_points, write_points=set())
         
         return self
 
-    def build(self):
+    def build(self) -> Tuple[FSM, Points_Manager, Transitions_Manager, MQTTHandler]:
         """Build complete system"""
-        return self.FSM, self.PM, self.TM, getattr(self, 'mqtt_handler', None)
+        if not hasattr(self, 'mqtt_handler'):
+            raise RuntimeError("MQTT handler not created. Call add_mqtt() before build()")
+            
+        return self.FSM, self.PM, self.TM, self.mqtt_handler
 
     def _validate_state_control_points(self):
         """Validate that all control points in states exist in points manager"""

@@ -13,7 +13,7 @@ class MQTTHandler(MessagePublisher):
 
         self.client = mqtt.Client(client_id=self.client_id, callback_api_version=CallbackAPIVersion.VERSION2,userdata=None)
         self.client.username_pw_set(self.username, self.password)
-        self.client.on_connect = self.on_connect
+        self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
         self.client.on_publish = self.on_publish
         self._points_manager = points_manager
@@ -22,17 +22,22 @@ class MQTTHandler(MessagePublisher):
         """MQTT callback when message received"""
         topic = message.topic
         value = message.payload.decode()
-        
+        #print(f"MQTT message received - Topic: {topic}, Value: {value}")
         # Pass message to points manager
         self._points_manager.handle_mqtt_message(topic, value)
         
         # Any other message handling...
 
-    def on_connect(self, client:mqtt.Client, userdata, flags, rc, properties=None):
+    def _on_connect(self, client, userdata, flags, rc, properties=None):
+        """Called when client connects to broker"""
         if rc == 0:
-            print("Connected to MQTT Broker!")
+            print("Connected to MQTT broker")
+            # Resubscribe to topics from points manager
+            if self._points_manager:
+                for topic in self._points_manager._subscribed_points:
+                    self.client.subscribe(topic)
         else:
-            print("Failed to connect, return code %d\n", rc)
+            print(f"Failed to connect to MQTT broker with code {rc}")
 
     def on_publish(self, client, userdata, mid, reason_code="Success", properties=None):
         print("Message published with mid: " + str(mid))

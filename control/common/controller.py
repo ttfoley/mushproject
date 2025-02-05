@@ -55,7 +55,12 @@ class FSM:
         new_state = self.get_validated_state()
         # Store the current state before potentially changing it
         self.previous_state = self.current_state.state
-        
+    # Debug prints
+        # print("\nControl Point Values:")
+        # for controller in self.PM.control_points:
+        #     for cp_name, cp in self.PM.control_points[controller].items():
+        #         print(f"{cp_name}: readback={cp.readback_point.value}, write={cp.write_point.value}")
+    
         if new_state != self.current_state.state:
             #triggers a state change, which also triggers the monitor
             self.current_state = new_state
@@ -138,7 +143,11 @@ class FSM:
             return False
 
     def print_update(self):
-        print(self.current_state.state.name,self.desired_state.name,self.current_state.time_in_state)
+        if self.monitor:
+            print(self.current_state.state.name, self.desired_state.name, 
+                  self.monitor.get_time_in_state())
+        else:
+            print(self.current_state.state.name, self.desired_state.name,"no monitor active")
 
     def get_time_in_state(self) -> float:
         """Implement TimeProvider protocol"""

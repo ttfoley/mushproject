@@ -197,12 +197,24 @@ class Active_Points_Manager(Points_Manager):
             self._publisher.subscribe(topic)
 
     def publish_point(self, point: Writable_Point, force: bool = False) -> None:
-        """Publish a point's value, optionally forcing republish even if unchanged"""
-        if force or point.value != point.requested_value:
-            success = self._publisher.publish(point.addr, point.requested_value)
-            if success:
-                self._pending_publishes[point.addr] = (point.requested_value, datetime.now())
-                self._publisher.subscribe(point.addr)  # Subscribe to watch for confirmation
+        """Publish a point's value with retry logic"""
+        now = datetime.now()
+        
+        # Check if we need to publish
+        if not force and point.value == point.requested_value:
+            return
+        
+        # Check retry interval for pending publishes
+        if point.addr in self._pending_publishes:
+            _, time_requested = self._pending_publishes[point.addr]
+            if (now - time_requested).total_seconds() < point.retry_interval:
+                return  # Too soon to retry
+        
+        # Attempt publish
+        success = self._publisher.publish(point.addr, point.requested_value)
+        if success:
+            self._pending_publishes[point.addr] = (point.requested_value, now)
+        
 
     def handle_mqtt_message(self, topic: str, value: Any):
         """Called when any subscribed topic receives a message"""
