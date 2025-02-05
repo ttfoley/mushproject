@@ -1,8 +1,8 @@
 from datetime import datetime
 from values import Discrete_Value, Continuous_Value
-from points import Writeable_Discrete_Point, Writeable_Continuous_Point, FSM_StateTimePoint
+from points import Writeable_Discrete_Point, Writeable_Continuous_Point, FSM_StateTimePoint, MonitoredPoint
 
-def create_monitor_points(driver_name: str, state_names: list[str], points_manager) -> tuple[dict, Writeable_Discrete_Point, FSM_StateTimePoint]:
+def create_monitor_points(driver_name: str, state_names: list[str], points_manager) -> tuple[dict, Writeable_Discrete_Point, Writeable_Continuous_Point]:
     """Create state and time points for FSM monitoring"""
     # Create state point
     state_topic = f"mush/drivers/{driver_name}/sensors/status/state"
@@ -51,28 +51,44 @@ class FSMMonitor:
         
         # Use existing points or create new ones
         if state_point and time_point:
-            self._state_point = state_point
-            self._time_point = time_point
+            state_point = state_point
+            time_point = time_point
         else:
-            points, self._state_point, self._time_point = create_monitor_points(
+            points, state_point, time_point = create_monitor_points(
                 driver_name=fsm._driver_name,
                 state_names=fsm._SM.state_names,
                 points_manager=points_manager
             )
             self.pm.points.update(points)
-        
-        # Set time provider for time point
-        self._time_point._time_provider = fsm
+            
+        # Ensure time_point is FSM_StateTimePoint
+        if not isinstance(time_point, FSM_StateTimePoint):
+            raise TypeError("time_point must be FSM_StateTimePoint")
+
+        # Set monitor as time provider before wrapping
+        time_point._time_provider = self
+
+        # Create monitored points
+        self._state_point = MonitoredPoint(state_point, points_manager)
+        self._time_point = MonitoredPoint(time_point, points_manager)
 
     def on_state_change(self):
         """Called when FSM state changes"""
         self._time_started = datetime.now()
         self._state_point.requested_value = self.fsm.current_state.state.name
         self._time_point.requested_value = 0
-        self.pm.publish_point(self._state_point)
-        self.pm.publish_point(self._time_point)
+        self._state_point.publish(force=True)
+        self._time_point.publish(force=True)
 
     def update(self):
-        """Update time in state"""
+        """Update time in state and handle periodic publishing"""
         time_in_state = (datetime.now() - self._time_started).total_seconds()
-        self._time_point.requested_value = time_in_state 
+        self._time_point.requested_value = time_in_state
+
+        # Check republish for both points
+        self._time_point.check_republish()
+        self._state_point.check_republish()
+
+    def get_time_in_state(self) -> float:
+        """Implement TimeProvider protocol"""
+        return (datetime.now() - self._time_started).total_seconds() 

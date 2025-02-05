@@ -250,3 +250,33 @@ class FSM_StateTimePoint(Writeable_Continuous_Point):
             self.requested_value = self._time_provider.get_time_in_state()
 
 
+class MonitoredPoint:
+    """Point that needs periodic publishing"""
+    def __init__(self, point: Writable_Point, points_manager):
+        self.point = point
+        self.pm = points_manager
+        self._last_publish = datetime.now()
+    
+    def publish(self, force: bool = False):
+        """Publish point value with force option"""
+        self.point.pre_publish()  # Important for FSM_StateTimePoint
+        self.pm.publish_point(self.point, force=force)
+        if force:
+            self._last_publish = datetime.now()
+    
+    def check_republish(self):
+        """Check if point needs republishing based on frequency"""
+        now = datetime.now()
+        time_since_publish = (now - self._last_publish).total_seconds()
+        if time_since_publish >= self.point.republish_frequency:
+            self.publish(force=True)
+
+    @property
+    def requested_value(self):
+        return self.point.requested_value
+
+    @requested_value.setter 
+    def requested_value(self, value):
+        self.point.requested_value = value
+
+
