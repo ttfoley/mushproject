@@ -1,13 +1,38 @@
 {
-    "fsm":{
-        "initial_state":"Off" 
+    "driver":{
+        "initial_state":"off",
+        "name": "humidity_control"  
     },
     "mqtt":{
         "username": "ttfoley",
         "password": "password",
         "broker": "192.168.1.17",
         "port": 1883,
-        "client_id": "control_test"
+        "client_id": "humidity_control_driver"
+    },
+    "governors": {
+        "humidity_control": {
+            "addr": "mush/governors/humidity_control"
+        }
+    },
+    "points": {
+        "publish": {
+            "default_retry_interval": 5,
+            "default_republish_frequency": 60,
+            "point_types": {
+                "state": {
+                    "retry_interval": 2,
+                    "republish_frequency": 60
+                },
+                "state_time": {
+                    "retry_interval": 2,
+                    "republish_frequency": 5
+                },
+                "control_points": {
+                    "retry_interval": 5,
+                    "republish_frequency": 30
+                }
+            }
+        }
     }
-
 }

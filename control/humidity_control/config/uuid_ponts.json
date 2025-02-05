@@ -1,0 +1,22 @@
+{
+    "mush/controllers/C2/sensors/status/wifi_uptime": 0,
+    "mush/controllers/C2/control_points/CP_25/readback": 1,
+    "mush/controllers/C2/control_points/CP_25/write": 2,
+    "mush/controllers/C2/control_points/CP_26/readback": 3,
+    "mush/controllers/C2/control_points/CP_26/write": 4,
+    "mush/controllers/C2/control_points/CP_32/readback": 5,
+    "mush/controllers/C2/control_points/CP_32/write": 6,
+    "mush/controllers/C2/control_points/CP_33/readback": 7,
+    "mush/controllers/C2/control_points/CP_33/write": 8,
+    "mush/controllers/C2/control_points/led1/readback": 9,
+    "mush/controllers/C2/control_points/led1/write": 10,
+    "mush/controllers/C1/sensors/sht_0/temperature": 11,
+    "mush/controllers/C1/sensors/sht_0/humidity": 12,
+    "mush/controllers/C1/sensors/dht_0/temperature": 13,
+    "mush/controllers/C1/sensors/dht_0/humidity": 14,
+    "mush/controllers/C1/sensors/scd_0/temperature": 15,
+    "mush/controllers/C1/sensors/scd_0/humidity": 16,
+    "mush/controllers/C1/sensors/scd_0/co2": 17,
+    "mush/drivers/humidity_control/sensors/status/state": 18,
+    "mush/drivers/humidity_control/sensors/status/state_time": 19
+}

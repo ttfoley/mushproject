@@ -21,11 +21,11 @@ const int pin_32 = 32;
 // Create instances of PinControl
 unsigned long initial_time = millis();
 PinControl pinControls[] = {
-    PinControl(pin_4, 0.0,0.0, "led",  "mush/controller2/readback/led1", "mush/controller2/control/led1",initial_time),
-    PinControl(26, 0.0,0.0,"pin26", "mush/controller2/readback/pin26", "mush/controller2/control/pin26",initial_time),
-    PinControl(25, 0.0,0.0,"pin25", "mush/controller2/readback/pin25", "mush/controller2/control/pin25",initial_time),
-    PinControl(33, 0.0,0.0,"pin33", "mush/controller2/readback/pin33", "mush/controller2/control/pin33",initial_time),
-    PinControl(32, 0.0,0.0,"pin32", "mush/controller2/readback/pin32", "mush/controller2/control/pin32",initial_time)
+    PinControl(pin_4, 0.0,0.0, "led",  "mush/controllers/C2/control_points/led1/readback", "mush/controllers/C2/control_points/led1/write",initial_time),
+    PinControl(pin_26, 0.0, 0.0, "pin26", "mush/controllers/C2/control_points/CP_26/readback", "mush/controllers/C2/control_points/CP_26/write", initial_time),
+    PinControl(pin_25, 0.0, 0.0, "pin25", "mush/controllers/C2/control_points/CP_25/readback", "mush/controllers/C2/control_points/CP_25/write", initial_time),
+    PinControl(pin_33, 0.0, 0.0, "pin33", "mush/controllers/C2/control_points/CP_33/readback", "mush/controllers/C2/control_points/CP_33/write", initial_time),
+    PinControl(pin_32, 0.0, 0.0, "pin32", "mush/controllers/C2/control_points/CP_32/readback", "mush/controllers/C2/control_points/CP_32/write", initial_time)
 };
 // readbacks for the pins. when controller comes on, they start low. Only change if sent from mqtt.
 //Floats for now because topic parsing in telegraf sucks.
@@ -64,7 +64,7 @@ State state = START;
 unsigned long wifiConnectedTime = 0;
 unsigned long wifiConnectionDuration = 0;
 unsigned long lastWifiDurationPostTime = 0;
-const char* wifiTopic = "mush/controller2/status/wifi_uptime";
+const char* wifiTopic = "mush/controllers/C2/sensors/status/wifi_uptime";
 
 String INITIAL_VALUE = "off"; //On startup, set all outputs off
 
@@ -191,7 +191,7 @@ void loop() {
           }
         }
       }
-            // Check if it's time to post wifiConnectionDuration
+      // Check if it's time to post wifiConnectionDuration
       if (millis() - lastWifiDurationPostTime > WIFI_DURATION_POST_INTERVAL) {
         char durationString[16];
         dtostrf(wifiConnectionDuration / 60000.0, 1, 2, durationString); // Convert to minutes

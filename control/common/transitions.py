@@ -1,7 +1,8 @@
-from controller import *
 from typing import Dict,Sequence,Tuple
 from collections import defaultdict
-from surveyor import Surveyor
+from points_manager import Points_Manager,Active_Points_Manager
+from states import State,StateStatus,States_Manager
+
 ## Where great new transitions are born! Full rewrite of the transitions modules to allow for more complex constraints and transitions.
 ## And to clean up areas of code that had to do extra work to make the old transitions work. And I also just didn't really like them.
 
@@ -24,33 +25,59 @@ class Constraint:
     I wanted satisfied to be a property, but it needs the current state to be passed in.
     What about values that are supposed to remain strings?
     """
-    def __init__(self,id:str,value:str,threshold:str,comparator:str,units:str,surveyor:Surveyor):
-        self.id = id
-        self.value_loc = value
-        self.threshold = threshold
-        self.comparator = comparator
-        self.units = units
-        self.surveyor = surveyor
-
-    #I wish this was all assured beforehand by construction, but with the way the fsm virtual points are created after surveyor is constructed, I want to be sure.
+    def __init__(self, points_manager: Points_Manager, definition: dict):
+        self.pm = points_manager
+        self._definition = definition
+        self._converted_comparand = self._convert_value(definition['comparand'])
+    
     @property
-    def val_exists(self)->bool:
-        return self.surveyor.value_exists(self.value_loc)
+    def comparator(self):
+        return self._definition['comparator']
+        
+    @property
+    def comparand(self):
+        return self._converted_comparand
+        
+    @property
+    def value_uuid(self):
+        return self._definition['value_uuid']
+        
+    @property
+    def units(self):
+        return self._definition['units']
+    
+    def _convert_value(self, value):
+        """Convert value based on units"""
+        if self.units == 'float':
+            return float(value)
+        elif self.units == 'int':
+            return int(value)
+        ##Do nothing for strings
+        return value
+    
+    def update_comparand(self, new_comparand):
+        """Update comparand with validation"""
+        self._converted_comparand = self._convert_value(new_comparand)
+        self._definition['comparand'] = new_comparand
+    
+    def update_points_manager(self, new_pm: Points_Manager):
+        self.pm = new_pm
+
+    @property
+    def value_exists(self)->bool:
+        return self.pm.value_exists(self.value_uuid)
     
     def eval_string(self)->str:
-        if self.val_exists:
-            val = self.surveyor.parse_dot_path(self.value_loc)[1].value
-            #print(f"{self.surveyor.parse_dot_path(self.value_loc).value} {self.comparator} {self.threshold}")
-            return f"{val} {self.comparator} {self.threshold}"
+        if self.value_exists:
+            point = self.pm.get_point(self.value_uuid)
+            val = self._convert_value(point.value)
+            return f"{val} {self.comparator} {self.comparand}"
         else:
-            raise ValueError(f"Value {self.value_loc} does not exist in the surveyor.")
+            raise ValueError(f"Value {self.value_uuid} does not exist in the surveyor.")
     
     @property
     def satisfied(self)->bool:
-        #print(f"Evaling: {self.eval_string()}")
         eval_string = self.eval_string()
-        #print(eval(eval_string))
-        #print(f"Evaling: {eval_string}")
         return eval(eval_string)
 
     
@@ -58,9 +85,15 @@ class Constraint_Group:
     """
     Combined multiple constraints together, ANDs them (all must be true.)
     """
-    def __init__(self,name,constraints:Sequence[Constraint]):
-        self.name = name
+    def __init__(self, constraints: list[Constraint], priority: int, description: str):
+        self.id = id(self)  # Generate unique id if needed
         self.constraints = constraints
+        self.priority = priority
+        self.description = description
+
+    def update_points_manager(self, new_pm: Points_Manager):
+        for constraint in self.constraints:
+            constraint.update_points_manager(new_pm)
 
     @property
     def satisfied(self)->bool:
@@ -73,75 +106,123 @@ class Transition:
     Constraint groups are created from config file and are tied to specific state pairs there.
     Hopefully only one transition is active among all possible transitions.
     At the very least, a given state better have only one active transition.
+    2/2 - Now CGs have attribute _priority, which is used to sort them. 
+    This is useful for the case where you have multiple CGs on a single transition, and you want to prioritize them.
+    This doesn't immediately help anything, but in the future it could be used to make the transitions more robust, 
+    I'm thinking like forced manual over-rides have their own priority level. Maybe it's just unneccesary complexity right now.
     
     """
-    def __init__(self,from_state:State,to_state:State,constraint_groups:Dict[str,Constraint_Group]):
-        self.from_state = from_state
-        self.to_state = to_state
-        #These constraint groups are all OR'd together.
+    def __init__(self, from_state: State, to_state: State, constraint_groups: list[Constraint_Group]):
+        self.from_state = from_state.name  # Store name instead of State object
+        self.to_state = to_state.name
         self.constraint_groups = constraint_groups
+
+    def update_points_manager(self, new_pm: Points_Manager):
+        for group in self.constraint_groups:
+            group.update_points_manager(new_pm)
+
+    def add_constraint_group(self,CG:Constraint_Group):
+        #This isn't a very robust check, but it's better than nothing. Should have __equal__ defined for Constraint_Group.
+        assert CG.id not in self.constraint_groups
+        self.constraint_groups.append(CG)
+
+    @property
+    def prioritized_cgs(self) -> Sequence[Constraint_Group]:
+        return sorted(self.constraint_groups, key=lambda x: x.priority)
     
     @property
     def active(self)->bool:
-        return any([cg.satisfied for cg in self.constraint_groups.values()])
+        active = False
+        for cg in self.prioritized_cgs:
+            if cg.satisfied:
+                active = True
+                break
 
+        return active
 
+def build_transition(from_state: State, to_state: State, transition_config: dict, PM: Points_Manager) -> Transition:
+    transition = Transition(from_state, to_state, [])
+    for cg_config in transition_config['constraint_groups']:
+        constraints = []
+        for constraint_config in cg_config['constraints']:
+            constraints.append(build_constraint(
+                constraint_config['definition']['id'],
+                constraint_config,
+                PM
+            ))
+        constraint_group = Constraint_Group(
+            constraints=constraints,
+            priority=cg_config['priority'],
+            description=cg_config['description']
+        )
+        transition.add_constraint_group(constraint_group)
+    return transition
+
+def build_constraint(constraint_id:int,constraint_config:dict,PM:Points_Manager)->Constraint:
+    #TODO Want to handle different kinds of constraints with different config structures.
+    return Constraint(PM, constraint_config['definition'])
 
 class Transitions_Manager:
-    ##Transitions will should be a big  dict of dicts. The outer dict is keyed by the "from" state. The inner dict is keyed by the "to" state, and the value is a list of Constraint_Groups.
-    #!!!! As is, this assumes there are no self-transitions.
-    def __init__(self, transitions_config: dict, states: Dict[str, State], surveyor):
+    def __init__(self, transitions_config: dict, SM: States_Manager, PM: Points_Manager):
         self.transitions_config = transitions_config
-        self.states = states
-        self.surveyor = surveyor
-        #I'm being inconsistent with how things are constructed. For Surveyor I made a separate class for some reaason.
-        self.transitions = self.build()
+        self.SM = SM
+        self.PM = PM
+        self.build_from_config(transitions_config)
 
     def next_state(self, cur_state: StateStatus) -> State:
-        #Note that the transitions array is indexed by state name, while we're supposed to return a state.
         relevant_transitions = self.transitions[cur_state.state.name]
         end_states = []
         for end_state, transition in relevant_transitions.items():
             if transition.active:
-                print("transitiion_activated",end_state)
-                end_states.append(self.states[end_state])
+                print("transition_activated", end_state)
+                end_states.append(self.SM.get_state(end_state))
         
-        if len(end_states) >1:
-            print(f"Multiple possible transitions from from {cur_state.state.name}: {[state.name for state in end_states]}")
+        if len(end_states) > 1:
+            print(f"Multiple possible transitions from {cur_state.state.name} to: {[state.name for state in end_states]}")
             raise ValueError("Panic! Multiple transitions active. This should not happen.")
         elif len(end_states) == 0:
-            #We must stay put
             return cur_state.state
         else:
-            #valid transition, let's go there.
             return end_states[0]
     
+    def build_from_config(self, config: dict):
+        existing_transitions = {}
+        if hasattr(self, 'transitions'):
+            existing_transitions = self.transitions
 
-    def build(self)->Dict[str,Dict[str,Transition]]:
-        all_transitions = defaultdict(dict)
-        trans_config = self.transitions_config["Transitions"]
-        for start_state in self.states.values():
-            for end_state in self.states.values():
-                if start_state != end_state:
-                    try:
-                        #print(start_state.name,end_state.name)
-                        CG_defs= trans_config[start_state.name][end_state.name]["constraint_groups"]
-                        D_CGs = {}
-                        for CG_name,values in CG_defs.items():
-                            D_CGs[CG_name] = {}
-                            constraints_d = []
-                            for ix,values in values["constraints"].items():
-                                def_vals = values["definition"]
-                                constraints_d.append(Constraint(ix,def_vals["value"],def_vals["threshold"],def_vals["comparator"],def_vals["units"],self.surveyor))
-                            D_CGs[CG_name] = Constraint_Group(CG_name,constraints_d)
-                        #print(D_CGs)
-                        all_transitions[start_state.name][end_state.name] = Transition(start_state,end_state,D_CGs)
-
-                    except:
-                        pass
-        return all_transitions
-
+        if "Transitions" not in config:
+            raise ValueError("Config must have 'Transitions' as the top-level key")
             
+        config = config["Transitions"]
+        self.transitions = {}
+        
+        for from_state, to_state_dict in config.items():
+            if from_state not in self.transitions:
+                self.transitions[from_state] = {}
+            for to_state, transition_config in to_state_dict.items():
+                transition = build_transition(
+                    self.SM.get_state(from_state), 
+                    self.SM.get_state(to_state), 
+                    transition_config, 
+                    self.PM
+                )
+                self.transitions[from_state][to_state] = transition
+                
+        if existing_transitions:
+            for from_state, to_states in existing_transitions.items():
+                if from_state not in self.transitions:
+                    self.transitions[from_state] = {}
+                self.transitions[from_state].update(to_states)
+
+    def update_points_manager(self, new_pm: Points_Manager):
+        #you better be using an Active_Points_Manager
+        assert isinstance(new_pm, Active_Points_Manager)
+        for transitions in self.transitions.values():
+            for transition in transitions.values():
+                transition.update_points_manager(new_pm)
+
+    
+
     
 
 

@@ -1,5 +1,8 @@
 {
     "python.analysis.extraPaths": [
         "./control/common"
-    ]
+    ],
+    "files.associations": {
+        "cstddef": "cpp"
+    }
 }

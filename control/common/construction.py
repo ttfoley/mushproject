@@ -3,81 +3,274 @@ import sys
 import os
 from typing import Dict, Any,Tuple
 #The fact that I'm importing so many separate things seems like a bad smell, but this is the constructor only...
-from controller import FSM
-from states import State
-from transitions import Transitions_Manager
-from points import Remote_Write,Remote_Read, Virtual_Sensor,ControlPoint
-from surveyor import Surveyor,MQTT_PointInfo
-from mqtt_handler import MQTTHandler
+from states import State, States_Manager
+from points_manager import Points_Manager, Active_Points_Manager, ControlPoint
 from collections import defaultdict
+from transitions import Transitions_Manager  # You'll need to create/import this
+from controller import FSM
+from fsm_monitor import create_monitor_points
+from mqtt_handler import MQTTHandler
 
 
 
 
-class Configuration(object):
-    def __init__(self,config_path:str):
-        self.config_path = config_path
-        self.points_config = json.load(open(os.path.join(config_path,"points.json")))
-        self.states_config = json.load(open(os.path.join(config_path,"states.json")))
-        self.transitions_config = json.load(open(os.path.join(config_path,"transitions.json")))
-        self.settings = json.load(open(os.path.join(config_path,"settings.json")))
 
-
-
-class Constructor(object):
-    def __init__(self,configuration:Configuration):
-        self.config = configuration
-        self.states_config = self.config.states_config
-        self.transitions_config = self.config.transitions_config
-        self.points_config = self.config.points_config
-        self.settings = self.config.settings
-        self.surveyor = Surveyor(self.points_config)
-        self.initial_state_name = self.settings["fsm"]["initial_state"]
-        #Now why is states constructor different? It's not complicated enough to warrant a separate class I guess
-        self.states = self.build_states()
-        self.initial_state = self.states[self.initial_state_name]
-        self.transitions_manager = Transitions_Manager(self.transitions_config,self.states,self.surveyor)
-        self.fsm = FSM(self.states,self.transitions_manager,self.surveyor,self.initial_state)
-        self.add_fsm_sensors()
-        #This is just a wrapper for the mqtt_handler so we know what we're dealing with over there.
-        self.mqtt_handler = self.set_up_mqtt()
-        self.activate_CPs()
-
+class PreTransitionsConstructor:
+    """
+    Builds everything up to the transitions. Transitions are hard to build right now, having this info available 
+    will make it easier to build them.
+    """
+    def __init__(self, config_path):
+        # Load configs
+        self._microC_points_config = json.load(open(os.path.join(config_path, "microC_points.json")))
+        self._states_config = json.load(open(os.path.join(config_path, "states.json")))
+        self._settings = json.load(open(os.path.join(config_path, "settings.json")))
+        self._driver_name = self._settings["driver"]["name"]
         
-    def set_up_mqtt(self):
-        mqtt_point_info = MQTT_PointInfo(self.surveyor.control_points_dict,self.surveyor.sensor_points_dict)
-        settings = self.settings["mqtt"]
-        settings.update({"userdata":mqtt_point_info})
-        mqtt_handler = MQTTHandler(**settings)
-        return mqtt_handler
-    
-    def subscribe_mqtt(self,mqtt_handler:MQTTHandler):
-        for topic in self.surveyor.substriction_topics:
-            mqtt_handler.subscribe(topic)
-    
-    def activate_CPs(self):
-        for cp in self.surveyor.control_points_dict.values():
-            cp.set_mqtt_handler =self.mqtt_handler
+        # Build base Points_Manager
+        self.PM = Points_Manager(self._microC_points_config, self._settings)
+        
+        # Build States_Manager
+        self.SM = States_Manager(self._states_config, self._settings["driver"]["initial_state"])
+        
+        self._validate_state_control_points(self._states_config)
 
-    def build_states(self)->Dict[str,State]:
-        states = {}
-        available_outputs = self.surveyor.control_points_dict.keys()
-        for state_name,values in self.states_config.items():
-            required_outputs = {cp["control_point"] for cp in values}
-            missing = required_outputs - required_outputs.intersection(available_outputs)
-            if missing:
-                raise ValueError(f"Missing control points: {missing} for {state_name}")
-            #TODO this makes it seems like maybe the config file is poorly written
-            output_values = {cp["control_point"]:cp["value"] for cp in values}
-            state = State(state_name,output_values)
-            states[state_name] = state
-        assert "Unknown" in states.keys()
-        assert self.initial_state_name in states.keys()
-        return states
-    
-    def add_fsm_sensors(self):
-        fsm_sensors = {"fsm":{"sensors":{"state":self.fsm.state,"time_in_state":self.fsm.time_in_state}}}
-        self.surveyor.update_virtual_sensors(fsm_sensors)
+    def _validate_state_control_points(self, states_config):
+        """Validate that all control points in states exist in points manager"""
+        for state_name, outputs in states_config.items():
+            for output in outputs:
+                cp_info = output["control_point"]
+                controller = cp_info["controller"]
+                cp_name = cp_info["name"]
+                
+                control_point_found = False
+                if controller in self.PM.control_points:
+                    if cp_name in self.PM.control_points[controller]:
+                        control_point_found = True
+                
+                if not control_point_found:
+                    raise ValueError(f"Control point '{cp_name}' on controller '{controller}' used in state '{state_name}' "
+                                  f"does not exist in points manager")
+
+
+
+
+class Constructor(PreTransitionsConstructor):
+    """Constructor that requires MQTT handler to be activated to function properly."""
+    def __init__(self, config_path):
+        super().__init__(config_path)
+        
+        # Load transitions config
+        self._transitions_config = json.load(open(os.path.join(config_path, "transitions.json")))
+        
+        # Create transitions manager
+        self.TM = Transitions_Manager(
+            transitions_config=self._transitions_config,
+            SM=self.SM,
+            PM=self.PM
+        )
+        
+        # Create monitor points first
+        points, self._state_point, self._time_point = create_monitor_points(
+            driver_name=self._driver_name,
+            state_names=self.SM.state_names,
+            points_manager=self.PM
+        )
+        self.PM.points.update(points)
+        
+        # Create FSM without monitor
+        self.FSM = FSM(
+            driver_name=self._driver_name,
+            SM=self.SM,
+            PM=self.PM,
+            TM=self.TM,
+            initial_desired_state=self.SM.initial_state,
+            create_monitor=False
+        )
+        
+        # Initialize MQTT handler from settings
+        mqtt_settings = self._settings.get("mqtt", {})
+        if not all(key in mqtt_settings for key in ["broker", "port", "username", "password", "client_id"]):
+            raise ValueError("Missing required MQTT settings. Need broker, port, username, password, and client_id")
+            
+        self.mqtt_handler = MQTTHandler(
+            broker=mqtt_settings["broker"],
+            port=mqtt_settings["port"],
+            points_manager=self.PM,
+            username=mqtt_settings["username"],
+            password=mqtt_settings["password"],
+            client_id=mqtt_settings["client_id"]
+        )
+
+    def connect_mqtt(self):
+        """Connect MQTT and activate functionality"""
+        self.mqtt_handler.connect()
+        self.activate_mqtt(self.mqtt_handler)
+
+    def activate_mqtt(self, mqtt_handler):
+        """Activate MQTT functionality"""
+        # Convert PM to Active_Points_Manager
+        self.PM = Active_Points_Manager(
+            base_manager=self.PM,
+            message_publisher=mqtt_handler
+        )
+        
+        # Update FSM's reference to the new Active_Points_Manager
+        self.FSM.PM = self.PM
+        
+        # Update mqtt_handler's reference to the Active_Points_Manager
+        mqtt_handler._points_manager = self.PM
+        
+        # Create monitor with existing points
+        self.FSM.create_monitor(
+            points_manager=self.PM,
+            state_point=self._state_point,
+            time_point=self._time_point
+        )
+
+        # Subscribe to all control point readback and write topics
+        read_points = set()
+        write_points = set()
+        for controller in self.PM.control_points:
+            for cp in self.PM.control_points[controller].values():
+                read_points.add(cp.readback_point.addr)
+                write_points.add(cp.write_point.addr)
+        
+        self.PM.add_monitored_points(read_points=read_points, write_points=write_points)
+
+
+
+
+
+
+
+
+
+  
+class FSMBuilder:
+    """Builds FSM system step by step with clear dependencies"""
+    def __init__(self, config_path):
+        self._config_path = config_path
+        self._load_configs()
+        
+    def _load_configs(self):
+        """Load all configuration files"""
+        self._microC_points_config = json.load(open(os.path.join(self._config_path, "microC_points.json")))
+        self._states_config = json.load(open(os.path.join(self._config_path, "states.json")))
+        self._settings = json.load(open(os.path.join(self._config_path, "settings.json")))
+        self._transitions_config = json.load(open(os.path.join(self._config_path, "transitions.json")))
+        self._driver_name = self._settings["driver"]["name"]
+
+    def build_points_manager(self):
+        """Build base points manager"""
+        self.PM = Points_Manager(self._microC_points_config, self._settings)
+        return self
+
+    def build_states_manager(self):
+        """Build states manager"""
+        self.SM = States_Manager(self._states_config, self._settings["driver"]["initial_state"])
+        self._validate_state_control_points()
+        return self
+
+    def build_transitions_manager(self):
+        """Build transitions manager"""
+        self.TM = Transitions_Manager(
+            transitions_config=self._transitions_config,
+            SM=self.SM,
+            PM=self.PM
+        )
+        return self
+
+    def build_monitor_points(self):
+        """Create monitor points"""
+        points, self._state_point, self._time_point = create_monitor_points(
+            driver_name=self._driver_name,
+            state_names=self.SM.state_names,
+            points_manager=self.PM
+        )
+        self.PM.points.update(points)
+        return self
+
+    def build_fsm(self):
+        """Build FSM without monitor"""
+        self.FSM = FSM(
+            driver_name=self._driver_name,
+            SM=self.SM,
+            PM=self.PM,
+            TM=self.TM,
+            initial_desired_state=self.SM.initial_state,
+            create_monitor=False
+        )
+        return self
+
+    def add_mqtt(self):
+        """Add MQTT functionality if needed"""
+        mqtt_settings = self._settings.get("mqtt", {})
+        if not all(key in mqtt_settings for key in ["broker", "port", "username", "password", "client_id"]):
+            raise ValueError("Missing required MQTT settings")
+
+        # Create handler
+        self.mqtt_handler = MQTTHandler(
+            broker=mqtt_settings["broker"],
+            port=mqtt_settings["port"],
+            points_manager=self.PM,
+            username=mqtt_settings["username"],
+            password=mqtt_settings["password"],
+            client_id=mqtt_settings["client_id"]
+        )
+
+        # Connect and activate
+        self.mqtt_handler.connect()
+        
+        # Convert to Active_Points_Manager
+        self.PM = Active_Points_Manager(
+            base_manager=self.PM,
+            message_publisher=self.mqtt_handler
+        )
+        
+        # Update references
+        self.FSM.PM = self.PM
+        self.mqtt_handler._points_manager = self.PM
+        
+        # Create monitor
+        self.FSM.create_monitor(
+            points_manager=self.PM,
+            state_point=self._state_point,
+            time_point=self._time_point
+        )
+
+        # Subscribe to all control point readback and write topics
+        read_points = set()
+        write_points = set()
+        for controller in self.PM.control_points:
+            for cp in self.PM.control_points[controller].values():
+                read_points.add(cp.readback_point.addr)
+                write_points.add(cp.write_point.addr)
+        
+        self.PM.add_monitored_points(read_points=read_points, write_points=write_points)
+        
+        return self
+
+    def build(self):
+        """Build complete system"""
+        return self.FSM, self.PM, self.TM, getattr(self, 'mqtt_handler', None)
+
+    def _validate_state_control_points(self):
+        """Validate that all control points in states exist in points manager"""
+        for state_name, outputs in self._states_config.items():
+            for output in outputs:
+                cp_info = output["control_point"]
+                controller = cp_info["controller"]
+                cp_name = cp_info["name"]
+                
+                control_point_found = False
+                if controller in self.PM.control_points:
+                    if cp_name in self.PM.control_points[controller]:
+                        control_point_found = True
+                
+                if not control_point_found:
+                    raise ValueError(f"Control point '{cp_name}' on controller '{controller}' used in state '{state_name}' "
+                                  f"does not exist in points manager")
 
 
 
