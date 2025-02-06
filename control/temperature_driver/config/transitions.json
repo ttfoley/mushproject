@@ -14,7 +14,7 @@
                                     "comparator": ">=",
                                     "units": "float"
                                 },
-                                "description": "state_time constraint for state time",
+                                "description": "state_time constraint for No description",
                                 "type": "state_time"
                             }
                         ],
@@ -34,11 +34,11 @@
                                 "definition": {
                                     "id": 0,
                                     "value_uuid": 19,
-                                    "comparand": 300,
+                                    "comparand": 60,
                                     "comparator": ">=",
                                     "units": "float"
                                 },
-                                "description": "state_time constraint for state time",
+                                "description": "state_time constraint for No description",
                                 "type": "state_time"
                             }
                         ],
@@ -58,11 +58,11 @@
                                 "definition": {
                                     "id": 0,
                                     "value_uuid": 19,
-                                    "comparand": 1800,
+                                    "comparand": 60,
                                     "comparator": ">=",
                                     "units": "float"
                                 },
-                                "description": "state_time constraint for state time",
+                                "description": "state_time constraint for No description",
                                 "type": "state_time"
                             }
                         ],
