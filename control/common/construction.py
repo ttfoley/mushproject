@@ -10,7 +10,7 @@ from transitions import Transitions_Manager  # You'll need to create/import this
 from controller import  ActiveFSM
 from fsm_monitor import create_monitor_points
 from mqtt_handler import MQTTHandler
-from uuid_database import UUIDDatabase
+from config.uuid_database import UUIDDatabase
 
 
 

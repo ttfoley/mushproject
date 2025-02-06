@@ -141,45 +141,19 @@ def make_discete_value_equal_constraint(id:int,value_uuid:int,comparand:str,desc
 def make_continuous_value_constraint(id:int,value_uuid:int,comparand:float,comparator:str,description:str = ""):
     return ContinuousValueConstraint(id,value_uuid,comparand,comparator)
 
-class TransitionsConfigHelper:
+class TransitionsConfigHelper(BaseConfiguration):
     """Helper class for building transitions configuration"""
     def __init__(self, config_path: str):
-        self.settings = json.load(open(os.path.join(config_path, "settings.json")))
-        self.states = json.load(open(os.path.join(config_path, "states.json")))
-        self.points_config = json.load(open(os.path.join(config_path, "microC_points.json")))
-        self.driver_points_config = json.load(open(os.path.join(config_path, "driver_points.json")))
-        self.governor_points_config = json.load(open(os.path.join(config_path, "governor_points.json")))
-        self.driver_name = self.settings["driver"]["name"]
+        super().__init__(config_path)  # This loads all configs including governor points
+        self.driver_name = self._driver_name
         
     @property 
     def writable_states(self) -> list[str]:
         """Get list of writable states from states config"""
-        return list(self.states.keys())
+        return list(self._states_config.keys())
 
     def get_point_uuid(self, addr: str) -> int:
-        """Get UUID for point at given address"""
-        # Search all configs
-        for config in [self.points_config, self.driver_points_config, self.governor_points_config]:
-            result = self._search_config(config, addr)
-            if result is not None:
-                return result
-        raise ValueError(f"No point found with address {addr}")
-
-    def _search_config(self, config: dict, addr: str) -> Optional[int]:
-        def search_dict(d: dict) -> Optional[int]:
-            if isinstance(d, dict):
-                if d.get("addr") == addr:
-                    return d["UUID"]
-                if "readback" in d and d["readback"].get("addr") == addr:
-                    return d["readback"]["UUID"]
-                if "write" in d and d["write"].get("addr") == addr:
-                    return d["write"]["UUID"]
-                for v in d.values():
-                    result = search_dict(v)
-                    if result is not None:
-                        return result
-            return None
-        return search_dict(config)
+        return super().get_point_uuid(addr)
 
     def get_driver_points(self) -> dict:
         """Get driver state and time point UUIDs"""
@@ -202,16 +176,16 @@ class TransitionsConfigHelper:
 
     def get_command_point(self, commander_name: str, command_name: str) -> int:
         """Get UUID for command point"""
-        addr = f"mush/commanders/{commander_name}/commands/{command_name}"
+        # Use governor name from settings instead of driver name
+        governor_name = self._settings["governor"]["name"]
+        addr = f"mush/governors/{governor_name}/commands/{command_name}"
         return self.get_point_uuid(addr)
 
     def get_point_description(self, uuid: int) -> str:
         """Get description for point with given UUID"""
-        # Search both configs
-        for config in [self.points_config, self.driver_points_config]:
-            result = self._search_description(config, uuid)
-            if result is not None:
-                return result
+        result = self._search_description(self._points_config, uuid)
+        if result is not None:
+            return result
         raise ValueError(f"No point found with UUID {uuid}")
 
     def _search_description(self, config: dict, uuid: int) -> Optional[str]:

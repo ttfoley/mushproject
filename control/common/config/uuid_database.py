@@ -4,10 +4,10 @@ from pathlib import Path
 from typing import Optional
 
 class UUIDDatabase:
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str = None):
         if db_path is None:
-            # Default to project root/uuid_db.json
-            db_path = str(Path(__file__).parent / "uuid_db.json")
+            # Use absolute path to common/config/uuid_db.json
+            db_path = str(Path(__file__).resolve().parent / "uuid_db.json")
         self.db_path = db_path
         self._load_or_create_db()
 
