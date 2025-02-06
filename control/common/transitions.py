@@ -169,8 +169,8 @@ class Transitions_Manager:
         self.PM = PM
         self.build_from_config(transitions_config)
 
-    def next_state(self, cur_state: StateStatus) -> State:
-        relevant_transitions = self.transitions[cur_state.state.name]
+    def next_state(self, cur_state: State) -> State:
+        relevant_transitions = self.transitions[cur_state.name]
         end_states = []
         for end_state, transition in relevant_transitions.items():
             if transition.active:
@@ -178,10 +178,10 @@ class Transitions_Manager:
                 end_states.append(self.SM.get_state(end_state))
         
         if len(end_states) > 1:
-            print(f"Multiple possible transitions from {cur_state.state.name} to: {[state.name for state in end_states]}")
+            print(f"Multiple possible transitions from {cur_state.name} to: {[state.name for state in end_states]}")
             raise ValueError("Panic! Multiple transitions active. This should not happen.")
         elif len(end_states) == 0:
-            return cur_state.state
+            return cur_state
         else:
             return end_states[0]
     

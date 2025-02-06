@@ -21,5 +21,5 @@ fsm, pm, tm, mqtt = (FSMConstructor(config_path)
 # Get references to components
 
 # Print initial state
-print(f"Initial FSM State: {fsm.current_state.state.name}")
+print(f"Initial FSM State: {fsm.current_state.name}")
 print(f"Available Transitions: {tm.transitions}")

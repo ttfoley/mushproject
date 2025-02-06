@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Tuple, Sequence, Dict
+from typing import Tuple, Sequence, Dict, Optional
 
 
 class State:
@@ -38,6 +38,15 @@ class State:
             for output in self.outputs
         }
 
+class UnknownState(State):
+    def __init__(self, control_points: list[str]):
+        outputs = [
+            {"control_point": {"controller": cp.split('/')[0], "name": cp.split('/')[1]}, 
+             "value": "unknown"} 
+            for cp in control_points
+        ]
+        super().__init__("unknown", outputs)
+
 class StateStatus:
     """To keep track of the FSMs current state and time in state"""
     def __init__(self, state: State):
@@ -58,10 +67,19 @@ class StateStatus:
 
 class States_Manager:
     def __init__(self, states_config: Dict[str, list], initial_state: str):
+        self._unknown_reasons = []  # [(datetime, reason)]
         self.states = self.build_states(states_config) 
         self.used_control_points = self.cps_used()
-        self.states.update({"unknown": self.make_unknown()})
+        self.states["unknown"] = UnknownState(self.used_control_points)
         self.initial_state = self.states[initial_state]
+
+    def record_unknown_reason(self, reason: str):
+        self._unknown_reasons.append((datetime.now(), reason))
+
+    def get_state(self, state_name: str, reason: Optional[str] = None) -> State:
+        if state_name == "unknown" and reason:
+            self.record_unknown_reason(reason)
+        return self.states[state_name]
 
     def build_states(self, states_config: Dict[str, list]) -> Dict[str, State]:
         states = {}
@@ -79,16 +97,6 @@ class States_Manager:
                 raise ValueError(f"State {state.name} uses different control points: {state.control_point_ids} vs {reference_points}")
         
         return list(reference_points)
-    
-    def get_state(self,state_name:str)->State:
-        return self.states[state_name]
-    
-    def make_unknown(self):
-        return State("unknown", [
-            {"control_point": {"controller": cp.split('/')[0], "name": cp.split('/')[1]}, 
-             "value": "unknown"} 
-            for cp in self.used_control_points
-        ])
     
     def _get_CP_id(self,cp_info:dict)->str:
         return cp_info["controller"]+cp_info["name"]
