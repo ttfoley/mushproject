@@ -43,24 +43,20 @@ def create_monitor_points(driver_name: str, state_names: list[str], points_manag
     return points, state_point, time_point
 
 class FSMMonitor:
-    """Monitors FSM state and manages state/time points"""
-    def __init__(self, fsm, points_manager, state_point=None, time_point=None):
+    """Monitors FSM state and manages state/time points.
+    Requires that the points already exist in the points manager."""
+    def __init__(self, fsm, points_manager):
         self.fsm = fsm
         self.pm = points_manager
         self._time_started = datetime.now()
         
-        # Use existing points or create new ones
-        if state_point and time_point:
-            state_point = state_point
-            time_point = time_point
-        else:
-            points, state_point, time_point = create_monitor_points(
-                driver_name=fsm._driver_name,
-                state_names=fsm._SM.state_names,
-                points_manager=points_manager
-            )
-            self.pm.points.update(points)
-            
+        # Get existing points from points manager
+        state_topic = f"mush/drivers/{fsm._driver_name}/sensors/status/state"
+        time_topic = f"mush/drivers/{fsm._driver_name}/sensors/status/state_time"
+        
+        state_point = points_manager.get_point_by_topic(state_topic)
+        time_point = points_manager.get_point_by_topic(time_topic)
+        
         # Ensure time_point is FSM_StateTimePoint
         if not isinstance(time_point, FSM_StateTimePoint):
             raise TypeError("time_point must be FSM_StateTimePoint")

@@ -174,6 +174,45 @@ class Points_Manager:
         
         return (rb_point, write_point)
 
+    def build_driver_points(self, driver_name: str, state_names: list[str]) -> None:
+        """Create driver status points for FSM monitoring"""
+        # Create state point
+        state_topic = f"mush/drivers/{driver_name}/sensors/status/state"
+        state_uuid = self.next_uuid()
+        state_value = Discrete_Value(state_uuid, state_topic, "unknown", "driver state", 
+                               state_names + ["unknown"])
+        settings = self.get_point_settings('state')
+        state_point = Writeable_Discrete_Point(state_value, **settings)
+        self.update_uuid_lookup(state_uuid, state_point)
+        
+        # Create time point
+        time_topic = f"mush/drivers/{driver_name}/sensors/status/state_time"
+        time_uuid = self.next_uuid()
+        time_value = Continuous_Value(time_uuid, time_topic, 0, "state time",
+                                   {"lower": 0, "upper": 1000000})
+        settings = self.get_point_settings('state_time')
+        time_point = FSM_StateTimePoint(
+            value_class=time_value, 
+            time_provider=None,  # Will be set later in FSMMonitor.__init__
+            **settings
+        )
+        self.update_uuid_lookup(time_uuid, time_point)
+        
+        # Structure and add points
+        driver_points = {
+            "drivers": {
+                driver_name: {
+                    "sensors": {
+                        "status": {
+                            "state": state_point,
+                            "time_in_state": time_point
+                        }
+                    }
+                }
+            }
+        }
+        self.points.update(driver_points)
+
 class Active_Points_Manager(Points_Manager):
     """Points Manager with MQTT capabilities"""
     def __init__(self, base_manager: Points_Manager, message_publisher: MessagePublisher):

@@ -33,6 +33,9 @@ class PreTransitionsConstructor:
         # Build States_Manager
         self.SM = States_Manager(self._states_config, self._settings["driver"]["initial_state"])
         
+        # Create driver status points
+        self.PM.build_driver_points(self._driver_name, self.SM.state_names)
+        
         self._validate_state_control_points(self._states_config)
 
     def _validate_state_control_points(self, states_config):

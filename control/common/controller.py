@@ -155,12 +155,7 @@ class FSM:
 
     def create_monitor(self, points_manager, state_point=None, time_point=None):
         """Create FSM monitor with given points manager and optional existing points"""
-        monitor = FSMMonitor(
-            fsm=self,
-            points_manager=points_manager,
-            state_point=state_point,
-            time_point=time_point
-        )
+        monitor = FSMMonitor(fsm=self, points_manager=points_manager)
         if isinstance(points_manager, Active_Points_Manager):
             monitor.pm = points_manager  # Update monitor if we already have an active PM
         self.monitor = monitor  # Actually set the monitor reference
