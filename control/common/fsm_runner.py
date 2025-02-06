@@ -41,11 +41,11 @@ class FSMRunner:
         
         if changed:
             print(f"Changed desired state to {self.fsm.desired_state.name} at {datetime.now()}. "
-                  f"Current state is: {self.fsm.current_state.state.name}")
+                  f"Current state is: {self.fsm.current_state.name}")
             self.desired_set = datetime.now()
             
-        if self.fsm.current_state.state.name != self.fsm.previous_state.name:
-            print(f"Verified state change to {self.fsm.current_state.state.name} at {datetime.now()} "
+        if self.fsm.current_state.name != self.fsm.previous_state.name:
+            print(f"Verified state change to {self.fsm.current_state.name} at {datetime.now()} "
                   f"from state: {self.fsm.previous_state.name}")
             self.gap_between_set_readback = (datetime.now() - self.desired_set).total_seconds()
             print(f"Gap between set and readback: {self.gap_between_set_readback}")

@@ -68,10 +68,14 @@ class FSMMonitor:
         self._state_point = MonitoredPoint(state_point, points_manager)
         self._time_point = MonitoredPoint(time_point, points_manager)
 
+    def reset_time(self):
+        """Reset the time started to now."""
+        self._time_started = datetime.now()
+
     def on_state_change(self):
         """Called when FSM state changes"""
-        self._time_started = datetime.now()
-        self._state_point.requested_value = self.fsm.current_state.state.name
+        self.reset_time()
+        self._state_point.requested_value = self.fsm.current_state.name
         self._time_point.requested_value = 0
         self._state_point.publish(force=True)
         self._time_point.publish(force=True)

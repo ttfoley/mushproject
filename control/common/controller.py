@@ -16,7 +16,7 @@ class ActiveFSM:
         self._states = SM.states
         self._PM = PM
         self.TM = TM
-        self._state_status = StateStatus(self._SM.get_state("unknown"))
+        self._current_state = self._SM.get_state("unknown", "Initial state")
         self.previous_state = self._states["unknown"]
         self.monitor = self._create_monitor()
 
@@ -35,20 +35,19 @@ class ActiveFSM:
         self.TM.update_points_manager(new_pm)
 
     @property
-    def current_state(self) -> StateStatus:
-        return self._state_status
+    def current_state(self) -> State:
+        return self._current_state
 
     @current_state.setter
     def current_state(self, new_state: State):
-        """Set the current state and update related attributes"""
-        self._state_status = StateStatus(new_state)
-        self.monitor.on_state_change()  # Always have monitor
+        self._current_state = new_state
+        self.monitor.on_state_change()
 
     def update_state(self) -> bool:
         new_state = self.get_validated_state()
-        self.previous_state = self.current_state.state
+        self.previous_state = self.current_state
         
-        if new_state != self.current_state.state:
+        if new_state != self.current_state:
             self.current_state = new_state
             return True
         else:
@@ -74,7 +73,7 @@ class ActiveFSM:
         compatible_states = self.get_compatible_states()
         
         if not compatible_states:
-            return self._SM.get_state("unknown")
+            return self._SM.get_state("unknown", "No states match current control point values")
         
         if len(compatible_states) == 1:
             return compatible_states[0]
@@ -82,14 +81,14 @@ class ActiveFSM:
         # Multiple compatible states - try to resolve
         if self.desired_state in compatible_states:
             return self.desired_state
-        elif self.current_state.state in compatible_states:
-            return self.current_state.state
+        elif self.current_state in compatible_states:
+            return self.current_state
         else:
-            return self._SM.get_state("unknown")
+            return self._SM.get_state("unknown", "Multiple matching states without resolution")
 
     @property
     def in_desired_state(self):
-        return self.current_state.state.name == self.desired_state.name
+        return self.current_state.name == self.desired_state.name
 
     def write_desired_state(self, immediately=False):
         """Write all outputs to match desired state"""
@@ -103,15 +102,11 @@ class ActiveFSM:
         """Update desired state based on transitions"""
         if self.in_desired_state:
             next_state = self.TM.next_state(self.current_state)
-            if next_state != self.current_state.state:
+            if next_state != self.current_state:
                 self.desired_state = next_state
                 return True
         return False
 
     def print_update(self):
-        print(self.current_state.state.name, self.desired_state.name, 
+        print(self.current_state.name, self.desired_state.name, 
               self.monitor.get_time_in_state())
-
-    def get_time_in_state(self) -> float:
-        """Implement TimeProvider protocol"""
-        return self.current_state.time_in_state
