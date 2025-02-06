@@ -1,0 +1,29 @@
+{
+  "drivers": {
+    "temperature_control": {
+      "sensors": {
+        "status": {
+          "state": {
+            "addr": "mush/drivers/temperature_control/sensors/status/state",
+            "UUID": 18,
+            "value_type": "str",
+            "valid_values": [
+              "off",
+              "on",
+              "unknown"
+            ]
+          },
+          "state_time": {
+            "addr": "mush/drivers/temperature_control/sensors/status/state_time",
+            "UUID": 19,
+            "value_type": "float",
+            "valid_range": {
+              "lower": 0,
+              "upper": 1000000.0
+            }
+          }
+        }
+      }
+    }
+  }
+}
