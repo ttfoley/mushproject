@@ -1,0 +1,76 @@
+{
+    "Transitions": {
+        "unknown": {
+            "off": {
+                "constraint_groups": [
+                    {
+                        "id": 1,
+                        "constraints": [
+                            {
+                                "definition": {
+                                    "id": 0,
+                                    "value_uuid": 19,
+                                    "comparand": 0,
+                                    "comparator": ">=",
+                                    "units": "float"
+                                },
+                                "description": "state_time constraint for state time",
+                                "type": "state_time"
+                            }
+                        ],
+                        "description": "Turn the driver off immediately if state is unknown",
+                        "priority": 0
+                    }
+                ]
+            }
+        },
+        "off": {
+            "on": {
+                "constraint_groups": [
+                    {
+                        "id": 1,
+                        "constraints": [
+                            {
+                                "definition": {
+                                    "id": 0,
+                                    "value_uuid": 19,
+                                    "comparand": 300,
+                                    "comparator": ">=",
+                                    "units": "float"
+                                },
+                                "description": "state_time constraint for state time",
+                                "type": "state_time"
+                            }
+                        ],
+                        "description": "off-on user transition",
+                        "priority": 0
+                    }
+                ]
+            }
+        },
+        "on": {
+            "off": {
+                "constraint_groups": [
+                    {
+                        "id": 1,
+                        "constraints": [
+                            {
+                                "definition": {
+                                    "id": 0,
+                                    "value_uuid": 19,
+                                    "comparand": 1800,
+                                    "comparator": ">=",
+                                    "units": "float"
+                                },
+                                "description": "state_time constraint for state time",
+                                "type": "state_time"
+                            }
+                        ],
+                        "description": "on-off user transition",
+                        "priority": 0
+                    }
+                ]
+            }
+        }
+    }
+}

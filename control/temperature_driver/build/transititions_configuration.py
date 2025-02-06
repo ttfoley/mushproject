@@ -53,13 +53,13 @@ constraint_groups["unknown"]["off"].append(cg)
 cg = new_cg("off", "on", "off-on user transition", priority=0)
 value = driver_state_time_point
 desc = value_description(value)
-cg.add_constraint(StateTimeConstraint(cg.num_constraints, value, 60, ">=",description=desc))
+cg.add_constraint(StateTimeConstraint(cg.num_constraints, value, 300, ">=",description=desc))
 constraint_groups["off"]["on"].append(cg)
 
 cg = new_cg("on", "off", "on-off user transition", priority=0)
 value = driver_state_time_point
 desc = value_description(value)
-cg.add_constraint(StateTimeConstraint(cg.num_constraints, value, 60, ">=",description=desc))
+cg.add_constraint(StateTimeConstraint(cg.num_constraints, value, 1800, ">=",description=desc))
 constraint_groups["on"]["off"].append(cg)
 
 TM = Transitions_Maker()
