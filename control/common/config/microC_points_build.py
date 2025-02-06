@@ -1,8 +1,11 @@
 from collections import defaultdict
 import json
 import os
+from pathlib import Path
+from uuid_database import UUIDDatabase
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
+uuid_db = UUIDDatabase()
 
 """
 Should be able to construct much more systematically with the new naming conventions.
@@ -20,13 +23,6 @@ valid_sensor_ranges = {"temperature":[0,100],"humidity":[0,100],"co2":[0,10000],
 cp_read_valid_values =  ["unknown","on","off"]
 cp_write_valid_values = ["on","off"]
 
-sensors_config = defaultdict(dict)
-UUID = 0
-def get_next_UUID():
-    global UUID
-    current_uuid = UUID
-    UUID += 1
-    return current_uuid
 points = {"microcontrollers":{}}
 
 for controller in controllers:
@@ -39,11 +35,12 @@ for controller in controllers:
         for sensor_name, sensor_types in sensor_config[controller].items():
             p_C_S[sensor_name] = defaultdict(dict)
             for sensor_type in sensor_types:
+                addr = f"{parent_addrs[controller]}sensors/{sensor_name}/{sensor_type}"
                 d = {}
-                d["addr"] = f"{parent_addrs[controller]}sensors/{sensor_name}/{sensor_type}"
+                d["addr"] = addr
                 d["valid_range"] = {}
                 d["valid_range"]["lower"],d["valid_range"]["upper"] = valid_sensor_ranges[sensor_type]
-                d["UUID"] = get_next_UUID()
+                d["UUID"] = uuid_db.get_uuid(addr)
                 p_C_S[sensor_name][sensor_type] = d
 
     if controller not in CP_config:
@@ -55,10 +52,14 @@ for controller in controllers:
             d["description"] = cp_desc
             d["readback"] = {}
             d["write"] = {}
-            d["readback"]["addr"] = f"{parent_addrs[controller]}control_points/{cp_name}/readback"
-            d["write"]["addr"] = f"{parent_addrs[controller]}control_points/{cp_name}/write"
-            d["readback"]["UUID"] = get_next_UUID()
-            d["write"]["UUID"] = get_next_UUID()
+            
+            rb_addr = f"{parent_addrs[controller]}control_points/{cp_name}/readback"
+            wr_addr = f"{parent_addrs[controller]}control_points/{cp_name}/write"
+            
+            d["readback"]["addr"] = rb_addr
+            d["write"]["addr"] = wr_addr
+            d["readback"]["UUID"] = uuid_db.get_uuid(rb_addr)
+            d["write"]["UUID"] = uuid_db.get_uuid(wr_addr)
             d["write"]["valid_values"] = cp_write_valid_values
             d["write"]["value_type"] = "str"
             d["write"]["raw_value_type"] = ("str","str")
@@ -68,5 +69,6 @@ for controller in controllers:
             d["readback"]["valid_values"] = cp_read_valid_values
             p_C_CP[cp_name] = d
 
-with open(os.path.join(current_dir, "microC_points.json"), "w") as f:
-    json.dump(points, f, indent=2)
+# Save the config
+with open(os.path.join(current_dir, "microC_points.json"), 'w') as f:
+    json.dump(points, f, indent=4)

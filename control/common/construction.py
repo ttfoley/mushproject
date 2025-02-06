@@ -10,6 +10,7 @@ from transitions import Transitions_Manager  # You'll need to create/import this
 from controller import  ActiveFSM
 from fsm_monitor import create_monitor_points
 from mqtt_handler import MQTTHandler
+from uuid_database import UUIDDatabase
 
 
 
@@ -20,7 +21,7 @@ class BaseConfiguration:
     def __init__(self, config_path: str):
         self._config_path = config_path
         self._needed_points = set()  # Track points needed by FSM
-        self._next_uuid = 0
+        self._uuid_db = UUIDDatabase()  # Use shared UUID database
         self._load_base_configs()
         self._build_points_config()
         self._validate_base_configs()
@@ -39,25 +40,32 @@ class BaseConfiguration:
     def _build_points_config(self):
         """Build complete points configuration including driver and governor points"""
         # Start with microcontroller points
-        self._points_config = self._microC_points_config  # Change this line to copy entire config
+        self._points_config = self._microC_points_config
         
         # Add driver points
         if "drivers" not in self._points_config:
             self._points_config["drivers"] = {}
+            
+        # Track current address for UUID assignment
+        self._current_addr = f"mush/drivers/{self._driver_name}/sensors/status/state"
+        state_uuid = self._get_next_uuid()
+        
+        self._current_addr = f"mush/drivers/{self._driver_name}/sensors/status/state_time"
+        time_uuid = self._get_next_uuid()
             
         self._points_config["drivers"][self._driver_name] = {
             "sensors": {
                 "status": {
                     "state": {
                         "addr": f"mush/drivers/{self._driver_name}/sensors/status/state",
-                        "UUID": self._get_next_uuid(),
+                        "UUID": state_uuid,
                         "value_type": "discrete",
                         "valid_values": list(self._states_config.keys()) + ["unknown"],
                         "description": "driver state"
                     },
                     "time_in_state": {
                         "addr": f"mush/drivers/{self._driver_name}/sensors/status/state_time", 
-                        "UUID": self._get_next_uuid(),
+                        "UUID": time_uuid,
                         "value_type": "continuous",
                         "valid_range": {"lower": 0, "upper": 1000000},
                         "description": "state time"
@@ -65,15 +73,30 @@ class BaseConfiguration:
                 }
             }
         }
-        
-        # Add these as needed points
-        self._add_needed_point(self._points_config["drivers"][self._driver_name]["sensors"]["status"]["state"]["addr"])
-        self._add_needed_point(self._points_config["drivers"][self._driver_name]["sensors"]["status"]["time_in_state"]["addr"])
 
         # Add governor points if configured
         if "governor" in self._settings:
-            governor_points = self._build_governor_points()
-            self._points_config.update(governor_points)
+            if "commanders" not in self._points_config:
+                self._points_config["commanders"] = {}
+
+            governor_config = self._settings["governor"]
+            governor_name = governor_config["name"]
+            governor_addr = governor_config["addr"]
+
+            self._current_addr = f"{governor_addr}/commands/state"
+            cmd_uuid = self._get_next_uuid()
+
+            self._points_config["commanders"][governor_name] = {
+                "commands": {
+                    "state": {
+                        "addr": f"{governor_addr}/commands/state",
+                        "UUID": cmd_uuid,
+                        "value_type": "str",
+                        "valid_values": list(self._states_config.keys()),
+                        "description": "commanded state"
+                    }
+                }
+            }
 
     def _build_governor_points(self) -> dict:
         """Build governor points configuration"""
@@ -101,11 +124,8 @@ class BaseConfiguration:
         return governor_points
 
     def _get_next_uuid(self) -> int:
-        """Get next available UUID"""
-        current = self._next_uuid
-        self._next_uuid += 1
-        return current
-
+        """Get UUID for current point address"""
+        return self._uuid_db.get_uuid(self._current_addr)  # Need to track current address
 
     def _validate_base_configs(self):
         """Validate configs and track needed points from states"""

@@ -10,10 +10,9 @@
         "port": 1883,
         "client_id": "temperature_control_driver"
     },
-    "governors": {
-        "temperature_control": {
-            "addr": "mush/governors/temperature_control"
-        }
+    "governor": {
+        "name": "temperature_governor",
+        "addr": "mush/governors/temperature_governor"
     },
     "points": {
         "publish": {
