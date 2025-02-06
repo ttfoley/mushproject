@@ -1,22 +1,21 @@
 from datetime import datetime
 from typing import Optional
 from mqtt_handler import MQTTHandler
-from construction import FSMBuilder
-from controller import FSM
+from construction import FSMConstructor
+from controller import ActiveFSM
 
 class FSMRunner:
     def __init__(self, 
                  config_path: str,
                  update_frequency: int = 10):
         """Base FSM class that handles common initialization and update logic"""
-        self.builder = FSMBuilder(config_path)
+        self.builder = FSMConstructor(config_path)
         self.fsm, self.pm, self.tm, self.mqtt = (self.builder
             .build_points_manager()
             .build_states_manager()
             .build_transitions_manager()
-            .build_monitor_points()
-            .build_fsm()
             .add_mqtt()
+            .build_active_fsm()
             .build())
 
         self.update_frequency = update_frequency

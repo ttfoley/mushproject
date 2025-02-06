@@ -6,16 +6,19 @@ lib_path = os.path.join(current_dir, '../../common')
 config_path = os.path.join(current_dir, '../config')
 sys.path.append(lib_path)
 
-from construction import Constructor
+from construction import FSMConstructor
 
 # Create and connect system
-constructor = Constructor(config_path)
-constructor.connect_mqtt()
+fsm, pm, tm, mqtt = (FSMConstructor(config_path)
+    .build_points_manager()
+    .build_states_manager()
+    .build_transitions_manager()
+    .add_mqtt()
+    .build_active_fsm()
+    .build())
+
 
 # Get references to components
-fsm = constructor.FSM
-tm = constructor.TM
-pm = constructor.PM
 
 # Print initial state
 print(f"Initial FSM State: {fsm.current_state.state.name}")
