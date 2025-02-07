@@ -76,8 +76,8 @@ class BaseConfiguration:
 
         # Add governor points if configured
         if "governor" in self._settings:
-            if "commanders" not in self._points_config:
-                self._points_config["commanders"] = {}
+            if "governors" not in self._points_config:
+                self._points_config["governors"] = {}
 
             governor_config = self._settings["governor"]
             governor_name = governor_config["name"]
@@ -86,7 +86,7 @@ class BaseConfiguration:
             self._current_addr = f"{governor_addr}/commands/state"
             cmd_uuid = self._get_next_uuid()
 
-            self._points_config["commanders"][governor_name] = {
+            self._points_config["governors"][governor_name] = {
                 "commands": {
                     "state": {
                         "addr": f"{governor_addr}/commands/state",
@@ -186,23 +186,28 @@ class FSMConfiguration(BaseConfiguration):
     def _load_transitions_config(self):
         self._transitions_config = json.load(open(os.path.join(self._config_path, "transitions.json")))
 
+    def save_full_config(self, filename: str = "full_config.json"):
+        """Save full configuration to file"""
+        config = {"settings": self._settings,"states": self._states_config, "transitions": self._transitions_config, "points": self._points_config}
+        with open(self._config_path + "/" + filename, 'w') as f:
+            json.dump(config, f, indent=2)
+            
 class FSMConstructor(FSMConfiguration):
     """Builds FSM system using full configuration"""
     def __init__(self, config_path: str):
         super().__init__(config_path)
 
     def build_points_manager(self):
-        """Build base points manager and create driver points"""
-        self.PM = Points_Manager(self._microC_points_config, self._settings)
-
+        """Build points manager with all needed points"""
+        self.PM = Points_Manager(self._points_config, self._settings)
+        self.PM.build_governor_points()
+        self.PM.build_driver_points(self._driver_name, self._states_config)
         return self
         
     def build_states_manager(self):
         """Build states manager"""
         self.SM = States_Manager(self._states_config, self._settings["driver"]["initial_state"])
         self._validate_state_control_points()
-        # Create driver points immediately since they're needed for monitor
-        self.PM.build_driver_points(self._driver_name, self.SM.state_names)
         return self
         
     def build_transitions_manager(self):

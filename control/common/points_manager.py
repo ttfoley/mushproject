@@ -41,20 +41,28 @@ def make_sensor_point(value: Value) -> Point:
     """Create a read-only point for microcontroller sensors"""
     return ReadOnly_Point(value)
 
+def make_command_point(value: Value) -> Point:
+    """Create a read-only point for governor commands"""
+    return ReadOnly_Point(value)
+
 class Points_Manager:
     """Base Points Manager without MQTT functionality"""
-    def __init__(self, microC_points_config: dict, settings: dict):
-        self._microC_points_config = microC_points_config
-        self._settings = settings.get('points', {}).get('publish', {})
-        self._default_retry = self._settings.get('default_retry_interval', 5)
-        self._default_republish = self._settings.get('default_republish_frequency', 60)
-        self._point_settings = self._settings.get('point_types', {})
+    def __init__(self, points_config: dict, settings: dict):
+        self._points_config = points_config
+        self._settings = settings  # Store full settings dict
+        
+        # Get publish settings with defaults
+        publish_settings = settings.get('points', {}).get('publish', {})
+        self._default_retry = publish_settings.get('default_retry_interval', 5)
+        self._default_republish = publish_settings.get('default_republish_frequency', 60)
+        self._point_settings = publish_settings.get('point_types', {})
         
         self._points_lookup = {}
         self._uuid_lookup = {}
         self._uuids = []
         self.points = self.build_microcontroller_points()
         self.control_points = self.build_control_points()
+        self._topics_to_subscribe = set() 
 
     def get_point_settings(self, point_type: str) -> dict:
         """Get publish settings for a point type"""
@@ -100,7 +108,7 @@ class Points_Manager:
             #------ControlPointName
             #--------readback:DiscreteValue
             #--------write:DiscreteValue
-            source = self._microC_points_config["microcontrollers"]
+            source = self._points_config["microcontrollers"]
             points = {"microcontrollers":defaultdict(dict)}
 
             for controller,controller_dict in source.items():
@@ -176,42 +184,47 @@ class Points_Manager:
 
     def build_driver_points(self, driver_name: str, state_names: list[str]) -> None:
         """Create driver status points for FSM monitoring"""
-        # Create state point
-        state_topic = f"mush/drivers/{driver_name}/sensors/status/state"
-        state_uuid = self.next_uuid()
-        state_value = Discrete_Value(state_uuid, state_topic, "unknown", "driver state", 
-                               state_names + ["unknown"])
+        driver_config = self._points_config["drivers"][driver_name]["sensors"]["status"]
+        
+        # Create state point using existing UUID
+        state_config = driver_config["state"]
+        state_value = make_value("driver state", state_config)
+        assert isinstance(state_value, Discrete_Value)  # Type check
         settings = self.get_point_settings('state')
         state_point = Writeable_Discrete_Point(state_value, **settings)
-        self.update_uuid_lookup(state_uuid, state_point)
+        self.update_uuid_lookup(state_value.uuid, state_point)
         
-        # Create time point
-        time_topic = f"mush/drivers/{driver_name}/sensors/status/state_time"
-        time_uuid = self.next_uuid()
-        time_value = Continuous_Value(time_uuid, time_topic, 0, "state time",
-                                   {"lower": 0, "upper": 1000000})
+        # Create time point using existing UUID  
+        time_config = driver_config["time_in_state"]
+        time_value = make_value("state time", time_config)
+        assert isinstance(time_value, Continuous_Value)  # Type check
         settings = self.get_point_settings('state_time')
-        time_point = FSM_StateTimePoint(
-            value_class=time_value, 
-            time_provider=None,  # Will be set later in FSMMonitor.__init__
-            **settings
-        )
-        self.update_uuid_lookup(time_uuid, time_point)
+        time_point = FSM_StateTimePoint(value_class=time_value, time_provider=None, **settings)
+        self.update_uuid_lookup(time_value.uuid, time_point)
+
+    def build_governor_points(self) -> dict:
+        """Build governor command points"""
+        points = {"governors": defaultdict(dict)}
+        governor_name = self._settings["governor"]["name"]
         
-        # Structure and add points
-        driver_points = {
-            "drivers": {
-                driver_name: {
-                    "sensors": {
-                        "status": {
-                            "state": state_point,
-                            "time_in_state": time_point
-                        }
-                    }
-                }
-            }
-        }
-        self.points.update(driver_points)
+        valid_states = (self._points_config["drivers"][self._settings["driver"]["name"]]
+                       ["sensors"]["status"]["state"]["valid_values"])
+        
+        topic = f"mush/governors/{governor_name}/commands/state"
+        value = Discrete_Value(
+            uuid=self._points_config["governors"][governor_name]["commands"]["state"]["UUID"],
+            addr=topic,
+            init_raw=valid_states[0],
+            description="State command",
+            valid_values=valid_states
+        )
+        point = make_command_point(value)
+        points["governors"][governor_name]["state"] = point
+        self.update_uuid_lookup(value.uuid, point)
+        #adding governor state command to the set of topics to subscribe to
+        self._topics_to_subscribe.add(topic)
+        
+        return points
 
 class Active_Points_Manager(Points_Manager):
     """Points Manager with MQTT capabilities"""
@@ -223,6 +236,8 @@ class Active_Points_Manager(Points_Manager):
         self._published_points = set()
         self._last_periodic_publish = datetime.now()
         self._pending_publishes = {}  # topic -> (expected_value, time_requested)
+        #Points that were flagged during construction as needing to be monitored    
+        self.add_monitored_points(read_points=self._topics_to_subscribe, write_points=set())
 
     def add_monitored_points(self, read_points: set[str], write_points: set[str]):
         """Add points to monitor by their topics"""

@@ -270,6 +270,15 @@ class TransitionsBuilder:
         """Save transitions configuration to file"""
         self.transitions_maker.save(os.path.join(config_path, "transitions.json"))
 
+    def add_command_constraints(self):
+        """Add governor command constraints"""
+        # Add command points
+        self.command_points = {}
+        for state in self.driver_states:
+            if state != "unknown":
+                cmd_uuid = self.helper.get_command_point(self.driver_name, f"set_{state}")
+                self.command_points[state] = cmd_uuid
+
 class LayeredTransitionsBuilder(TransitionsBuilder):
     """Builds transitions with multiple layers of constraints"""
     

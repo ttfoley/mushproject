@@ -22,6 +22,8 @@ class MQTTHandler(MessagePublisher):
         """MQTT callback when message received"""
         topic = message.topic
         value = message.payload.decode()
+        if topic == "mush/governors/temperature_governor/commands/state":
+            print(f"MQTT message received - Topic: {topic}, Value: {value}")
         #print(f"MQTT message received - Topic: {topic}, Value: {value}")
         # Pass message to points manager
         self._points_manager.handle_mqtt_message(topic, value)

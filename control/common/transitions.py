@@ -67,18 +67,43 @@ class Constraint:
     def value_exists(self)->bool:
         return self.pm.value_exists(self.value_uuid)
     
-    def eval_string(self)->str:
-        if self.value_exists:
-            point = self.pm.get_point(self.value_uuid)
-            val = self._convert_value(point.value)
-            return f"{val} {self.comparator} {self.comparand}"
-        else:
+    def eval_string(self) -> str:
+        if not self.value_exists:
             raise ValueError(f"Value {self.value_uuid} does not exist in the surveyor.")
+        
+        point = self.pm.get_point(self.value_uuid)
+        val = self._convert_value(point.value)
+        
+        if val is None:
+            return "False"  # If value is None, constraint can't be satisfied
+        
+        return f"{str(val)} {self.comparator} {self.comparand}"
     
-    @property
-    def satisfied(self)->bool:
-        eval_string = self.eval_string()
-        return eval(eval_string)
+
+    def satisfied(self) -> bool:
+        if not self.value_exists:
+            raise ValueError(f"Value {self.value_uuid} does not exist in the surveyor.")
+        
+        point = self.pm.get_point(self.value_uuid)
+        val = self._convert_value(point.value)
+        
+        if val is None:
+            return False
+        assert type(val) == type(self.comparand)
+        if self.comparator == ">=":
+            return val >= self.comparand
+        elif self.comparator == "<=":
+            return val <= self.comparand
+        elif self.comparator == "==":
+            return val == self.comparand
+        elif self.comparator == "!=":
+            return val != self.comparand
+        elif self.comparator == ">":
+            return val > self.comparand
+        elif self.comparator == "<":
+            return val < self.comparand
+        else:
+            raise ValueError(f"Unknown comparator: {self.comparator}")
 
     
 class Constraint_Group:
@@ -98,7 +123,7 @@ class Constraint_Group:
     @property
     def satisfied(self)->bool:
         #print(self.constraints)
-        return all([constraint.satisfied for constraint in self.constraints])
+        return all([constraint.satisfied() for constraint in self.constraints])
 
 class Transition:
     """

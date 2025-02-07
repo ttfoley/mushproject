@@ -18,6 +18,7 @@ class FSMRunner:
             .build_active_fsm()
             .build())
 
+        self.builder.save_full_config()
         self.update_frequency = update_frequency
         self.last_update_time = datetime.now()
         self.gap_between_set_readback = 0
