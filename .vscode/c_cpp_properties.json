@@ -9,6 +9,7 @@
             "name": "PlatformIO",
             "includePath": [
                 "/home/ttfoley/mushproject/microcontroller",
+                "/home/ttfoley/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src",
                 "/home/ttfoley/mushproject/microcontroller/controller1/lib/Sensors",
                 "/home/ttfoley/mushproject/microcontroller/controller1/lib/Utils",
                 "/home/ttfoley/mushproject/microcontroller/controller1/lib/Calibration",
@@ -238,7 +239,6 @@
                 "/home/ttfoley/.platformio/packages/framework-arduinoespressif32/libraries/Insights/src",
                 "/home/ttfoley/.platformio/packages/framework-arduinoespressif32/libraries/LittleFS/src",
                 "/home/ttfoley/.platformio/packages/framework-arduinoespressif32/libraries/NetBIOS/src",
-                "/home/ttfoley/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src",
                 "/home/ttfoley/.platformio/packages/framework-arduinoespressif32/libraries/RainMaker/src",
                 "/home/ttfoley/.platformio/packages/framework-arduinoespressif32/libraries/SD/src",
                 "/home/ttfoley/.platformio/packages/framework-arduinoespressif32/libraries/SD_MMC/src",
@@ -256,6 +256,7 @@
                 "limitSymbolsToIncludedHeaders": true,
                 "path": [
                     "/home/ttfoley/mushproject/microcontroller",
+                    "/home/ttfoley/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src",
                     "/home/ttfoley/mushproject/microcontroller/controller1/lib/Sensors",
                     "/home/ttfoley/mushproject/microcontroller/controller1/lib/Utils",
                     "/home/ttfoley/mushproject/microcontroller/controller1/lib/Calibration",
@@ -485,7 +486,6 @@
                     "/home/ttfoley/.platformio/packages/framework-arduinoespressif32/libraries/Insights/src",
                     "/home/ttfoley/.platformio/packages/framework-arduinoespressif32/libraries/LittleFS/src",
                     "/home/ttfoley/.platformio/packages/framework-arduinoespressif32/libraries/NetBIOS/src",
-                    "/home/ttfoley/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src",
                     "/home/ttfoley/.platformio/packages/framework-arduinoespressif32/libraries/RainMaker/src",
                     "/home/ttfoley/.platformio/packages/framework-arduinoespressif32/libraries/SD/src",
                     "/home/ttfoley/.platformio/packages/framework-arduinoespressif32/libraries/SD_MMC/src",
