@@ -18,6 +18,7 @@ protected:
     float temperature_offset;
     float co2_slope;
     float co2_offset;
+    static const int READ_DELAY_MS = 100;
 
 public:
     Sensor(const CalibrationParams& params)
