@@ -31,10 +31,11 @@ const long publish_frequency = 15000; // How often to publish sensor data (ms)
 // Initialise the WiFi and MQTT Client objects
 WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, wifiClient);
-bool connect_MQTT();
+
 bool connect_WiFi();
 bool exceedMaxSensorPublishTime();
 bool publishSensorData(Sensor* sensor);
+bool connect_MQTT();
 
 // Connection attempt configuration
 #define MAX_WIFI_ATTEMPTS 12    // Total = attempt*delay
@@ -166,9 +167,8 @@ void loop() {
       break;
 
     case MQTT_CONNECT:
-      Serial.println("State: MQTT_CONNECT");
-      if (connect_MQTT()) {
-          postStoredRestartReason();  // Post the reason after successful connection
+      //Serial.println("State: MQTT_CONNECT");
+      if (client.connected()) {  
           state = READ_AND_PUBLISH_SENSOR;
           chrono = millis();
       } else {
@@ -209,9 +209,11 @@ void loop() {
       break;
 
     case READ_AND_PUBLISH_SENSOR:
-    /*Only reads and posts if time to update.
-    Only resets publish time if successfuly published.
-    */
+      static bool posted_restart_reason = false;
+      if (!posted_restart_reason) {
+          postStoredRestartReason();
+          posted_restart_reason = true;
+      }
       //Serial.println("State: READ_AND_PUBLISH_SENSOR");
       for (size_t i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
         if (millis() - sensors[i]->getTimeLastPublished() > publish_frequency) {
@@ -277,15 +279,24 @@ bool connect_MQTT() {
     if (client.connected()) {
         return true;
     }
+    Serial.print("Attempting MQTT connection...");
+    if (client.connect(clientID, mqtt_username, mqtt_password)) {
+        Serial.println("connected");
+        return true;
+    }
+    Serial.print("failed, rc=");
+    Serial.println(client.state());
+    return false;
 }
 
 bool exceedMaxSensorPublishTime() {
-  for (size_t i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
-    if (millis() - sensors[i]->getTimeLastPublished() > MAX_TIME_NO_PUBLISH) {
-      return true;
+    for (size_t i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
+        unsigned long timeSinceLastPublish = millis() - sensors[i]->getTimeLastPublished();
+        if (timeSinceLastPublish > MAX_TIME_NO_PUBLISH) {
+            return true;
+        }
     }
-  }
-  return false;
+    return false;
 }
 
 bool publishSensorData(Sensor* sensor) {
