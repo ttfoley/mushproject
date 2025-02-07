@@ -1,0 +1,9 @@
+adafruit/Adafruit Unified Sensor
+paulstoffregen/OneWire
+adafruit/DHT sensor library
+adafruit/Adafruit SHT31 Library
+SPI
+Wire
+knolleary/PubSubClient
+sensirion/Sensirion Core
+sparkfun/SparkFun SCD4x Arduino Library

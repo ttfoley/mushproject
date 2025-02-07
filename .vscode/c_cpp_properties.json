@@ -3,7 +3,14 @@
         {
             "name": "Linux",
             "includePath": [
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/microcontroller/controller1/src/**",
+                "${workspaceFolder}/microcontroller/controller1/lib/**",
+                "${workspaceFolder}/microcontroller/controller2/src/**",
+                "${workspaceFolder}/microcontroller/controller2/lib/**",
+                "${workspaceFolder}/microcontroller/debugging/src/**",
+                "${workspaceFolder}/microcontroller/debugging/lib/**",
+                "${workspaceFolder}/.pio/libdeps/**"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",

@@ -4,8 +4,6 @@
 #include <OneWire.h>
 #include <SPI.h>
 #include "PubSubClient.h"
-#include <SensirionCore.h>
-#include "SparkFun_SCD4x_Arduino_Library.h"
 #include <pincontrol.h>
 
 #define WIFI_SSID SECRET_WIFI_SSID

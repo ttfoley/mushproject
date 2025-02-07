@@ -1,0 +1,5 @@
+adafruit/Adafruit Unified Sensor
+paulstoffregen/OneWire
+SPI
+Wire
+knolleary/PubSubClient
