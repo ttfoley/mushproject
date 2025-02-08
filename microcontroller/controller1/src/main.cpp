@@ -52,11 +52,12 @@ SCDSensor scd_0_Sensor("mush/controllers/C1/sensors/scd_0/humidity", "mush/contr
 
 Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &scd_0_Sensor };
 
-enum State {START, WIFI_CONNECT, WIFI_WAIT, MQTT_CONNECT, MQTT_WAIT, READ_AND_PUBLISH_SENSOR, WAIT, RESTART};
+enum State {START, WIFI_CONNECT, WIFI_WAIT, MQTT_CONNECT, MQTT_WAIT, READ_AND_PUBLISH_SENSOR, MEASURING, WAIT, RESTART};
 State state = START;
 #define DEFAULT_WAIT 1000
 #define WAIT_WAIT 10
 #define MAX_TIME_NO_PUBLISH 60000 //failsafe in case a sensor breaks or something
+#define MEASURE_TIME 5000 //time to measure SCD sensor
 
 enum RestartReason {
     WIFI_TIMEOUT,
@@ -101,6 +102,16 @@ void setup() {
   Wire.begin();
   WiFi.mode(WIFI_STA);
   delay(2000);
+
+  // Verify SCD sensor is last in array. Our publish timing depends on this. bad I know.
+  if (sensors[sizeof(sensors)/sizeof(sensors[0]) - 1] != &scd_0_Sensor) {
+    Serial.println("FATAL: SCD sensor must be last in sensors array for proper measurement timing");
+    while(1) delay(1);
+  }
+
+  //more special care for stupid scd sensor
+  scd_0_Sensor.setPublishFrequency(30000);
+
   // Initialize sensors
   if (!sht_0_Sensor.begin()) {
     Serial.println("Couldn't find SHT31 0");
@@ -210,14 +221,21 @@ void loop() {
 
     case READ_AND_PUBLISH_SENSOR:
       static bool posted_restart_reason = false;
+      
       if (!posted_restart_reason) {
           postStoredRestartReason();
           posted_restart_reason = true;
       }
-      //Serial.println("State: READ_AND_PUBLISH_SENSOR");
+
+      // Read and publish sensor data if available
       for (size_t i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
-        if (millis() - sensors[i]->getTimeLastPublished() > publish_frequency) {
-          if (publishSensorData(sensors[i])) {
+        if (millis() - sensors[i]->getTimeLastPublished() > sensors[i]->getPublishFrequency()) {
+          if (sensors[i] == &scd_0_Sensor && !scd_0_Sensor.isMeasuring()) {
+            state = MEASURING;  // Only go to measuring if not already measured
+            chrono = millis();
+            break;
+          }
+          else if (publishSensorData(sensors[i])) {
             sensors[i]->resetTimeLastPublished();
           } 
           else {
@@ -225,8 +243,22 @@ void loop() {
           }
         }
       }
-      state = WAIT;
-      chrono = millis();
+      if (state != MEASURING) {
+        state = WAIT;
+        chrono = millis();
+      }
+      break;
+
+    case MEASURING:
+      Serial.println("State: MEASURING");
+      if (!scd_0_Sensor.isMeasuring()) {
+        scd_0_Sensor.startMeasurement();  // Only start if not already measuring
+      }
+      if (millis() - chrono >= MEASURE_TIME) {
+        scd_0_Sensor.completeMeasurement();
+        state = WAIT;  // Go to WAIT like other states
+        chrono = millis();
+      }
       break;
 
     case WAIT:

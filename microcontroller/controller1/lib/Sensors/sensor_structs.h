@@ -19,6 +19,7 @@ protected:
     float co2_slope;
     float co2_offset;
     static const int READ_DELAY_MS = 100;
+    unsigned long publish_frequency = 15000;  // Default 15s
 
 public:
     Sensor(const CalibrationParams& params)
@@ -43,6 +44,15 @@ public:
 
     unsigned long getTimeLastPublished() {
         return time_last_published;
+    }
+
+    // Add getter/setter for publish frequency
+    void setPublishFrequency(unsigned long freq) {
+        publish_frequency = freq;
+    }
+    
+    unsigned long getPublishFrequency() {
+        return publish_frequency;
     }
 };
 
@@ -121,6 +131,9 @@ private:
 class SCDSensor : public Sensor {
 private:
     SCD4x scd4x;
+    bool is_measuring = false;
+    unsigned long measure_start_time = 0;
+    static const unsigned long MEASURE_TIME = 5000; // 5 seconds
 
 public:
     SCDSensor(const char* humidity_topic, const char* temperature_topic, const char* co2_topic, const CalibrationParams& params)
@@ -156,6 +169,26 @@ public:
 
     const char* getCO2Topic() override {
         return co2_topic;
+    }
+
+    void startMeasurement() {
+        scd4x.measureSingleShot();  // Start actual SCD measurement
+        is_measuring = true;
+        measure_start_time = millis();
+    }
+
+    bool isMeasuring() {
+        if (!is_measuring) return false;
+        
+        if (millis() - measure_start_time >= MEASURE_TIME) {
+            is_measuring = false;  // Measurement complete
+            return false;
+        }
+        return true;
+    }
+
+    void completeMeasurement() {
+        is_measuring = false;
     }
 
 private:
