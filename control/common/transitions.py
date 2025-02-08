@@ -2,6 +2,7 @@ from typing import Dict,Sequence,Tuple
 from collections import defaultdict
 from points_manager import Points_Manager,Active_Points_Manager
 from states import State,StateStatus,States_Manager
+import time
 
 ## Where great new transitions are born! Full rewrite of the transitions modules to allow for more complex constraints and transitions.
 ## And to clean up areas of code that had to do extra work to make the old transitions work. And I also just didn't really like them.
@@ -29,6 +30,7 @@ class Constraint:
         self.pm = points_manager
         self._definition = definition
         self._converted_comparand = self._convert_value(definition['comparand'])
+        self.last_eval = None  # Initialize last_eval
     
     @property
     def comparator(self):
@@ -89,21 +91,34 @@ class Constraint:
         
         if val is None:
             return False
+            
         assert type(val) == type(self.comparand)
+        result = False
+        
         if self.comparator == ">=":
-            return val >= self.comparand
+            result = val >= self.comparand
         elif self.comparator == "<=":
-            return val <= self.comparand
+            result = val <= self.comparand
         elif self.comparator == "==":
-            return val == self.comparand
+            result = val == self.comparand
         elif self.comparator == "!=":
-            return val != self.comparand
+            result = val != self.comparand
         elif self.comparator == ">":
-            return val > self.comparand
+            result = val > self.comparand
         elif self.comparator == "<":
-            return val < self.comparand
+            result = val < self.comparand
         else:
             raise ValueError(f"Unknown comparator: {self.comparator}")
+            
+        # Log evaluation details
+        self.last_eval = {
+            "value": val,
+            "comparator": self.comparator,
+            "comparand": self.comparand,
+            "result": result,
+            "description": self._definition.get('description', '')
+        }
+        return result
 
     
 class Constraint_Group:
@@ -115,6 +130,7 @@ class Constraint_Group:
         self.constraints = constraints
         self.priority = priority
         self.description = description
+        self.last_eval = None
 
     def update_points_manager(self, new_pm: Points_Manager):
         for constraint in self.constraints:
@@ -122,8 +138,14 @@ class Constraint_Group:
 
     @property
     def satisfied(self)->bool:
-        #print(self.constraints)
-        return all([constraint.satisfied() for constraint in self.constraints])
+        results = [constraint.satisfied() for constraint in self.constraints]
+        self.last_eval = {
+            "description": self.description,
+            "priority": self.priority,
+            "constraints": [c.last_eval for c in self.constraints],
+            "result": all(results)
+        }
+        return all(results)
 
 class Transition:
     """
@@ -141,6 +163,7 @@ class Transition:
         self.from_state = from_state.name  # Store name instead of State object
         self.to_state = to_state.name
         self.constraint_groups = constraint_groups
+        self.last_eval = None
 
     def update_points_manager(self, new_pm: Points_Manager):
         for group in self.constraint_groups:
@@ -158,11 +181,23 @@ class Transition:
     @property
     def active(self)->bool:
         active = False
+        eval_details = []
+        
         for cg in self.prioritized_cgs:
             if cg.satisfied:
                 active = True
+                eval_details.append(cg.last_eval)
                 break
-
+            else:
+                eval_details.append(cg.last_eval)
+                
+        self.last_eval = {
+            "from_state": self.from_state,
+            "to_state": self.to_state,
+            "constraint_groups": eval_details,
+            "result": active,
+            "timestamp": time.time()
+        }
         return active
 
 def build_transition(from_state: State, to_state: State, transition_config: dict, PM: Points_Manager) -> Transition:
@@ -197,11 +232,16 @@ class Transitions_Manager:
     def next_state(self, cur_state: State) -> State:
         relevant_transitions = self.transitions[cur_state.name]
         end_states = []
+        transition_logs = []
+        
         for end_state, transition in relevant_transitions.items():
             if transition.active:
-                print("transition_activated", end_state)
+                print(f"\nTransition activated: {cur_state.name} -> {end_state}")
+                print(f"Evaluation details:")
+                self._print_transition_eval(transition.last_eval)
                 end_states.append(self.SM.get_state(end_state))
-        
+                transition_logs.append(transition.last_eval)
+                
         if len(end_states) > 1:
             print(f"Multiple possible transitions from {cur_state.name} to: {[state.name for state in end_states]}")
             raise ValueError("Panic! Multiple transitions active. This should not happen.")
@@ -209,7 +249,16 @@ class Transitions_Manager:
             return cur_state
         else:
             return end_states[0]
-    
+            
+    def _print_transition_eval(self, eval_data: dict):
+        print(f"  From {eval_data['from_state']} to {eval_data['to_state']}")
+        for cg in eval_data['constraint_groups']:
+            print(f"  Constraint Group: {cg['description']}")
+            print(f"  Priority: {cg['priority']}")
+            for c in cg['constraints']:
+                print(f"    {c['description']}:")
+                print(f"      {c['value']} {c['comparator']} {c['comparand']} = {c['result']}")
+
     def build_from_config(self, config: dict):
         existing_transitions = {}
         if hasattr(self, 'transitions'):
