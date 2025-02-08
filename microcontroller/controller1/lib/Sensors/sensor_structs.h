@@ -20,12 +20,16 @@ protected:
     float co2_offset;
     static const int READ_DELAY_MS = 100;
     unsigned long publish_frequency = 15000;  // Default 15s
+    const char* root_topic;  // Store the root topic path
 
 public:
-    Sensor(const CalibrationParams& params)
-        : time_last_published(0), humidity_slope(params.humidity_slope), humidity_offset(params.humidity_offset),
-          temperature_slope(params.temperature_slope), temperature_offset(params.temperature_offset),
-          co2_slope(params.co2_slope), co2_offset(params.co2_offset) {}
+    Sensor(const char* root_topic, const CalibrationParams& params)
+        : time_last_published(0), humidity_slope(params.humidity_slope), 
+          humidity_offset(params.humidity_offset),
+          temperature_slope(params.temperature_slope), 
+          temperature_offset(params.temperature_offset),
+          co2_slope(params.co2_slope), co2_offset(params.co2_offset),
+          root_topic(root_topic) {}
 
     virtual bool begin() = 0;
     virtual bool hasHumidity() { return false; }
@@ -54,6 +58,11 @@ public:
     unsigned long getPublishFrequency() {
         return publish_frequency;
     }
+
+    // Add method to get sensor name for logging
+    const char* getRootTopic() {
+        return root_topic;
+    }
 };
 
 // Derived classes for specific sensors
@@ -61,12 +70,15 @@ class SHTSensor : public Sensor {
 private:
     Adafruit_SHT31 sht31;
     uint8_t addr;
-    const char* humidity_topic;
-    const char* temperature_topic;
+    char humidity_topic[64];
+    char temperature_topic[64];
 
 public:
-    SHTSensor(uint8_t addr, const char* humidity_topic, const char* temperature_topic, const CalibrationParams& params)
-        : Sensor(params), sht31(), addr(addr), humidity_topic(humidity_topic), temperature_topic(temperature_topic) {}
+    SHTSensor(uint8_t addr, const char* root_topic, const CalibrationParams& params)
+        : Sensor(root_topic, params), sht31(), addr(addr) {
+        snprintf(humidity_topic, sizeof(humidity_topic), "%shumidity", root_topic);
+        snprintf(temperature_topic, sizeof(temperature_topic), "%stemperature", root_topic);
+    }
     bool begin() override {
         return sht31.begin(addr); // replace 0x44 with the actual address if different
     }
@@ -94,10 +106,15 @@ public:
 class DHTSensor : public Sensor {
 private:
     DHT dht;
+    char humidity_topic[64];
+    char temperature_topic[64];
 
 public:
-    DHTSensor(uint8_t pin, uint8_t type, const char* humidity_topic, const char* temperature_topic, const CalibrationParams& params)
-        : Sensor(params), dht(pin, type), humidity_topic(humidity_topic), temperature_topic(temperature_topic) {}
+    DHTSensor(uint8_t pin, uint8_t type, const char* root_topic, const CalibrationParams& params)
+        : Sensor(root_topic, params), dht(pin, type) {
+        snprintf(humidity_topic, sizeof(humidity_topic), "%shumidity", root_topic);
+        snprintf(temperature_topic, sizeof(temperature_topic), "%stemperature", root_topic);
+    }
 
     bool begin() override {
         dht.begin();
@@ -122,22 +139,25 @@ public:
     const char* getTemperatureTopic() override {
         return temperature_topic;
     }
-
-private:
-    const char* humidity_topic;
-    const char* temperature_topic;
 };
 
 class SCDSensor : public Sensor {
 private:
     SCD4x scd4x;
+    char humidity_topic[64];
+    char temperature_topic[64];
+    char co2_topic[64];
     bool is_measuring = false;
     unsigned long measure_start_time = 0;
     static const unsigned long MEASURE_TIME = 5000; // 5 seconds
 
 public:
-    SCDSensor(const char* humidity_topic, const char* temperature_topic, const char* co2_topic, const CalibrationParams& params)
-        : Sensor(params), scd4x(), humidity_topic(humidity_topic), temperature_topic(temperature_topic), co2_topic(co2_topic) {}
+    SCDSensor(const char* root_topic, const CalibrationParams& params)
+        : Sensor(root_topic, params), scd4x() {
+        snprintf(humidity_topic, sizeof(humidity_topic), "%shumidity", root_topic);
+        snprintf(temperature_topic, sizeof(temperature_topic), "%stemperature", root_topic);
+        snprintf(co2_topic, sizeof(co2_topic), "%sco2", root_topic);
+    }
 
     bool begin() override {
         return scd4x.begin();
@@ -190,11 +210,6 @@ public:
     void completeMeasurement() {
         is_measuring = false;
     }
-
-private:
-    const char* humidity_topic;
-    const char* temperature_topic;
-    const char* co2_topic;
 };
 
 #endif // SENSOR_STRUCTS_H

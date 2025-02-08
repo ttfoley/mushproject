@@ -36,6 +36,7 @@ bool connect_WiFi();
 bool exceedMaxSensorPublishTime();
 bool publishSensorData(Sensor* sensor);
 bool connect_MQTT();
+void tryPublishSensor(Sensor* sensor);
 
 // Connection attempt configuration
 #define MAX_WIFI_ATTEMPTS 12    // Total = attempt*delay
@@ -46,9 +47,9 @@ bool connect_MQTT();
 //Make sensors. The last arg is the sensor instance name for lookup in calibration map
 //Should probably have topics in a map like the scaling, and include a name for the sensor instance to make
 //it easier to find configurations (wouldn't need to add extra arguments to the sensor constructors)
-SHTSensor sht_0_Sensor(SHT_0_ADDR, "mush/controllers/C1/sensors/sht_0/humidity", "mush/controllers/C1/sensors/sht_0/temperature", getCalibrationParams("SHT_0"));
-DHTSensor dht_0_Sensor(DHT_0_PIN, DHT_0_TYPE, "mush/controllers/C1/sensors/dht_0/humidity", "mush/controllers/C1/sensors/dht_0/temperature", getCalibrationParams("DHT_0"));
-SCDSensor scd_0_Sensor("mush/controllers/C1/sensors/scd_0/humidity", "mush/controllers/C1/sensors/scd_0/temperature", "mush/controllers/C1/sensors/scd_0/co2", getCalibrationParams("SCD_0"));
+SHTSensor sht_0_Sensor(SHT_0_ADDR, "mush/controllers/C1/sensors/sht_0/", getCalibrationParams("SHT_0"));
+DHTSensor dht_0_Sensor(DHT_0_PIN, DHT_0_TYPE, "mush/controllers/C1/sensors/dht_0/", getCalibrationParams("DHT_0"));
+SCDSensor scd_0_Sensor("mush/controllers/C1/sensors/scd_0/", getCalibrationParams("SCD_0"));
 
 Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &scd_0_Sensor };
 
@@ -229,18 +230,24 @@ void loop() {
 
       // Read and publish sensor data if available
       for (size_t i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
-        if (millis() - sensors[i]->getTimeLastPublished() > sensors[i]->getPublishFrequency()) {
-          if (sensors[i] == &scd_0_Sensor && !scd_0_Sensor.isMeasuring()) {
-            state = MEASURING;  // Only go to measuring if not already measured
+        if (sensors[i] == &scd_0_Sensor) {
+          unsigned long time_since_publish = millis() - sensors[i]->getTimeLastPublished();
+          unsigned long time_to_next_publish = sensors[i]->getPublishFrequency() - time_since_publish;
+          
+          if (scd_0_Sensor.isMeasuring()) {
+            continue;  // Skip if currently measuring
+          }
+          else if (time_to_next_publish <= 5000) {  // Start measuring 5s before publish time
+            state = MEASURING;
             chrono = millis();
             break;
           }
-          else if (publishSensorData(sensors[i])) {
-            sensors[i]->resetTimeLastPublished();
-          } 
-          else {
-            Serial.println("Failed to publish sensor data");
+          else if (time_since_publish >= sensors[i]->getPublishFrequency()) {  // Time to publish
+            tryPublishSensor(sensors[i]);
           }
+        }
+        else if (millis() - sensors[i]->getTimeLastPublished() > sensors[i]->getPublishFrequency()) {
+          tryPublishSensor(sensors[i]);
         }
       }
       if (state != MEASURING) {
@@ -250,7 +257,7 @@ void loop() {
       break;
 
     case MEASURING:
-      Serial.println("State: MEASURING");
+      //Serial.println("State: MEASURING");
       if (!scd_0_Sensor.isMeasuring()) {
         scd_0_Sensor.startMeasurement();  // Only start if not already measuring
       }
@@ -371,4 +378,14 @@ bool publishSensorData(Sensor* sensor) {
     }
   }
   return success;
+}
+
+void tryPublishSensor(Sensor* sensor) {
+    if (publishSensorData(sensor)) {
+        sensor->resetTimeLastPublished();
+    }
+    else {
+        Serial.print("Failed to publish sensor at topic root: ");
+        Serial.println(sensor->getRootTopic());
+    }
 }
