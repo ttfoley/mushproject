@@ -1,0 +1,5 @@
+{
+  "mush/drivers/temperature_control/sensors/status/state": 0,
+  "mush/drivers/temperature_control/sensors/status/state_time": 1,
+  "mush/governors/temperature_governor/commands/state": 2
+}

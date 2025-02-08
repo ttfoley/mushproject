@@ -4,7 +4,7 @@
             "off": {
                 "constraint_groups": [
                     {
-                        "id": 1,
+                        "id": 0,
                         "constraints": [
                             {
                                 "definition": {
@@ -18,7 +18,7 @@
                                 "type": "state_time"
                             }
                         ],
-                        "description": "Turn the driver off immediately if state is unknown",
+                        "description": "Turn off immediately if unknown",
                         "priority": 0
                     }
                 ]
@@ -28,21 +28,32 @@
             "on": {
                 "constraint_groups": [
                     {
-                        "id": 1,
+                        "id": 0,
                         "constraints": [
                             {
                                 "definition": {
                                     "id": 0,
                                     "value_uuid": 19,
-                                    "comparand": 300,
+                                    "comparand": 5,
                                     "comparator": ">=",
                                     "units": "float"
                                 },
                                 "description": "state_time constraint for state time",
                                 "type": "state_time"
+                            },
+                            {
+                                "definition": {
+                                    "id": 1,
+                                    "value_uuid": 20,
+                                    "comparand": "on",
+                                    "comparator": "==",
+                                    "units": "str"
+                                },
+                                "description": "discrete_value constraint for Command to enter on state",
+                                "type": "discrete_value"
                             }
                         ],
-                        "description": "off-on user transition",
+                        "description": "Governor commanded transition from off to on",
                         "priority": 0
                     }
                 ]
@@ -52,21 +63,32 @@
             "off": {
                 "constraint_groups": [
                     {
-                        "id": 1,
+                        "id": 0,
                         "constraints": [
                             {
                                 "definition": {
                                     "id": 0,
                                     "value_uuid": 19,
-                                    "comparand": 1800,
+                                    "comparand": 5,
                                     "comparator": ">=",
                                     "units": "float"
                                 },
                                 "description": "state_time constraint for state time",
                                 "type": "state_time"
+                            },
+                            {
+                                "definition": {
+                                    "id": 1,
+                                    "value_uuid": 20,
+                                    "comparand": "off",
+                                    "comparator": "==",
+                                    "units": "str"
+                                },
+                                "description": "discrete_value constraint for Command to enter off state",
+                                "type": "discrete_value"
                             }
                         ],
-                        "description": "on-off user transition",
+                        "description": "Governor commanded transition from on to off",
                         "priority": 0
                     }
                 ]

@@ -1,40 +1,14 @@
 import json
 from typing import Dict, Any, Tuple, List, Optional, Type
 from collections import defaultdict
-from construction import PreTransitionsConstructor
+from construction import BaseConfiguration
+import os
 
 def load_json(file_path:str):
     with open(file_path) as f:
         return json.load(f)
 
 
-class PTC_Helper:
-    def __init__(self,ptc:PreTransitionsConstructor):
-        self.PTC = ptc
-        self.PM = ptc.PM
-        self.SM = ptc.SM
-
-    @property
-    def driver_name(self):
-        return self.PTC._driver_name
-    
-    @property
-    def writable_states(self)->List[str]:
-        return self.SM.state_names
-
-    def get_sensor_point(self,controller,sensor_name,sensor_type):
-        sensor_topic = f"mush/controllers/{controller}/sensors/{sensor_name}/{sensor_type}"
-        return self.PM._uuid_lookup[sensor_topic]
-
-    def get_control_point(self,controller,cp_name,rb_w = "rb"):
-        #should only be looking at readbacks.
-        control_topic = f"mush/controllers/{controller}/control_points/{cp_name}/{rb_w}"
-        return self.PM._uuid_lookup[control_topic]
-
-    def get_command_point(self,commander_name,command_name):
-        #No commanders implemented yet
-        command_topic = f"mush/commanders/{commander_name}/commands/{command_name}"
-        return self.PM._uuid_lookup[command_topic]
 
 class Constraint:
     """
@@ -166,3 +140,183 @@ def make_discete_value_equal_constraint(id:int,value_uuid:int,comparand:str,desc
 
 def make_continuous_value_constraint(id:int,value_uuid:int,comparand:float,comparator:str,description:str = ""):
     return ContinuousValueConstraint(id,value_uuid,comparand,comparator)
+
+class TransitionsConfigHelper(BaseConfiguration):
+    """Helper class for building transitions configuration"""
+    def __init__(self, config_path: str):
+        super().__init__(config_path)  # This loads all configs including governor points
+        self.driver_name = self._driver_name
+        
+    @property 
+    def writable_states(self) -> list[str]:
+        """Get list of writable states from states config"""
+        return list(self._states_config.keys())
+
+    def get_point_uuid(self, addr: str) -> int:
+        return super().get_point_uuid(addr)
+
+    def get_driver_points(self) -> dict:
+        """Get driver state and time point UUIDs"""
+        state_addr = f"mush/drivers/{self.driver_name}/sensors/status/state"
+        time_addr = f"mush/drivers/{self.driver_name}/sensors/status/state_time"
+        return {
+            'state': self.get_point_uuid(state_addr),
+            'time': self.get_point_uuid(time_addr)
+        }
+
+    def get_sensor_point(self, controller: str, sensor_name: str, sensor_type: str) -> int:
+        """Get UUID for sensor point"""
+        addr = f"mush/drivers/{controller}/sensors/status/{sensor_name}"
+        return self.get_point_uuid(addr)
+
+    def get_control_point(self, controller: str, cp_name: str, rb_w: str = "readback") -> int:
+        """Get UUID for control point readback or write"""
+        addr = f"mush/controllers/{controller}/control_points/{cp_name}/{rb_w}"
+        return self.get_point_uuid(addr)
+
+    def get_command_point(self, commander_name: str, command_name: str) -> int:
+        """Get UUID for command point"""
+        # Use governor name from settings instead of driver name
+        governor_name = self._settings["governor"]["name"]
+        addr = f"mush/governors/{governor_name}/commands/{command_name}"
+        return self.get_point_uuid(addr)
+
+    def get_point_description(self, uuid: int) -> str:
+        """Get description for point with given UUID"""
+        result = self._search_description(self._points_config, uuid)
+        if result is not None:
+            return result
+        raise ValueError(f"No point found with UUID {uuid}")
+
+    def _search_description(self, config: dict, uuid: int) -> Optional[str]:
+        def search_dict(d: dict) -> Optional[str]:
+            if isinstance(d, dict):
+                if d.get("UUID") == uuid:
+                    return d.get("description", "No description")
+                if "readback" in d and d["readback"].get("UUID") == uuid:
+                    return d.get("description", "No description")
+                if "write" in d and d["write"].get("UUID") == uuid:
+                    return d.get("description", "No description")
+                for v in d.values():
+                    result = search_dict(v)
+                    if result is not None:
+                        return result
+            return None
+        return search_dict(config)
+
+class TransitionsBuilder:
+    """Helper class for building state transitions"""
+    def __init__(self, helper: TransitionsConfigHelper):
+        self.helper = helper
+        self.driver_name = helper.driver_name
+        self.driver_states = helper.writable_states + ["unknown"]
+        self.driver_points = helper.get_driver_points()
+        self.constraint_groups = defaultdict(lambda: defaultdict(list))  # from -> to -> [groups]
+        self.transitions_maker = Transitions_Maker()
+
+    def add_state_time_constraint(self, cg: ConstraintGroup, time_seconds: float, comparator: str = ">=") -> None:
+        """Add state time constraint to existing constraint group"""
+        value = self.driver_points['time']
+        desc = self.helper.get_point_description(value)
+        cg.add_constraint(StateTimeConstraint(cg.num_constraints, value, time_seconds, comparator, description=desc))
+
+    def add_command_constraint(self, cg: ConstraintGroup, command_value: str) -> None:
+        """Add command constraint to existing constraint group"""
+        # Validate command value is a valid state
+        assert command_value in self.driver_states, \
+            f"Command value '{command_value}' must be one of {self.driver_states}"
+        
+        cmd_uuid = self.helper.get_command_point(self.driver_name, "state")
+        cg.add_constraint(DiscreteValueConstraint(
+            cg.num_constraints, cmd_uuid, command_value, "==",
+            description=f"Command to enter {command_value} state"
+        ))
+
+    def new_constraint_group(self, from_state: str, to_state: str, description: str = "", priority: int = 0) -> ConstraintGroup:
+        """Create new constraint group and track it"""
+        assert (from_state in self.driver_states) and (to_state in self.driver_states), \
+            f"Invalid states: {from_state} -> {to_state}"
+            
+        # ID is just the length of existing groups for this transition
+        cg_id = len(self.constraint_groups[from_state][to_state])
+        
+        cg = ConstraintGroup(from_state, to_state, cg_id, description=description, priority=priority)
+        self.constraint_groups[from_state][to_state].append(cg)
+        return cg
+
+    def add_state_time_constraint_group(self, from_state: str, to_state: str, 
+                                      time_seconds: float, description: str = "",
+                                      priority: int = 0, comparator: str = ">=") -> None:
+        """Add a constraint group with a state time constraint"""
+        cg = self.new_constraint_group(from_state, to_state, description, priority)
+        self.add_state_time_constraint(cg, time_seconds, comparator)
+
+    def add_command_constraint_group(self, from_state: str, to_state: str,
+                                   command: str, description: str = "", 
+                                   priority: int = 0) -> None:
+        """Add a constraint group with a command value constraint"""
+        cg = self.new_constraint_group(from_state, to_state, description, priority)
+        self.add_command_constraint(cg, command)
+
+    def build(self) -> dict:
+        """Build and return complete transitions configuration"""
+        for from_state in self.constraint_groups:
+            for to_state in self.constraint_groups[from_state]:
+                for cg in self.constraint_groups[from_state][to_state]:
+                    self.transitions_maker.add_constraint_group(from_state, to_state, cg)
+        return self.transitions_maker.configuration
+
+    def save(self, config_path: str) -> None:
+        """Save transitions configuration to file"""
+        self.transitions_maker.save(os.path.join(config_path, "transitions.json"))
+
+    def add_command_constraints(self):
+        """Add governor command constraints"""
+        # Add command points
+        self.command_points = {}
+        for state in self.driver_states:
+            if state != "unknown":
+                cmd_uuid = self.helper.get_command_point(self.driver_name, f"set_{state}")
+                self.command_points[state] = cmd_uuid
+
+class LayeredTransitionsBuilder(TransitionsBuilder):
+    """Builds transitions with multiple layers of constraints"""
+    
+    def add_safety_constraints(self, min_state_time: float = 60):
+        """Add basic safety constraints"""
+        # Unknown to off transition
+        cg = self.new_constraint_group("unknown", "off", 
+            "Turn the driver off immediately if state is unknown")
+        self.add_state_time_constraint(cg, 0)
+
+        # Add minimum state time constraints between other states
+        for from_state in self.driver_states:
+            if from_state == "unknown":
+                continue
+            for to_state in self.driver_states:
+                if to_state == "unknown" or from_state == to_state:
+                    continue
+                cg = self.new_constraint_group(from_state, to_state,
+                    f"Safety constraints for {from_state} to {to_state}")
+                self.add_state_time_constraint(cg, min_state_time)
+
+    def add_command_constraints(self):
+        """Add governor command constraints"""
+        # Add command points
+        self.command_points = {}
+        for state in self.driver_states:
+            if state != "unknown":
+                cmd_uuid = self.helper.get_command_point(self.driver_name, f"set_{state}")
+                self.command_points[state] = cmd_uuid
+
+        # Add command constraints to existing transitions
+        for from_state in self.driver_states:
+            if from_state == "unknown":
+                continue
+            for to_state in self.driver_states:
+                if to_state == "unknown" or from_state == to_state:
+                    continue
+                cg = self.new_constraint_group(from_state, to_state,
+                    f"Command constraints for {from_state} to {to_state}")
+                cmd_uuid = self.command_points[to_state]
+                self.add_command_constraint(cg, f"set_{to_state}")
