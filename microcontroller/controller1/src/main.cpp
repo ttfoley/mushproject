@@ -65,7 +65,7 @@ State state = START;
 #define DEFAULT_WAIT 1000
 #define WAIT_WAIT 10
 #define MAX_TIME_NO_PUBLISH 60000 //failsafe in case a sensor breaks or something
-#define MEASURE_TIME 5000 //time to measure SCD sensor
+#define MEASURE_TIME 10000 //time to measure SCD sensor
 
 enum RestartReason {
     WIFI_TIMEOUT,
@@ -75,7 +75,7 @@ enum RestartReason {
 };
 
 Preferences preferences;
-const char* restart_topic = "mush/controllers/C1/status/last_restart_reason";
+const char* restart_topic = "mush/controllers/C1/sensors/status/last_restart_reason";
 
 void storeRestartReason(RestartReason reason) {
     preferences.begin("restart", false);
