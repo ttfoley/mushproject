@@ -172,6 +172,11 @@ void loop() {
       static unsigned long last_wifi_attempt = 0;
       
       if (WiFi.status() == WL_CONNECTED) {
+        printWiFiStatus();
+        Serial.println("WiFi connected, resetting connection time");
+        wifiConnectedTime = millis();
+        Serial.print("Set wifiConnectedTime to: ");
+        Serial.println(wifiConnectedTime);
         wifi_attempts = 0;
         state = WAIT;
         chrono = millis();
@@ -309,16 +314,9 @@ void loop() {
 
 bool connect_WiFi() {
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("WiFi connected");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
-    Serial.println("WiFi connected, resetting connection time");
-    wifiConnectedTime = millis(); // Set timestamp when WiFi connects
-    Serial.print("Set wifiConnectedTime to: ");
-    Serial.println(wifiConnectedTime);
+    printWiFiStatus();
     return true;
   }
-  Serial.println("Disconnecting from WiFi...");
   WiFi.disconnect();
   Serial.println("Connecting to WiFi...");
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -400,4 +398,13 @@ void tryPublishSensor(Sensor* sensor) {
         Serial.print("Failed to publish sensor at topic root: ");
         Serial.println(sensor->getRootTopic());
     }
+}
+
+void printWiFiStatus() {
+    Serial.println("WiFi connected");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+    Serial.print("Signal strength: ");
+    Serial.print(WiFi.RSSI());
+    Serial.println(" dBm");
 }
