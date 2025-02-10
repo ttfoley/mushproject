@@ -85,7 +85,7 @@ Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &scd_0_Sensor };
 #define DEFAULT_WAIT 1000
 #define WAIT_WAIT 10
 #define MAX_TIME_NO_PUBLISH 60000 //failsafe in case a sensor breaks or something
-#define MEASURE_TIME 10000 //time to measure SCD sensor
+#define MEASURE_TIME 7000 //time to measure SCD sensor
 
 enum RestartReason {
     WIFI_TIMEOUT,
@@ -98,7 +98,7 @@ Preferences preferences;
 const char* restart_topic = "mush/controllers/C1/sensors/status/last_restart_reason";
 
 // Move these implementations up, before any functions that use them
-void setState(State newState, bool printTransition = true) {
+void setState(State newState, bool printTransition) {
     if (printTransition) {
         Serial.print("State transition: ");
         Serial.print(stateToString(state));
@@ -218,15 +218,15 @@ void loop() {
         setState(WAIT);
         chrono = millis();
       }
-      else if (millis() - last_wifi_attempt > WIFI_ATTEMPT_DELAY) {
+      else if (wifi_attempts == 0 || millis() - last_wifi_attempt > WIFI_ATTEMPT_DELAY) {
         if (wifi_attempts < MAX_WIFI_ATTEMPTS) {
-          connect_WiFi();
-          wifi_attempts++;
-          last_wifi_attempt = millis();
+            connect_WiFi();
+            wifi_attempts++;
+            last_wifi_attempt = millis();
         } else {
-          wifi_attempts = 0;
-          storeRestartReason(WIFI_TIMEOUT);
-          setState(RESTART);
+            wifi_attempts = 0;
+            storeRestartReason(WIFI_TIMEOUT);
+            setState(RESTART);
         }
       }
       break;
