@@ -32,14 +32,31 @@ const long publish_frequency = 15000; // How often to publish sensor data (ms)
 WiFiClient wifiClient;
 PubSubClient client(mqtt_server, 1883, wifiClient);
 
+// After MQTT client setup, before function declarations
+enum State {
+    START, 
+    WIFI_CONNECTING,
+    MQTT_CONNECTING,
+    READ_AND_PUBLISH_SENSOR, 
+    MEASURING, 
+    WAIT, 
+    RESTART
+};
+
+// Global state first
+State state;
+
+// Complete function declarations with full signatures
+const char* stateToString(State state);
+void setState(State newState, bool printTransition = true);  // <-- This needs to be a complete declaration
+
+// Other function declarations
 bool connect_WiFi();
 bool exceedMaxSensorPublishTime();
 bool publishSensorData(Sensor* sensor);
 bool connect_MQTT();
 void tryPublishSensor(Sensor* sensor);
 void printWiFiStatus();
-void setState(State newState);
-const char* stateToString(State state);
 
 // Connection attempt configuration
 #define MAX_WIFI_ATTEMPTS 12    // Total = attempt*delay
@@ -64,16 +81,7 @@ SCDSensor scd_0_Sensor("mush/controllers/C1/sensors/scd_0/", getCalibrationParam
 
 Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &scd_0_Sensor };
 
-enum State {
-    START, 
-    WIFI_CONNECTING,
-    MQTT_CONNECTING,
-    READ_AND_PUBLISH_SENSOR, 
-    MEASURING, 
-    WAIT, 
-    RESTART
-};
-State state = START;
+
 #define DEFAULT_WAIT 1000
 #define WAIT_WAIT 10
 #define MAX_TIME_NO_PUBLISH 60000 //failsafe in case a sensor breaks or something
@@ -89,6 +97,31 @@ enum RestartReason {
 Preferences preferences;
 const char* restart_topic = "mush/controllers/C1/sensors/status/last_restart_reason";
 
+// Move these implementations up, before any functions that use them
+void setState(State newState, bool printTransition = true) {
+    if (printTransition) {
+        Serial.print("State transition: ");
+        Serial.print(stateToString(state));
+        Serial.print(" -> ");
+        Serial.println(stateToString(newState));
+    }
+    state = newState;
+}
+
+const char* stateToString(State state) {
+    switch(state) {
+        case START: return "START";
+        case WIFI_CONNECTING: return "WIFI_CONNECTING";
+        case MQTT_CONNECTING: return "MQTT_CONNECTING";
+        case READ_AND_PUBLISH_SENSOR: return "READ_AND_PUBLISH_SENSOR";
+        case MEASURING: return "MEASURING";
+        case WAIT: return "WAIT";
+        case RESTART: return "RESTART";
+        default: return "UNKNOWN";
+    }
+}
+
+// Then the rest of the function implementations
 void storeRestartReason(RestartReason reason) {
     preferences.begin("restart", false);
     preferences.putUInt("reason", reason);
@@ -113,12 +146,9 @@ void postStoredRestartReason() {
     client.publish(restart_topic, reason_str, true);
 }
 
-
-
-
-
 void setup() {
   Serial.begin(115200);
+  state = START;  // Initialize here
   delay(2000); //so I don't miss any messages from setup
   Serial.println("Hello from the setup");
   Serial.println("Connected");
@@ -239,7 +269,7 @@ void loop() {
         chrono = millis();
       }
       else if (millis() - chrono > WAIT_WAIT) {
-        setState(READ_AND_PUBLISH_SENSOR);
+        setState(READ_AND_PUBLISH_SENSOR, false);  // Suppress print
         chrono = millis();
       }
       else if (exceedMaxSensorPublishTime()) {
@@ -293,7 +323,7 @@ void loop() {
       }
 
       if (state != MEASURING) {
-        setState(WAIT);
+        setState(WAIT,false);
         chrono = millis();
       }
       break;
@@ -416,25 +446,4 @@ void printWiFiStatus() {
     Serial.print("Signal strength: ");
     Serial.print(WiFi.RSSI());
     Serial.println(" dBm");
-}
-
-const char* stateToString(State state) {
-    switch(state) {
-        case START: return "START";
-        case WIFI_CONNECTING: return "WIFI_CONNECTING";
-        case MQTT_CONNECTING: return "MQTT_CONNECTING";
-        case READ_AND_PUBLISH_SENSOR: return "READ_AND_PUBLISH_SENSOR";
-        case MEASURING: return "MEASURING";
-        case WAIT: return "WAIT";
-        case RESTART: return "RESTART";
-        default: return "UNKNOWN";
-    }
-}
-
-void setState(State newState) {
-    Serial.print("State transition: ");
-    Serial.print(stateToString(state));
-    Serial.print(" -> ");
-    Serial.println(stateToString(newState));
-    state = newState;
 }
