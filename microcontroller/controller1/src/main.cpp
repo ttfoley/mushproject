@@ -60,7 +60,15 @@ SCDSensor scd_0_Sensor("mush/controllers/C1/sensors/scd_0/", getCalibrationParam
 
 Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &scd_0_Sensor };
 
-enum State {START, WIFI_CONNECT, WIFI_WAIT, MQTT_CONNECT, MQTT_WAIT, READ_AND_PUBLISH_SENSOR, MEASURING, WAIT, RESTART};
+enum State {
+    START, 
+    WIFI_CONNECTING,
+    MQTT_CONNECTING,
+    READ_AND_PUBLISH_SENSOR, 
+    MEASURING, 
+    WAIT, 
+    RESTART
+};
 State state = START;
 #define DEFAULT_WAIT 1000
 #define WAIT_WAIT 10
@@ -152,28 +160,17 @@ void loop() {
   switch (state) {
     case START:
       Serial.println("State: START");
-      state = WIFI_CONNECT;
-      chrono = millis();//This starts timer for wifi connection attempt, it's like a transition actions in statecharts
-      break;
-
-    case WIFI_CONNECT:
-      Serial.println("State: WIFI_CONNECT");
-      connect_WiFi();  // Just attempts connection, no delays
-      state = WIFI_WAIT;
+      state = WAIT;  // Let WAIT route us
       chrono = millis();
       break;
 
-    case WIFI_WAIT:
-    /*
-    This is a failsafe to ensure that the controller doesn't get stuck
-    unfortunately, it has extra state via retry attempts.
-    */
+    case WIFI_CONNECTING:
       static uint8_t wifi_attempts = 0;
       static unsigned long last_wifi_attempt = 0;
       
       if (WiFi.status() == WL_CONNECTED) {
-        wifi_attempts = 0;  // Reset for next time
-        state = MQTT_CONNECT;
+        wifi_attempts = 0;
+        state = WAIT;
         chrono = millis();
       }
       else if (millis() - last_wifi_attempt > WIFI_ATTEMPT_DELAY) {
@@ -189,33 +186,18 @@ void loop() {
       }
       break;
 
-    case MQTT_CONNECT:
-      //Serial.println("State: MQTT_CONNECT");
-      if (client.connected()) {  
-          state = READ_AND_PUBLISH_SENSOR;
-          chrono = millis();
-      } else {
-          state = MQTT_WAIT;
-          chrono = millis();
-      }
-      break;
-
-    case MQTT_WAIT:
-    /*
-    This is a failsafe to ensure that the controller doesn't get stuck
-    unfortunately, it has extra state via retry attempts.
-    */
+    case MQTT_CONNECTING:
       static uint8_t mqtt_attempts = 0;
       static unsigned long last_mqtt_attempt = 0;
       
       if (client.connected()) {
-        mqtt_attempts = 0;  // Reset for next time
-        state = READ_AND_PUBLISH_SENSOR;
+        mqtt_attempts = 0;
+        state = WAIT;
         chrono = millis();
       }
       else if (WiFi.status() != WL_CONNECTED) {
-        mqtt_attempts = 0;  // Reset for next time
-        state = WIFI_CONNECT;
+        mqtt_attempts = 0;
+        state = WAIT;  // WAIT will route us to WIFI_CONNECTING
         chrono = millis();
       }
       else if (millis() - last_mqtt_attempt > MQTT_ATTEMPT_DELAY) {
@@ -228,6 +210,26 @@ void loop() {
           storeRestartReason(MQTT_TIMEOUT);
           state = RESTART;
         }
+      }
+      break;
+
+    case WAIT:
+    /* Order is very important here!*/
+      if (WiFi.status() != WL_CONNECTED) {
+        state = WIFI_CONNECTING;
+        chrono = millis();
+      }
+      else if (!client.connected()) {
+        state = MQTT_CONNECTING;
+        chrono = millis();
+      }
+      else if (millis() - chrono > WAIT_WAIT) {
+        state = READ_AND_PUBLISH_SENSOR;
+        chrono = millis();
+      }
+      else if (exceedMaxSensorPublishTime()) {
+        storeRestartReason(SENSOR_TIMEOUT);
+        state = RESTART;
       }
       break;
 
@@ -290,30 +292,6 @@ void loop() {
         scd_0_Sensor.completeMeasurement();
         state = WAIT;  // Go to WAIT like other states
         chrono = millis();
-      }
-      break;
-
-    case WAIT:
-      //Serial.println("State: WAIT");
-      //Order is very important here!
-      if (WiFi.status() != WL_CONNECTED) {
-        state = WIFI_CONNECT;
-        chrono = millis();
-      } 
-      else if (!client.connected()) {
-        state = MQTT_CONNECT;
-        chrono = millis();
-      } 
-      else if (millis() - chrono > WAIT_WAIT) {
-        state = READ_AND_PUBLISH_SENSOR;
-        chrono = millis();
-      }
-      else if (exceedMaxSensorPublishTime()) {
-        storeRestartReason(SENSOR_TIMEOUT);
-        state = RESTART;
-      }
-      else { //stay in this state, don't reset chrono.
-        state = WAIT;
       }
       break;
 
