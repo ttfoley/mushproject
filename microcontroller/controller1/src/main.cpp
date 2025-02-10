@@ -44,6 +44,13 @@ void tryPublishSensor(Sensor* sensor);
 #define MAX_MQTT_ATTEMPTS 10      // total = attempt*delay
 #define MQTT_ATTEMPT_DELAY 6000  // 
 
+//Add near other constants at top of file
+#define WIFI_DURATION_POST_INTERVAL 30000
+unsigned long wifiConnectedTime = 0;
+unsigned long wifiConnectionDuration = 0;
+unsigned long lastWifiDurationPostTime = 0;
+const char* wifiTopic = "mush/controllers/C1/sensors/status/wifi_uptime";
+
 //Make sensors. The last arg is the sensor instance name for lookup in calibration map
 //Should probably have topics in a map like the scaling, and include a name for the sensor instance to make
 //it easier to find configurations (wouldn't need to add extra arguments to the sensor constructors)
@@ -131,8 +138,12 @@ void setup() {
 }
 
 void loop() {
-
   client.loop();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    wifiConnectionDuration = millis() - wifiConnectedTime;
+  }
+
   static unsigned long chrono;  // For timing in states (static means only initialized once?)
 
   static char tempString[16];
@@ -250,6 +261,20 @@ void loop() {
           tryPublishSensor(sensors[i]);
         }
       }
+
+      // Check if it's time to post wifiConnectionDuration
+      if (millis() - lastWifiDurationPostTime > WIFI_DURATION_POST_INTERVAL) {
+        char durationString[16];
+        dtostrf(wifiConnectionDuration / 60000.0, 1, 2, durationString); // Convert to minutes
+        if (client.publish(wifiTopic, durationString)) {
+          Serial.print("WiFi connection duration: ");
+          Serial.println(durationString);
+          lastWifiDurationPostTime = millis();
+        } else {
+          Serial.println("Failed to publish WiFi connection duration");
+        }
+      }
+
       if (state != MEASURING) {
         state = WAIT;
         chrono = millis();
@@ -306,6 +331,7 @@ bool connect_WiFi() {
     Serial.println("WiFi connected");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
+    wifiConnectedTime = millis(); // Set timestamp when WiFi connects
     return true;
   }
   WiFi.disconnect();
