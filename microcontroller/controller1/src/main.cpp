@@ -250,7 +250,7 @@ void loop() {
           if (scd_0_Sensor.isMeasuring()) {
             continue;  // Skip if currently measuring
           }
-          else if (time_to_next_publish <= 5000) {  // Start measuring 5s before publish time
+          else if (time_to_next_publish <= MEASURE_TIME) {  // Start measuring MEASURE_TIME before publish time
             state = MEASURING;
             chrono = millis();
             break;
