@@ -38,6 +38,8 @@ bool publishSensorData(Sensor* sensor);
 bool connect_MQTT();
 void tryPublishSensor(Sensor* sensor);
 void printWiFiStatus();
+void setState(State newState);
+const char* stateToString(State state);
 
 // Connection attempt configuration
 #define MAX_WIFI_ATTEMPTS 12    // Total = attempt*delay
@@ -111,6 +113,10 @@ void postStoredRestartReason() {
     client.publish(restart_topic, reason_str, true);
 }
 
+
+
+
+
 void setup() {
   Serial.begin(115200);
   delay(2000); //so I don't miss any messages from setup
@@ -164,7 +170,7 @@ void loop() {
   switch (state) {
     case START:
       Serial.println("State: START");
-      state = WAIT;  // Let WAIT route us
+      setState(WAIT);  // Let WAIT route us
       chrono = millis();
       break;
 
@@ -179,7 +185,7 @@ void loop() {
         Serial.print("Set wifiConnectedTime to: ");
         Serial.println(wifiConnectedTime);
         wifi_attempts = 0;
-        state = WAIT;
+        setState(WAIT);
         chrono = millis();
       }
       else if (millis() - last_wifi_attempt > WIFI_ATTEMPT_DELAY) {
@@ -190,7 +196,7 @@ void loop() {
         } else {
           wifi_attempts = 0;
           storeRestartReason(WIFI_TIMEOUT);
-          state = RESTART;
+          setState(RESTART);
         }
       }
       break;
@@ -201,12 +207,12 @@ void loop() {
       
       if (client.connected()) {
         mqtt_attempts = 0;
-        state = WAIT;
+        setState(WAIT);
         chrono = millis();
       }
       else if (WiFi.status() != WL_CONNECTED) {
         mqtt_attempts = 0;
-        state = WAIT;  // WAIT will route us to WIFI_CONNECTING
+        setState(WAIT);  // WAIT will route us to WIFI_CONNECTING
         chrono = millis();
       }
       else if (millis() - last_mqtt_attempt > MQTT_ATTEMPT_DELAY) {
@@ -217,7 +223,7 @@ void loop() {
         } else {
           mqtt_attempts = 0;
           storeRestartReason(MQTT_TIMEOUT);
-          state = RESTART;
+          setState(RESTART);
         }
       }
       break;
@@ -225,20 +231,20 @@ void loop() {
     case WAIT:
     /* Order is very important here!*/
       if (WiFi.status() != WL_CONNECTED) {
-        state = WIFI_CONNECTING;
+        setState(WIFI_CONNECTING);
         chrono = millis();
       }
       else if (!client.connected()) {
-        state = MQTT_CONNECTING;
+        setState(MQTT_CONNECTING);
         chrono = millis();
       }
       else if (millis() - chrono > WAIT_WAIT) {
-        state = READ_AND_PUBLISH_SENSOR;
+        setState(READ_AND_PUBLISH_SENSOR);
         chrono = millis();
       }
       else if (exceedMaxSensorPublishTime()) {
         storeRestartReason(SENSOR_TIMEOUT);
-        state = RESTART;
+        setState(RESTART);
       }
       break;
 
@@ -260,7 +266,7 @@ void loop() {
             continue;  // Skip if currently measuring
           }
           else if (time_to_next_publish <= MEASURE_TIME) {  // Start measuring MEASURE_TIME before publish time
-            state = MEASURING;
+            setState(MEASURING);
             chrono = millis();
             break;
           }
@@ -287,7 +293,7 @@ void loop() {
       }
 
       if (state != MEASURING) {
-        state = WAIT;
+        setState(WAIT);
         chrono = millis();
       }
       break;
@@ -299,7 +305,7 @@ void loop() {
       }
       if (millis() - chrono >= MEASURE_TIME) {
         scd_0_Sensor.completeMeasurement();
-        state = WAIT;  // Go to WAIT like other states
+        setState(WAIT);  // Go to WAIT like other states
         chrono = millis();
       }
       break;
@@ -408,4 +414,25 @@ void printWiFiStatus() {
     Serial.print("Signal strength: ");
     Serial.print(WiFi.RSSI());
     Serial.println(" dBm");
+}
+
+const char* stateToString(State state) {
+    switch(state) {
+        case START: return "START";
+        case WIFI_CONNECTING: return "WIFI_CONNECTING";
+        case MQTT_CONNECTING: return "MQTT_CONNECTING";
+        case READ_AND_PUBLISH_SENSOR: return "READ_AND_PUBLISH_SENSOR";
+        case MEASURING: return "MEASURING";
+        case WAIT: return "WAIT";
+        case RESTART: return "RESTART";
+        default: return "UNKNOWN";
+    }
+}
+
+void setState(State newState) {
+    Serial.print("State transition: ");
+    Serial.print(stateToString(state));
+    Serial.print(" -> ");
+    Serial.println(stateToString(newState));
+    state = newState;
 }
