@@ -40,7 +40,7 @@ void tryPublishSensor(Sensor* sensor);
 
 // Connection attempt configuration
 #define MAX_WIFI_ATTEMPTS 12    // Total = attempt*delay
-#define WIFI_ATTEMPT_DELAY 10000  // 
+#define WIFI_ATTEMPT_DELAY 15000  // 
 #define MAX_MQTT_ATTEMPTS 10      // total = attempt*delay
 #define MQTT_ATTEMPT_DELAY 6000  // 
 
