@@ -43,6 +43,7 @@ void tryPublishSensor(Sensor* sensor);
 #define WIFI_ATTEMPT_DELAY 15000  // 
 #define MAX_MQTT_ATTEMPTS 10      // total = attempt*delay
 #define MQTT_ATTEMPT_DELAY 6000  // 
+#define DELAY_AFTER_SENSOR_POST 75 //Delay to give power time to stabilize after sensor post
 
 //Add near other constants at top of file
 #define WIFI_DURATION_POST_INTERVAL 30000
@@ -150,6 +151,8 @@ void loop() {
 
   if (WiFi.status() == WL_CONNECTED) {
     wifiConnectionDuration = millis() - wifiConnectedTime;
+    //Serial.print("Current duration: ");
+    //Serial.println(wifiConnectionDuration);
   }
 
   static unsigned long chrono;  // For timing in states (static means only initialized once?)
@@ -309,9 +312,13 @@ bool connect_WiFi() {
     Serial.println("WiFi connected");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
+    Serial.println("WiFi connected, resetting connection time");
     wifiConnectedTime = millis(); // Set timestamp when WiFi connects
+    Serial.print("Set wifiConnectedTime to: ");
+    Serial.println(wifiConnectedTime);
     return true;
   }
+  Serial.println("Disconnecting from WiFi...");
   WiFi.disconnect();
   Serial.println("Connecting to WiFi...");
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -387,7 +394,7 @@ bool publishSensorData(Sensor* sensor) {
 void tryPublishSensor(Sensor* sensor) {
     if (publishSensorData(sensor)) {
         sensor->resetTimeLastPublished();
-        delay(50);//small delay to try to manage power spikes from transmitting
+        delay(DELAY_AFTER_SENSOR_POST);//small delay to try to manage power spikes from transmitting
     }
     else {
         Serial.print("Failed to publish sensor at topic root: ");
