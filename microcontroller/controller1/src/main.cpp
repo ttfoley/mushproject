@@ -409,6 +409,7 @@ bool publishSensorData(Sensor* sensor) {
 void tryPublishSensor(Sensor* sensor) {
     if (publishSensorData(sensor)) {
         sensor->resetTimeLastPublished();
+        delay(50);//small delay to try to manage power spikes from transmitting
     }
     else {
         Serial.print("Failed to publish sensor at topic root: ");
