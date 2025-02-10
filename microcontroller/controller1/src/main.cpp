@@ -37,6 +37,7 @@ bool exceedMaxSensorPublishTime();
 bool publishSensorData(Sensor* sensor);
 bool connect_MQTT();
 void tryPublishSensor(Sensor* sensor);
+void printWiFiStatus();
 
 // Connection attempt configuration
 #define MAX_WIFI_ATTEMPTS 12    // Total = attempt*delay
