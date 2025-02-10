@@ -409,6 +409,8 @@ void tryPublishSensor(Sensor* sensor) {
 
 void printWiFiStatus() {
     Serial.println("WiFi connected");
+    Serial.print("MAC address: ");
+    Serial.println(WiFi.macAddress());
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
     Serial.print("Signal strength: ");
