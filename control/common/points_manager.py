@@ -1,11 +1,11 @@
 from collections import defaultdict
 import os
-from typing import Dict,Tuple,List, Any
-from points import PublishInfo,Point,ReadOnly_Point,Writable_Point,ControlPoint,Writeable_Continuous_Point,Writeable_Discrete_Point,FSM_StateTimePoint,TimeProvider
+from typing import Dict,Any
+from points import Point,ReadOnly_Point,Writable_Point,ControlPoint,Writeable_Discrete_Point,FSM_StateTimePoint
 from values import Value,Discrete_Value,Continuous_Value
 from datetime import datetime
-from messaging import MessagePublisher
 
+from mqtt_handler import MQTTHandler
 """
 This is the class that will manage the points. It will be responsible for creating the points, updating the points, and publishing the points.
 This should be called from construction.py, passed a points config file for initial construction.
@@ -226,7 +226,7 @@ class Points_Manager:
 
 class Active_Points_Manager(Points_Manager):
     """Points Manager with MQTT capabilities"""
-    def __init__(self, base_manager: Points_Manager, message_publisher: MessagePublisher):
+    def __init__(self, base_manager: Points_Manager, message_publisher: MQTTHandler):
         # Inherit all attributes from base manager
         self.__dict__.update(base_manager.__dict__)
         self._publisher = message_publisher

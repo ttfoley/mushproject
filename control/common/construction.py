@@ -222,6 +222,7 @@ class FSMConstructor(FSMConfiguration):
         mqtt_settings = self._settings.get("mqtt", {})
         if not all(key in mqtt_settings for key in ["broker", "port", "username", "password", "client_id"]):
             raise ValueError("Missing required MQTT settings")
+        
         # Override broker with environment variable if present
         mqtt_settings["broker"] = os.getenv('MQTT_BROKER', mqtt_settings["broker"])
 
@@ -243,16 +244,6 @@ class FSMConstructor(FSMConfiguration):
         )
         self.mqtt_handler._points_manager = self.PM
         
-        # Subscribe to control points
-        read_points = set()
-        write_points = set()
-        for controller in self.PM.control_points:
-            for cp in self.PM.control_points[controller].values():
-                read_points.add(cp.readback_point.addr)
-                write_points.add(cp.write_point.addr)
-        
-        # Only subscribe to readback points
-        self.PM.add_monitored_points(read_points=read_points, write_points=set())
         return self
 
     def build_active_fsm(self):
