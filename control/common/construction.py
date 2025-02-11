@@ -3,12 +3,10 @@ import sys
 import os
 from typing import Dict, Any,Tuple, Optional
 #The fact that I'm importing so many separate things seems like a bad smell, but this is the constructor only...
-from states import State, States_Manager
-from points_manager import Points_Manager, Active_Points_Manager, ControlPoint
-from collections import defaultdict
+from states import States_Manager
+from points_manager import Points_Manager, Active_Points_Manager
 from transitions import Transitions_Manager  # You'll need to create/import this
 from controller import  ActiveFSM
-from fsm_monitor import create_monitor_points
 from mqtt_handler import MQTTHandler
 from config.uuid_database import UUIDDatabase
 
@@ -224,6 +222,8 @@ class FSMConstructor(FSMConfiguration):
         mqtt_settings = self._settings.get("mqtt", {})
         if not all(key in mqtt_settings for key in ["broker", "port", "username", "password", "client_id"]):
             raise ValueError("Missing required MQTT settings")
+        # Override broker with environment variable if present
+        mqtt_settings["broker"] = os.getenv('MQTT_BROKER', mqtt_settings["broker"])
 
         # Create and connect handler
         self.mqtt_handler = MQTTHandler(
