@@ -48,7 +48,7 @@ State state;
 
 // Complete function declarations with full signatures
 const char* stateToString(State state);
-void setState(State newState, bool printTransition = true);  // <-- This needs to be a complete declaration
+void setState(State newState, unsigned long& chronoRef, bool printTransition = true);
 
 // Other function declarations
 bool connect_WiFi();
@@ -63,7 +63,7 @@ void printWiFiStatus();
 #define WIFI_ATTEMPT_DELAY 15000  // 
 #define MAX_MQTT_ATTEMPTS 10      // total = attempt*delay
 #define MQTT_ATTEMPT_DELAY 6000  // 
-#define DELAY_AFTER_SENSOR_POST 75 //Delay to give power time to stabilize after sensor post
+#define DELAY_AFTER_SENSOR_POST 100 //Delay to give power time to stabilize after sensor post
 
 //Add near other constants at top of file
 #define WIFI_DURATION_POST_INTERVAL 30000
@@ -84,7 +84,7 @@ Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &scd_0_Sensor };
 
 #define DEFAULT_WAIT 1000
 #define WAIT_WAIT 10
-#define MAX_TIME_NO_PUBLISH 60000 //failsafe in case a sensor breaks or something
+#define MAX_TIME_NO_PUBLISH 30000 //failsafe in case a sensor breaks or something
 #define MEASURE_TIME 7000 //time to measure SCD sensor
 
 enum RestartReason {
@@ -98,7 +98,7 @@ Preferences preferences;
 const char* restart_topic = "mush/controllers/C1/sensors/status/last_restart_reason";
 
 // Move these implementations up, before any functions that use them
-void setState(State newState, bool printTransition) {
+void setState(State newState, unsigned long& chronoRef, bool printTransition) {
     if (printTransition) {
         Serial.print("State transition: ");
         Serial.print(stateToString(state));
@@ -106,6 +106,7 @@ void setState(State newState, bool printTransition) {
         Serial.println(stateToString(newState));
     }
     state = newState;
+    chronoRef = millis();
 }
 
 const char* stateToString(State state) {
@@ -200,8 +201,7 @@ void loop() {
   switch (state) {
     case START:
       Serial.println("State: START");
-      setState(WAIT);  // Let WAIT route us
-      chrono = millis();
+      setState(WAIT, chrono);  // Let WAIT route us
       break;
 
     case WIFI_CONNECTING:
@@ -215,8 +215,7 @@ void loop() {
         Serial.print("Set wifiConnectedTime to: ");
         Serial.println(wifiConnectedTime);
         wifi_attempts = 0;
-        setState(WAIT);
-        chrono = millis();
+        setState(WAIT, chrono);
       }
       else if (wifi_attempts == 0 || millis() - last_wifi_attempt > WIFI_ATTEMPT_DELAY) {
         if (wifi_attempts < MAX_WIFI_ATTEMPTS) {
@@ -226,7 +225,7 @@ void loop() {
         } else {
             wifi_attempts = 0;
             storeRestartReason(WIFI_TIMEOUT);
-            setState(RESTART);
+            setState(RESTART, chrono, true);
         }
       }
       break;
@@ -237,13 +236,11 @@ void loop() {
       
       if (client.connected()) {
         mqtt_attempts = 0;
-        setState(WAIT);
-        chrono = millis();
+        setState(WAIT, chrono);
       }
       else if (WiFi.status() != WL_CONNECTED) {
         mqtt_attempts = 0;
-        setState(WAIT);  // WAIT will route us to WIFI_CONNECTING
-        chrono = millis();
+        setState(WAIT, chrono);  // WAIT will route us to WIFI_CONNECTING
       }
       else if (millis() - last_mqtt_attempt > MQTT_ATTEMPT_DELAY) {
         if (mqtt_attempts < MAX_MQTT_ATTEMPTS) {
@@ -253,28 +250,25 @@ void loop() {
         } else {
           mqtt_attempts = 0;
           storeRestartReason(MQTT_TIMEOUT);
-          setState(RESTART);
+          setState(RESTART, chrono, true);
         }
       }
       break;
 
     case WAIT:
-    /* Order is very important here!*/
-      if (WiFi.status() != WL_CONNECTED) {
-        setState(WIFI_CONNECTING);
-        chrono = millis();
+    // Check this first to make sure we don't run into some loop with mqtt and wifi
+      if (exceedMaxSensorPublishTime()) {
+          storeRestartReason(SENSOR_TIMEOUT);
+          setState(RESTART, chrono, true);
+      }
+      else if (WiFi.status() != WL_CONNECTED) {
+          setState(WIFI_CONNECTING, chrono, true);
       }
       else if (!client.connected()) {
-        setState(MQTT_CONNECTING);
-        chrono = millis();
+          setState(MQTT_CONNECTING, chrono, true);
       }
       else if (millis() - chrono > WAIT_WAIT) {
-        setState(READ_AND_PUBLISH_SENSOR, false);  // Suppress print
-        chrono = millis();
-      }
-      else if (exceedMaxSensorPublishTime()) {
-        storeRestartReason(SENSOR_TIMEOUT);
-        setState(RESTART);
+          setState(READ_AND_PUBLISH_SENSOR, chrono, false);
       }
       break;
 
@@ -296,8 +290,7 @@ void loop() {
             continue;  // Skip if currently measuring
           }
           else if (time_to_next_publish <= MEASURE_TIME) {  // Start measuring MEASURE_TIME before publish time
-            setState(MEASURING);
-            chrono = millis();
+            setState(MEASURING, chrono, true);
             break;
           }
           else if (time_since_publish >= sensors[i]->getPublishFrequency()) {  // Time to publish
@@ -323,8 +316,7 @@ void loop() {
       }
 
       if (state != MEASURING) {
-        setState(WAIT,false);
-        chrono = millis();
+        setState(WAIT, chrono, false);
       }
       break;
 
@@ -335,8 +327,7 @@ void loop() {
       }
       if (millis() - chrono >= MEASURE_TIME) {
         scd_0_Sensor.completeMeasurement();
-        setState(WAIT);  // Go to WAIT like other states
-        chrono = millis();
+        setState(WAIT, chrono, true);  // Go to WAIT like other states
       }
       break;
 
