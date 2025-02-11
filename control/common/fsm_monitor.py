@@ -55,6 +55,11 @@ class FSMMonitor:
         time_point._time_provider = self
         
         # Create monitored points
+        """
+        I know it might seem a little funny having these points exist only here with the PM never knowing
+        about them, but it makes since because 1) the PM knows about the points they're built on and 2)
+        this keeps them isolated so only their owner will ever be able to change them.
+        """
         self._state_point = MonitoredPoint(self.pm.state_point, points_manager)
         self._time_point = MonitoredPoint(time_point, points_manager)
 

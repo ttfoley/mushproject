@@ -1,9 +1,8 @@
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 from typing import Dict, Any
-from messaging import MessagePublisher
 
-class MQTTHandler(MessagePublisher):
+class MQTTHandler():
     def __init__(self, client_id, broker, port, username, password, points_manager):
         self.client_id = client_id
         self.broker = broker
@@ -22,7 +21,7 @@ class MQTTHandler(MessagePublisher):
         """MQTT callback when message received"""
         topic = message.topic
         value = message.payload.decode()
-        if topic == "mush/governors/temperature_governor/commands/state":
+        if topic == f"mush/drivers/{self._points_manager.driver_name}/command/state":
             print(f"MQTT message received - Topic: {topic}, Value: {value}")
         #print(f"MQTT message received - Topic: {topic}, Value: {value}")
         # Pass message to points manager

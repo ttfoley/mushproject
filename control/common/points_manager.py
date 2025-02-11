@@ -228,12 +228,12 @@ class Points_Manager:
     @property
     def state_point(self) -> Point:
         """Get the driver's state point"""
-        return self.get_point_by_topic(f"mush/drivers/{self.driver_name}/sensors/status/state")
+        return self.get_point_by_topic(f"mush/drivers/{self.driver_name}/status/state")
 
     @property
     def state_time_point(self) -> Point:
         """Get the driver's state time point"""
-        point = self.get_point_by_topic(f"mush/drivers/{self.driver_name}/sensors/status/state_time")
+        point = self.get_point_by_topic(f"mush/drivers/{self.driver_name}/status/state_time")
         assert isinstance(point,FSM_StateTimePoint)
         return point
 
