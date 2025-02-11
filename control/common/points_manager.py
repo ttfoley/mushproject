@@ -182,10 +182,10 @@ class Points_Manager:
         
         return (rb_point, write_point)
 
-    def build_driver_points(self, state_names: list[str]) -> None:
+    def build_driver_points(self, states_config: dict) -> None:
         """Create all points for a driver"""
         base_topic = f"mush/drivers/{self.driver_name}"
-        
+        state_names = list(states_config.keys())
         # State readback point
         state_topic = f"{base_topic}/status/state"
         state_uuid = self._uuid_db.get_uuid(state_topic)
@@ -225,27 +225,6 @@ class Points_Manager:
         command_point = make_command_point(command_value)
         self.update_uuid_lookup(command_value.uuid, command_point)
 
-    def build_governor_points(self) -> dict:
-        """Build governor command points"""
-        points = {"governors": defaultdict(dict)}
-        governor_name = self._settings["governor"]["name"]
-        
-        valid_states = (self._points_config["drivers"][self._settings["driver"]["name"]]
-                       ["sensors"]["status"]["state"]["valid_values"])
-        
-        topic = f"mush/governors/{governor_name}/commands/state"
-        value = Discrete_Value(
-            uuid=self._points_config["governors"][governor_name]["commands"]["state"]["UUID"],
-            addr=topic,
-            init_raw=valid_states[0],
-            description="State command",
-            valid_values=valid_states
-        )
-        point = make_command_point(value)
-        points["governors"][governor_name]["state"] = point
-        self.update_uuid_lookup(value.uuid, point)
-
-        return points
 
     @property
     def state_point(self) -> Point:

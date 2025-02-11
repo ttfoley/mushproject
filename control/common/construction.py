@@ -167,7 +167,6 @@ class FSMConstructor(FSMConfiguration):
     def build_points_manager(self):
         """Build points manager with all needed points"""
         self.PM = Points_Manager(self._points_config, self._settings)
-        self.PM.build_governor_points()
         self.PM.build_driver_points(self._states_config)
         return self
         
