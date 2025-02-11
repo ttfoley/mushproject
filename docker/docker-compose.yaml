@@ -59,3 +59,15 @@ services:
     environment:
       - PYTHONBUFFERED=1
   
+  temperature_driver:
+    build: 
+      context: ../control
+      dockerfile: temperature_driver/Dockerfile
+    environment:
+      - MQTT_BROKER=mosquitto
+      - PYTHONUNBUFFERED=1
+    container_name: temperature_driver
+    depends_on:
+      - mosquitto
+    networks:
+      - default
