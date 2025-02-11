@@ -1,7 +1,8 @@
 {
     "driver":{
         "initial_state":"off",
-        "name": "temperature_control"  
+        "name": "temperature_control",
+        "needs_governor": true
     },
     "mqtt":{
         "username": "ttfoley",
@@ -9,10 +10,6 @@
         "broker": "192.168.1.17",
         "port": 1883,
         "client_id": "temperature_control_driver"
-    },
-    "governor": {
-        "name": "temperature_governor",
-        "addr": "mush/governors/temperature_governor"
     },
     "points": {
         "publish": {
