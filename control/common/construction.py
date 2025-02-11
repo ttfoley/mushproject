@@ -89,30 +89,6 @@ class BaseConfiguration:
         
         self._points_config["drivers"][self._driver_name] = driver_config
 
-    def _build_governor_points(self) -> dict:
-        """Build governor points configuration"""
-        governor_config = self._settings["governor"]
-        governor_points = {
-            "governors": {
-                governor_config["name"]: {
-                    "commands": {}
-                }
-            }
-        }
-        
-        # Add command points
-        for command in governor_config.get("commands", []):
-            addr = f"mush/governors/{governor_config['name']}/commands/{command}"
-            governor_points["governors"][governor_config["name"]]["commands"][command] = {
-                "addr": addr,
-                "UUID": self._get_next_uuid(),
-                "value_type": "discrete",
-                "valid_values": ["on", "off"],
-                "description": f"Governor {command} command"
-            }
-            self._add_needed_point(addr)
-            
-        return governor_points
 
     def _get_next_uuid(self) -> int:
         """Get UUID for current point address"""
