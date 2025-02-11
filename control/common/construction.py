@@ -45,56 +45,49 @@ class BaseConfiguration:
             self._points_config["drivers"] = {}
             
         # Track current address for UUID assignment
-        self._current_addr = f"mush/drivers/{self._driver_name}/sensors/status/state"
+        base_topic = f"mush/drivers/{self._driver_name}"
+        
+        # Always create status points
+        self._current_addr = f"{base_topic}/status/state"
         state_uuid = self._get_next_uuid()
         
-        self._current_addr = f"mush/drivers/{self._driver_name}/sensors/status/state_time"
+        self._current_addr = f"{base_topic}/status/state_time"
         time_uuid = self._get_next_uuid()
-            
-        self._points_config["drivers"][self._driver_name] = {
-            "sensors": {
-                "status": {
-                    "state": {
-                        "addr": f"mush/drivers/{self._driver_name}/sensors/status/state",
-                        "UUID": state_uuid,
-                        "value_type": "discrete",
-                        "valid_values": list(self._states_config.keys()) + ["unknown"],
-                        "description": "driver state"
-                    },
-                    "time_in_state": {
-                        "addr": f"mush/drivers/{self._driver_name}/sensors/status/state_time", 
-                        "UUID": time_uuid,
-                        "value_type": "continuous",
-                        "valid_range": {"lower": 0, "upper": 1000000},
-                        "description": "state time"
-                    }
+        
+        driver_config = {
+            "status": {
+                "state": {
+                    "addr": f"{base_topic}/status/state",
+                    "UUID": state_uuid,
+                    "value_type": "discrete",
+                    "valid_values": list(self._states_config.keys()) + ["unknown"],
+                    "description": "driver state"
+                },
+                "time_in_state": {
+                    "addr": f"{base_topic}/status/state_time", 
+                    "UUID": time_uuid,
+                    "value_type": "continuous",
+                    "valid_range": {"lower": 0, "upper": 1000000},
+                    "description": "state time"
                 }
             }
         }
-
-        # Add governor points if configured
-        if "governor" in self._settings:
-            if "governors" not in self._points_config:
-                self._points_config["governors"] = {}
-
-            governor_config = self._settings["governor"]
-            governor_name = governor_config["name"]
-            governor_addr = governor_config["addr"]
-
-            self._current_addr = f"{governor_addr}/commands/state"
-            cmd_uuid = self._get_next_uuid()
-
-            self._points_config["governors"][governor_name] = {
-                "commands": {
-                    "state": {
-                        "addr": f"{governor_addr}/commands/state",
-                        "UUID": cmd_uuid,
-                        "value_type": "str",
-                        "valid_values": list(self._states_config.keys()),
-                        "description": "commanded state"
-                    }
+        
+        # Only create command point if governor needed
+        if self._settings["driver"].get("needs_governor", False):
+            self._current_addr = f"{base_topic}/command/state"
+            command_uuid = self._get_next_uuid()
+            driver_config["command"] = {
+                "state": {
+                    "addr": f"{base_topic}/command/state",
+                    "UUID": command_uuid,
+                    "value_type": "discrete",
+                    "valid_values": list(self._states_config.keys()),
+                    "description": "commanded state"
                 }
             }
+        
+        self._points_config["drivers"][self._driver_name] = driver_config
 
     def _build_governor_points(self) -> dict:
         """Build governor points configuration"""

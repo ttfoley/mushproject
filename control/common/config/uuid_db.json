@@ -17,7 +17,7 @@
   "mush/controllers/C2/control_points/led1/readback": 9,
   "mush/controllers/C2/control_points/led1/write": 10,
   "mush/controllers/C2/sensors/status/wifi_uptime": 0,
-  "mush/drivers/temperature_control/sensors/status/state": 18,
-  "mush/drivers/temperature_control/sensors/status/state_time": 19,
-  "mush/governors/temperature_governor/commands/state": 20
+  "mush/drivers/temperature_control/command/state": 20,
+  "mush/drivers/temperature_control/status/state": 18,
+  "mush/drivers/temperature_control/status/state_time": 19
 }
