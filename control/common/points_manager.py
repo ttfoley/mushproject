@@ -221,9 +221,7 @@ class Points_Manager:
         point = make_command_point(value)
         points["governors"][governor_name]["state"] = point
         self.update_uuid_lookup(value.uuid, point)
-        #adding governor state command to the set of topics to subscribe to
-        self._topics_to_subscribe.add(topic)
-        
+
         return points
 
 class Active_Points_Manager(Points_Manager):
@@ -236,13 +234,33 @@ class Active_Points_Manager(Points_Manager):
         self._published_points = set()
         self._last_periodic_publish = datetime.now()
         self._pending_publishes = {}  # topic -> (expected_value, time_requested)
-        #Points that were flagged during construction as needing to be monitored    
-        self.add_monitored_points(read_points=self._topics_to_subscribe, write_points=set())
+        
+        # Collect and subscribe to needed points
+        points_to_monitor = self._collect_points_to_monitor()
+        self.subscribe_to_points(points_to_monitor)
 
-    def add_monitored_points(self, read_points: set[str], write_points: set[str]):
-        """Add points to monitor by their topics"""
-        self._subscribed_points.update(read_points)
-        self._published_points.update(write_points)
+    def _collect_points_to_monitor(self) -> set[str]:
+        """Determine which points need monitoring based on configuration"""
+        points_to_monitor = set()
+        
+        # Add control point readbacks
+        for controller in self.control_points:
+            for cp in self.control_points[controller].values():
+                points_to_monitor.add(cp.readback_point.addr)
+
+        # Add governor command point if configured
+        if "governor" in self._settings:
+            governor_name = self._settings["governor"]["name"]
+            if "governors" in self._points_config and governor_name in self._points_config["governors"]:
+                governor_points = self._points_config["governors"][governor_name]
+                if "commands" in governor_points and "state" in governor_points["commands"]:
+                    points_to_monitor.add(governor_points["commands"]["state"]["addr"])
+
+        return points_to_monitor
+
+    def subscribe_to_points(self, points: set[str]):
+        """Subscribe to points we need to monitor"""
+        self._subscribed_points.update(points)
         self._subscribe_points()
 
     def _subscribe_points(self):
