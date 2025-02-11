@@ -50,6 +50,7 @@ class Points_Manager:
     def __init__(self, points_config: dict, settings: dict):
         self._points_config = points_config
         self._settings = settings  # Store full settings dict
+        self.driver_name = settings["driver"]["name"]
         
         # Get publish settings with defaults
         publish_settings = settings.get('points', {}).get('publish', {})
@@ -223,6 +224,18 @@ class Points_Manager:
         self.update_uuid_lookup(value.uuid, point)
 
         return points
+
+    @property
+    def state_point(self) -> Point:
+        """Get the driver's state point"""
+        return self.get_point_by_topic(f"mush/drivers/{self.driver_name}/sensors/status/state")
+
+    @property
+    def state_time_point(self) -> Point:
+        """Get the driver's state time point"""
+        point = self.get_point_by_topic(f"mush/drivers/{self.driver_name}/sensors/status/state_time")
+        assert isinstance(point,FSM_StateTimePoint)
+        return point
 
 class Active_Points_Manager(Points_Manager):
     """Points Manager with MQTT capabilities"""

@@ -50,22 +50,12 @@ class FSMMonitor:
         self.pm = points_manager
         self._time_started = datetime.now()
         
-        # Get existing points from points manager
-        state_topic = f"mush/drivers/{fsm._driver_name}/sensors/status/state"
-        time_topic = f"mush/drivers/{fsm._driver_name}/sensors/status/state_time"
-        
-        state_point = points_manager.get_point_by_topic(state_topic)
-        time_point = points_manager.get_point_by_topic(time_topic)
-        
-        # Ensure time_point is FSM_StateTimePoint
-        if not isinstance(time_point, FSM_StateTimePoint):
-            raise TypeError("time_point must be FSM_StateTimePoint")
-
-        # Set monitor as time provider before wrapping
+        # Get points directly from points manager
+        time_point = self.pm.state_time_point
         time_point._time_provider = self
-
+        
         # Create monitored points
-        self._state_point = MonitoredPoint(state_point, points_manager)
+        self._state_point = MonitoredPoint(self.pm.state_point, points_manager)
         self._time_point = MonitoredPoint(time_point, points_manager)
 
     def reset_time(self):
