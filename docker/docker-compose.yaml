@@ -66,6 +66,7 @@ services:
     environment:
       - MQTT_BROKER=mosquitto
       - PYTHONUNBUFFERED=1
+      - IN_DOCKER=1
     container_name: temperature_driver
     depends_on:
       - mosquitto
