@@ -84,7 +84,7 @@ Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &scd_0_Sensor };
 
 #define DEFAULT_WAIT 1000
 #define WAIT_WAIT 10
-#define MAX_TIME_NO_PUBLISH 30000 //failsafe in case a sensor breaks or something
+#define MAX_TIME_NO_PUBLISH 300000 //failsafe in case a sensor breaks or something else goes wrong
 #define MEASURE_TIME 7000 //time to measure SCD sensor
 
 enum RestartReason {
