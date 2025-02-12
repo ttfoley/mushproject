@@ -2,7 +2,8 @@
   "settings": {
     "driver": {
       "initial_state": "off",
-      "name": "temperature_control"
+      "name": "temperature_control",
+      "needs_governor": true
     },
     "mqtt": {
       "username": "ttfoley",
@@ -10,10 +11,6 @@
       "broker": "192.168.1.17",
       "port": 1883,
       "client_id": "temperature_control_driver"
-    },
-    "governor": {
-      "name": "temperature_governor",
-      "addr": "mush/governors/temperature_governor"
     },
     "points": {
       "publish": {
@@ -156,72 +153,6 @@
   },
   "points": {
     "microcontrollers": {
-      "C1": {
-        "sensors": {
-          "sht_0": {
-            "temperature": {
-              "addr": "mush/controllers/C1/sensors/sht_0/temperature",
-              "valid_range": {
-                "lower": 0,
-                "upper": 100
-              },
-              "UUID": 0
-            },
-            "humidity": {
-              "addr": "mush/controllers/C1/sensors/sht_0/humidity",
-              "valid_range": {
-                "lower": 0,
-                "upper": 100
-              },
-              "UUID": 1
-            }
-          },
-          "dht_0": {
-            "temperature": {
-              "addr": "mush/controllers/C1/sensors/dht_0/temperature",
-              "valid_range": {
-                "lower": 0,
-                "upper": 100
-              },
-              "UUID": 2
-            },
-            "humidity": {
-              "addr": "mush/controllers/C1/sensors/dht_0/humidity",
-              "valid_range": {
-                "lower": 0,
-                "upper": 100
-              },
-              "UUID": 3
-            }
-          },
-          "scd_0": {
-            "temperature": {
-              "addr": "mush/controllers/C1/sensors/scd_0/temperature",
-              "valid_range": {
-                "lower": 0,
-                "upper": 100
-              },
-              "UUID": 4
-            },
-            "humidity": {
-              "addr": "mush/controllers/C1/sensors/scd_0/humidity",
-              "valid_range": {
-                "lower": 0,
-                "upper": 100
-              },
-              "UUID": 5
-            },
-            "co2": {
-              "addr": "mush/controllers/C1/sensors/scd_0/co2",
-              "valid_range": {
-                "lower": 0,
-                "upper": 10000
-              },
-              "UUID": 6
-            }
-          }
-        }
-      },
       "C2": {
         "sensors": {
           "status": {
@@ -231,7 +162,7 @@
                 "lower": 0,
                 "upper": 1000000
               },
-              "UUID": 7
+              "UUID": 0
             }
           }
         },
@@ -240,7 +171,7 @@
             "description": "Humidifier",
             "readback": {
               "addr": "mush/controllers/C2/control_points/CP_25/readback",
-              "UUID": 8,
+              "UUID": 1,
               "value_type": "str",
               "raw_value_type": [
                 "str",
@@ -259,7 +190,7 @@
             },
             "write": {
               "addr": "mush/controllers/C2/control_points/CP_25/write",
-              "UUID": 9,
+              "UUID": 2,
               "valid_values": [
                 "on",
                 "off"
@@ -275,7 +206,7 @@
             "description": "HeatingPad",
             "readback": {
               "addr": "mush/controllers/C2/control_points/CP_26/readback",
-              "UUID": 10,
+              "UUID": 3,
               "value_type": "str",
               "raw_value_type": [
                 "str",
@@ -294,7 +225,7 @@
             },
             "write": {
               "addr": "mush/controllers/C2/control_points/CP_26/write",
-              "UUID": 11,
+              "UUID": 4,
               "valid_values": [
                 "on",
                 "off"
@@ -310,7 +241,7 @@
             "description": "Light",
             "readback": {
               "addr": "mush/controllers/C2/control_points/CP_32/readback",
-              "UUID": 12,
+              "UUID": 5,
               "value_type": "str",
               "raw_value_type": [
                 "str",
@@ -329,7 +260,7 @@
             },
             "write": {
               "addr": "mush/controllers/C2/control_points/CP_32/write",
-              "UUID": 13,
+              "UUID": 6,
               "valid_values": [
                 "on",
                 "off"
@@ -345,7 +276,7 @@
             "description": "VentFan",
             "readback": {
               "addr": "mush/controllers/C2/control_points/CP_33/readback",
-              "UUID": 14,
+              "UUID": 7,
               "value_type": "str",
               "raw_value_type": [
                 "str",
@@ -364,7 +295,7 @@
             },
             "write": {
               "addr": "mush/controllers/C2/control_points/CP_33/write",
-              "UUID": 15,
+              "UUID": 8,
               "valid_values": [
                 "on",
                 "off"
@@ -380,7 +311,7 @@
             "description": "Status_LED",
             "readback": {
               "addr": "mush/controllers/C2/control_points/led1/readback",
-              "UUID": 16,
+              "UUID": 9,
               "value_type": "str",
               "raw_value_type": [
                 "str",
@@ -399,7 +330,7 @@
             },
             "write": {
               "addr": "mush/controllers/C2/control_points/led1/write",
-              "UUID": 17,
+              "UUID": 10,
               "valid_values": [
                 "on",
                 "off"
@@ -412,44 +343,104 @@
             }
           }
         }
-      }
-    },
-    "drivers": {
-      "temperature_control": {
+      },
+      "C1": {
         "sensors": {
-          "status": {
-            "state": {
-              "addr": "mush/drivers/temperature_control/sensors/status/state",
-              "UUID": 18,
-              "value_type": "discrete",
-              "valid_values": [
-                "off",
-                "on",
-                "unknown"
-              ],
-              "description": "driver state"
-            },
-            "time_in_state": {
-              "addr": "mush/drivers/temperature_control/sensors/status/state_time",
-              "UUID": 19,
-              "value_type": "continuous",
+          "sht_0": {
+            "temperature": {
+              "addr": "mush/controllers/C1/sensors/sht_0/temperature",
               "valid_range": {
                 "lower": 0,
-                "upper": 1000000
+                "upper": 100
               },
-              "description": "state time"
+              "UUID": 11
+            },
+            "humidity": {
+              "addr": "mush/controllers/C1/sensors/sht_0/humidity",
+              "valid_range": {
+                "lower": 0,
+                "upper": 100
+              },
+              "UUID": 12
+            }
+          },
+          "dht_0": {
+            "temperature": {
+              "addr": "mush/controllers/C1/sensors/dht_0/temperature",
+              "valid_range": {
+                "lower": 0,
+                "upper": 100
+              },
+              "UUID": 13
+            },
+            "humidity": {
+              "addr": "mush/controllers/C1/sensors/dht_0/humidity",
+              "valid_range": {
+                "lower": 0,
+                "upper": 100
+              },
+              "UUID": 14
+            }
+          },
+          "scd_0": {
+            "temperature": {
+              "addr": "mush/controllers/C1/sensors/scd_0/temperature",
+              "valid_range": {
+                "lower": 0,
+                "upper": 100
+              },
+              "UUID": 15
+            },
+            "humidity": {
+              "addr": "mush/controllers/C1/sensors/scd_0/humidity",
+              "valid_range": {
+                "lower": 0,
+                "upper": 100
+              },
+              "UUID": 16
+            },
+            "co2": {
+              "addr": "mush/controllers/C1/sensors/scd_0/co2",
+              "valid_range": {
+                "lower": 0,
+                "upper": 10000
+              },
+              "UUID": 17
             }
           }
         }
       }
     },
-    "governors": {
-      "temperature_governor": {
-        "commands": {
+    "drivers": {
+      "temperature_control": {
+        "status": {
           "state": {
-            "addr": "mush/governors/temperature_governor/commands/state",
+            "addr": "mush/drivers/temperature_control/status/state",
+            "UUID": 18,
+            "value_type": "discrete",
+            "valid_values": [
+              "off",
+              "on",
+              "unknown"
+            ],
+            "description": "driver state"
+          },
+          "time_in_state": {
+            "addr": "mush/drivers/temperature_control/status/state_time",
+            "UUID": 19,
+            "value_type": "continuous",
+            "valid_range": {
+              "lower": 0,
+              "upper": 1000000
+            },
+            "description": "state time"
+          }
+        },
+        "command": {
+          "state": {
+            "addr": "mush/drivers/temperature_control/command/state",
             "UUID": 20,
-            "value_type": "str",
+            "value_type": "discrete",
             "valid_values": [
               "off",
               "on"

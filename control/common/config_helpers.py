@@ -156,12 +156,15 @@ class TransitionsConfigHelper(BaseConfiguration):
         return super().get_point_uuid(addr)
 
     def get_driver_points(self) -> dict:
-        """Get driver state and time point UUIDs"""
-        state_addr = f"mush/drivers/{self.driver_name}/sensors/status/state"
-        time_addr = f"mush/drivers/{self.driver_name}/sensors/status/state_time"
+        """Get driver state, time and command point UUIDs"""
+        base_topic = f"mush/drivers/{self.driver_name}"
+        state_addr = f"{base_topic}/status/state"
+        time_addr = f"{base_topic}/status/state_time"
+        command_addr = f"{base_topic}/command/state"
         return {
             'state': self.get_point_uuid(state_addr),
-            'time': self.get_point_uuid(time_addr)
+            'time': self.get_point_uuid(time_addr),
+            'command': self.get_point_uuid(command_addr)
         }
 
     def get_sensor_point(self, controller: str, sensor_name: str, sensor_type: str) -> int:
@@ -176,10 +179,7 @@ class TransitionsConfigHelper(BaseConfiguration):
 
     def get_command_point(self, commander_name: str, command_name: str) -> int:
         """Get UUID for command point"""
-        # Use governor name from settings instead of driver name
-        governor_name = self._settings["governor"]["name"]
-        addr = f"mush/governors/{governor_name}/commands/{command_name}"
-        return self.get_point_uuid(addr)
+        return self.get_driver_points()['command']
 
     def get_point_description(self, uuid: int) -> str:
         """Get description for point with given UUID"""

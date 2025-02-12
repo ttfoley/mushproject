@@ -1,4 +1,4 @@
-from states import State, StateStatus
+from states import State
 from transitions import Transitions_Manager
 from points_manager import Active_Points_Manager
 from states import States_Manager
@@ -10,54 +10,24 @@ class ActiveFSM:
     def __init__(self, driver_name: str, SM: States_Manager, 
                  PM: Active_Points_Manager,
                  TM: Transitions_Manager, initial_desired_state: State):
-        self._driver_name = driver_name
+        self.driver_name = driver_name
         self.desired_state = initial_desired_state
-        self._SM = SM
-        self._states = SM.states
-        self._PM = PM
+        self.SM = SM
+        self.states = SM.states
+        self.PM = PM
         self.TM = TM
-        self._current_state = self._SM.get_state("unknown", "Initial state")
-        self.previous_state = self._states["unknown"]
+        self.current_state = self.SM.get_state("unknown", "Initial state")
+        self.previous_state = self.states["unknown"]
         self.monitor = self._create_monitor()
 
     def _create_monitor(self) -> FSMMonitor:
-        """Create monitor after FSM is fully initialized"""
-        return FSMMonitor(fsm=self, points_manager=self._PM)
+        """Internal helper to create monitor"""
+        return FSMMonitor(fsm=self, points_manager=self.PM)
 
-    @property
-    def PM(self):
-        return self._PM
-
-    @PM.setter
-    def PM(self, new_pm: Active_Points_Manager):
-        self._PM = new_pm
-        self.monitor.pm = new_pm  # Always have monitor
-        self.TM.update_points_manager(new_pm)
-
-    @property
-    def current_state(self) -> State:
-        return self._current_state
-
-    @current_state.setter
-    def current_state(self, new_state: State):
-        self._current_state = new_state
-        self.monitor.on_state_change()
-
-    def update_state(self) -> bool:
-        new_state = self.get_validated_state()
-        self.previous_state = self.current_state
-        
-        if new_state != self.current_state:
-            self.current_state = new_state
-            return True
-        else:
-            self.monitor.update()  # Always have monitor
-            return False
-
-    def get_compatible_states(self) -> list[State]:
-        """Returns list of states whose output values match current control point values"""
+    def _get_compatible_states(self) -> list[State]:
+        """Internal helper to find states matching current control point values"""
         compatible_states = []
-        for state in self._states.values():
+        for state in self.states.values():
             matches = True
             for cp_id, desired_value in state.listed_output_pairs:
                 rb_point, _ = self.PM.get_control_point_pair(cp_id)
@@ -68,12 +38,12 @@ class ActiveFSM:
                 compatible_states.append(state)
         return compatible_states
 
-    def get_validated_state(self) -> State:
-        """Get compatible state based on current control point values"""
-        compatible_states = self.get_compatible_states()
+    def _get_validated_state(self) -> State:
+        """Internal helper to validate state based on compatible states"""
+        compatible_states = self._get_compatible_states()
         
         if not compatible_states:
-            return self._SM.get_state("unknown", "No states match current control point values")
+            return self.SM.get_state("unknown", "No states match current control point values")
         
         if len(compatible_states) == 1:
             return compatible_states[0]
@@ -84,14 +54,28 @@ class ActiveFSM:
         elif self.current_state in compatible_states:
             return self.current_state
         else:
-            return self._SM.get_state("unknown", "Multiple matching states without resolution")
+            return self.SM.get_state("unknown", "Multiple matching states without resolution")
+
+    def update_state(self) -> bool:
+        """Public interface to update current state"""
+        new_state = self._get_validated_state()
+        self.previous_state = self.current_state
+        
+        if new_state != self.current_state:
+            self.current_state = new_state
+            return True
+        else:
+            self.monitor.update()
+            return False
 
     @property
     def in_desired_state(self):
+        """Public property to check if current state matches desired state"""
+        #This isn't very robust, but it's good enough for now.
         return self.current_state.name == self.desired_state.name
 
     def write_desired_state(self, immediately=False):
-        """Write all outputs to match desired state"""
+        """Public interface to write outputs for desired state"""
         if not self.in_desired_state:
             for cp_id, output_value in self.desired_state.listed_output_pairs:
                 _, write_point = self.PM.get_control_point_pair(cp_id)
@@ -99,7 +83,7 @@ class ActiveFSM:
                 self.PM.publish_point(write_point, force=immediately)
 
     def update_desired_state(self) -> bool:
-        """Update desired state based on transitions"""
+        """Public interface to update desired state based on transitions"""
         if self.in_desired_state:
             next_state = self.TM.next_state(self.current_state)
             if next_state != self.current_state:
@@ -108,5 +92,6 @@ class ActiveFSM:
         return False
 
     def print_update(self):
+        """Public interface to print current status"""
         print(self.current_state.name, self.desired_state.name, 
               self.monitor.get_time_in_state())

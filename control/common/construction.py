@@ -45,81 +45,50 @@ class BaseConfiguration:
             self._points_config["drivers"] = {}
             
         # Track current address for UUID assignment
-        self._current_addr = f"mush/drivers/{self._driver_name}/sensors/status/state"
+        base_topic = f"mush/drivers/{self._driver_name}"
+        
+        # Always create status points
+        self._current_addr = f"{base_topic}/status/state"
         state_uuid = self._get_next_uuid()
         
-        self._current_addr = f"mush/drivers/{self._driver_name}/sensors/status/state_time"
+        self._current_addr = f"{base_topic}/status/state_time"
         time_uuid = self._get_next_uuid()
-            
-        self._points_config["drivers"][self._driver_name] = {
-            "sensors": {
-                "status": {
-                    "state": {
-                        "addr": f"mush/drivers/{self._driver_name}/sensors/status/state",
-                        "UUID": state_uuid,
-                        "value_type": "discrete",
-                        "valid_values": list(self._states_config.keys()) + ["unknown"],
-                        "description": "driver state"
-                    },
-                    "time_in_state": {
-                        "addr": f"mush/drivers/{self._driver_name}/sensors/status/state_time", 
-                        "UUID": time_uuid,
-                        "value_type": "continuous",
-                        "valid_range": {"lower": 0, "upper": 1000000},
-                        "description": "state time"
-                    }
-                }
-            }
-        }
-
-        # Add governor points if configured
-        if "governor" in self._settings:
-            if "governors" not in self._points_config:
-                self._points_config["governors"] = {}
-
-            governor_config = self._settings["governor"]
-            governor_name = governor_config["name"]
-            governor_addr = governor_config["addr"]
-
-            self._current_addr = f"{governor_addr}/commands/state"
-            cmd_uuid = self._get_next_uuid()
-
-            self._points_config["governors"][governor_name] = {
-                "commands": {
-                    "state": {
-                        "addr": f"{governor_addr}/commands/state",
-                        "UUID": cmd_uuid,
-                        "value_type": "str",
-                        "valid_values": list(self._states_config.keys()),
-                        "description": "commanded state"
-                    }
-                }
-            }
-
-    def _build_governor_points(self) -> dict:
-        """Build governor points configuration"""
-        governor_config = self._settings["governor"]
-        governor_points = {
-            "governors": {
-                governor_config["name"]: {
-                    "commands": {}
+        
+        driver_config = {
+            "status": {
+                "state": {
+                    "addr": f"{base_topic}/status/state",
+                    "UUID": state_uuid,
+                    "value_type": "discrete",
+                    "valid_values": list(self._states_config.keys()) + ["unknown"],
+                    "description": "driver state"
+                },
+                "time_in_state": {
+                    "addr": f"{base_topic}/status/state_time", 
+                    "UUID": time_uuid,
+                    "value_type": "continuous",
+                    "valid_range": {"lower": 0, "upper": 1000000},
+                    "description": "state time"
                 }
             }
         }
         
-        # Add command points
-        for command in governor_config.get("commands", []):
-            addr = f"mush/governors/{governor_config['name']}/commands/{command}"
-            governor_points["governors"][governor_config["name"]]["commands"][command] = {
-                "addr": addr,
-                "UUID": self._get_next_uuid(),
-                "value_type": "discrete",
-                "valid_values": ["on", "off"],
-                "description": f"Governor {command} command"
+        # Only create command point if governor needed
+        if self._settings["driver"].get("needs_governor", False):
+            self._current_addr = f"{base_topic}/command/state"
+            command_uuid = self._get_next_uuid()
+            driver_config["command"] = {
+                "state": {
+                    "addr": f"{base_topic}/command/state",
+                    "UUID": command_uuid,
+                    "value_type": "discrete",
+                    "valid_values": list(self._states_config.keys()),
+                    "description": "commanded state"
+                }
             }
-            self._add_needed_point(addr)
-            
-        return governor_points
+        
+        self._points_config["drivers"][self._driver_name] = driver_config
+
 
     def _get_next_uuid(self) -> int:
         """Get UUID for current point address"""
@@ -198,8 +167,7 @@ class FSMConstructor(FSMConfiguration):
     def build_points_manager(self):
         """Build points manager with all needed points"""
         self.PM = Points_Manager(self._points_config, self._settings)
-        self.PM.build_governor_points()
-        self.PM.build_driver_points(self._driver_name, self._states_config)
+        self.PM.build_driver_points(self._states_config)
         return self
         
     def build_states_manager(self):
@@ -222,6 +190,7 @@ class FSMConstructor(FSMConfiguration):
         mqtt_settings = self._settings.get("mqtt", {})
         if not all(key in mqtt_settings for key in ["broker", "port", "username", "password", "client_id"]):
             raise ValueError("Missing required MQTT settings")
+        
         # Override broker with environment variable if present
         mqtt_settings["broker"] = os.getenv('MQTT_BROKER', mqtt_settings["broker"])
 
@@ -243,16 +212,6 @@ class FSMConstructor(FSMConfiguration):
         )
         self.mqtt_handler._points_manager = self.PM
         
-        # Subscribe to control points
-        read_points = set()
-        write_points = set()
-        for controller in self.PM.control_points:
-            for cp in self.PM.control_points[controller].values():
-                read_points.add(cp.readback_point.addr)
-                write_points.add(cp.write_point.addr)
-        
-        # Only subscribe to readback points
-        self.PM.add_monitored_points(read_points=read_points, write_points=set())
         return self
 
     def build_active_fsm(self):
