@@ -1,149 +1,15 @@
-import json
-import sys
 import os
-from typing import Dict, Any,Tuple, Optional
+from typing import Tuple
 #The fact that I'm importing so many separate things seems like a bad smell, but this is the constructor only...
 from states import States_Manager
 from points_manager import Points_Manager, Active_Points_Manager
 from transitions import Transitions_Manager  # You'll need to create/import this
 from controller import  ActiveFSM
 from mqtt_handler import MQTTHandler
-from config.uuid_database import UUIDDatabase
 from configuration import FSMConfiguration
 
 
 
-
-
-class BaseConfiguration:
-    """Base configuration needed for transitions"""
-    def __init__(self, config_path: str):
-        self._config_path = config_path
-        self._needed_points = set()  # Track points needed by FSM
-        self._uuid_db = UUIDDatabase()  # Use shared UUID database
-        self._load_base_configs()
-        self._build_points_config()
-        self._validate_base_configs()
-        
-    def _load_base_configs(self):
-        """Load configs needed for transitions"""
-        self._microC_points_config = json.load(open(os.path.join(self._config_path, "microC_points.json")))
-        self._states_config = json.load(open(os.path.join(self._config_path, "states.json")))
-        self._settings = json.load(open(os.path.join(self._config_path, "settings.json")))
-        self._driver_name = self._settings["driver"]["name"]
-
-    def _add_needed_point(self, addr: str):
-        """Add point to set of points needed by FSM"""
-        self._needed_points.add(addr)
-        
-    def _build_points_config(self):
-        """Build complete points configuration including driver and governor points"""
-        # Start with microcontroller points
-        self._points_config = self._microC_points_config
-        
-        # Add driver points
-        if "drivers" not in self._points_config:
-            self._points_config["drivers"] = {}
-            
-        # Track current address for UUID assignment
-        base_topic = f"mush/drivers/{self._driver_name}"
-        
-        # Always create status points
-        self._current_addr = f"{base_topic}/status/state"
-        state_uuid = self._get_next_uuid()
-        
-        self._current_addr = f"{base_topic}/status/state_time"
-        time_uuid = self._get_next_uuid()
-        
-        driver_config = {
-            "status": {
-                "state": {
-                    "addr": f"{base_topic}/status/state",
-                    "UUID": state_uuid,
-                    "value_type": "discrete",
-                    "valid_values": list(self._states_config.keys()) + ["unknown"],
-                    "description": "driver state"
-                },
-                "time_in_state": {
-                    "addr": f"{base_topic}/status/state_time", 
-                    "UUID": time_uuid,
-                    "value_type": "continuous",
-                    "valid_range": {"lower": 0, "upper": 1000000},
-                    "description": "state time"
-                }
-            }
-        }
-        
-        # Only create command point if governor needed
-        if self._settings["driver"].get("needs_governor", False):
-            self._current_addr = f"{base_topic}/command/state"
-            command_uuid = self._get_next_uuid()
-            driver_config["command"] = {
-                "state": {
-                    "addr": f"{base_topic}/command/state",
-                    "UUID": command_uuid,
-                    "value_type": "discrete",
-                    "valid_values": list(self._states_config.keys()),
-                    "description": "commanded state"
-                }
-            }
-        
-        self._points_config["drivers"][self._driver_name] = driver_config
-
-
-    def _get_next_uuid(self) -> int:
-        """Get UUID for current point address"""
-        return self._uuid_db.get_uuid(self._current_addr)  # Need to track current address
-
-    def _validate_base_configs(self):
-        """Validate configs and track needed points from states"""
-        # Add control points from states to needed points
-        for state_name, outputs in self._states_config.items():
-            for output in outputs:
-                cp_info = output["control_point"]
-                controller = cp_info["controller"]
-                cp_name = cp_info["name"]
-                
-                # Validate control point exists in microcontroller config
-                assert controller in self._microC_points_config["microcontrollers"], \
-                    f"Controller '{controller}' referenced in state '{state_name}' not found in microcontroller config"
-                
-                controller_config = self._microC_points_config["microcontrollers"][controller]
-                assert "control_points" in controller_config, \
-                    f"Controller '{controller}' has no control points defined but is referenced in state '{state_name}'"
-                
-                assert cp_name in controller_config["control_points"], \
-                    f"Control point '{cp_name}' referenced in state '{state_name}' not found in controller '{controller}'"
-                
-                # Add readback point to needed points
-                addr = f"mush/controllers/{controller}/control_points/{cp_name}/readback"
-                self._add_needed_point(addr)
-
-    def get_point_uuid(self, addr: str) -> int:
-        """Get UUID for point at given address"""
-        def search_dict(d: dict) -> Optional[int]:
-            if isinstance(d, dict):
-                if d.get("addr") == addr:
-                    return d["UUID"]
-                if "readback" in d and d["readback"].get("addr") == addr:
-                    return d["readback"]["UUID"]
-                if "write" in d and d["write"].get("addr") == addr:
-                    return d["write"]["UUID"]
-                for v in d.values():
-                    result = search_dict(v)
-                    if result is not None:
-                        return result
-            return None
-
-        result = search_dict(self._points_config)
-        if result is None:
-            raise ValueError(f"No point found with address {addr}")
-        return result
-
-    def save_points_config(self, filename: str):
-        """Save complete points configuration to file"""
-        with open(filename, 'w') as f:
-            json.dump(self._points_config, f, indent=4)
 
 class FSMConstructor:
     """Builds FSM system using full configuration"""
@@ -163,7 +29,8 @@ class FSMConstructor:
         return self
         
     def build_transitions_manager(self):
-        """Build transitions manager"""
+        """Build transitions manager. When constructed, the PM is not yet activated. Gets activated 
+        when we upgrade to the Active_Points_Manager in add_mqtt()."""
         self.TM = Transitions_Manager(
             transitions_config=self.config.transitions_config,
             SM=self.SM,
@@ -172,7 +39,10 @@ class FSMConstructor:
         return self
 
     def add_mqtt(self):
-        """Create MQTT handler and activate points manager"""
+        """Create MQTT handler and activate points manager
+        Note that since Transitions_Manager is referencing the Points_Manager,
+        its points will also be activated once we upgrade to the Active_Points_Manager.
+        """
         mqtt_settings = self.config.settings.get("mqtt", {})
         if not all(key in mqtt_settings for key in ["broker", "port", "username", "password", "client_id"]):
             raise ValueError("Missing required MQTT settings")
@@ -192,6 +62,8 @@ class FSMConstructor:
         self.mqtt_handler.connect()
         
         # Activate points manager
+         # Update self.PM to Active_Points_Manager
+        # This affects all references to self.PM, including the one in TM
         self.PM = Active_Points_Manager(
             base_manager=self.PM,
             message_publisher=self.mqtt_handler

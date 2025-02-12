@@ -1,7 +1,7 @@
-from typing import Dict,Sequence,Tuple
-from collections import defaultdict
+from typing import Dict,Sequence
+
 from points_manager import Points_Manager,Active_Points_Manager
-from states import State,StateStatus,States_Manager
+from states import State,States_Manager
 import time
 
 ## Where great new transitions are born! Full rewrite of the transitions modules to allow for more complex constraints and transitions.

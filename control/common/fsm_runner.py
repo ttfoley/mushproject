@@ -1,8 +1,6 @@
 from datetime import datetime
-from typing import Optional
 from mqtt_handler import MQTTHandler
 from construction import FSMConstructor
-from controller import ActiveFSM
 
 class FSMRunner:
     def __init__(self, 
