@@ -1,19 +1,7 @@
 import json
-import sys
 import os
-from typing import Dict, Any,Tuple, Optional
-#The fact that I'm importing so many separate things seems like a bad smell, but this is the constructor only...
-from states import States_Manager
-from points_manager import Points_Manager, Active_Points_Manager
-from transitions import Transitions_Manager  # You'll need to create/import this
-from controller import  ActiveFSM
-from mqtt_handler import MQTTHandler
+from typing import Dict, Any, Optional
 from config.uuid_database import UUIDDatabase
-from configuration import FSMConfiguration
-
-
-
-
 
 class BaseConfiguration:
     """Base configuration needed for transitions"""
@@ -90,10 +78,9 @@ class BaseConfiguration:
         
         self._points_config["drivers"][self._driver_name] = driver_config
 
-
     def _get_next_uuid(self) -> int:
         """Get UUID for current point address"""
-        return self._uuid_db.get_uuid(self._current_addr)  # Need to track current address
+        return self._uuid_db.get_uuid(self._current_addr)
 
     def _validate_base_configs(self):
         """Validate configs and track needed points from states"""
@@ -145,110 +132,42 @@ class BaseConfiguration:
         with open(filename, 'w') as f:
             json.dump(self._points_config, f, indent=4)
 
-class FSMConstructor:
-    """Builds FSM system using full configuration"""
+class FSMConfiguration(BaseConfiguration):
+    """Full configuration including transitions"""
     def __init__(self, config_path: str):
-        self.config = FSMConfiguration(config_path)
-
-    def build_points_manager(self):
-        """Build points manager with all needed points"""
-        self.PM = Points_Manager(self.config.points_config, self.config.settings)
-        self.PM.build_driver_points(self.config.states_config)
-        return self
+        super().__init__(config_path)
+        self._load_transitions_config()
         
-    def build_states_manager(self):
-        """Build states manager"""
-        self.SM = States_Manager(self.config.states_config, self.config.settings["driver"]["initial_state"])
-        self._validate_state_control_points()
-        return self
-        
-    def build_transitions_manager(self):
-        """Build transitions manager"""
-        self.TM = Transitions_Manager(
-            transitions_config=self.config.transitions_config,
-            SM=self.SM,
-            PM=self.PM
-        )
-        return self
-
-    def add_mqtt(self):
-        """Create MQTT handler and activate points manager"""
-        mqtt_settings = self.config.settings.get("mqtt", {})
-        if not all(key in mqtt_settings for key in ["broker", "port", "username", "password", "client_id"]):
-            raise ValueError("Missing required MQTT settings")
-        
-        # Override broker with environment variable if present
-        mqtt_settings["broker"] = os.getenv('MQTT_BROKER', mqtt_settings["broker"])
-
-        # Create and connect handler
-        self.mqtt_handler = MQTTHandler(
-            broker=mqtt_settings["broker"],
-            port=mqtt_settings["port"],
-            points_manager=self.PM,
-            username=mqtt_settings["username"],
-            password=mqtt_settings["password"],
-            client_id=mqtt_settings["client_id"]
-        )
-        self.mqtt_handler.connect()
-        
-        # Activate points manager
-        self.PM = Active_Points_Manager(
-            base_manager=self.PM,
-            message_publisher=self.mqtt_handler
-        )
-        self.mqtt_handler._points_manager = self.PM
-        
-        return self
-
-    def build_active_fsm(self):
-        """Build FSM with active points manager"""
-        if not hasattr(self, 'mqtt_handler'):
-            raise RuntimeError("Call add_mqtt() before building FSM")
-        if not isinstance(self.PM, Active_Points_Manager):
-            raise RuntimeError("Points Manager must be activated before building FSM. Call add_mqtt() first")
-        self.FSM = ActiveFSM(
-            driver_name=self.config.driver_name,
-            SM=self.SM,
-            PM=self.PM,
-            TM=self.TM,
-            initial_desired_state=self.SM.initial_state
-        )
-        return self
-
-    def build(self) -> Tuple[ActiveFSM, Active_Points_Manager, Transitions_Manager, MQTTHandler]:
-        """Build complete system"""
-        if not hasattr(self, 'FSM'):
-            raise RuntimeError("Call build_active_fsm() before build()")
-        assert isinstance(self.PM, Active_Points_Manager)
-        return self.FSM, self.PM, self.TM, self.mqtt_handler
-
-    def _validate_state_control_points(self):
-        """Validate that all control points in states exist in points manager"""
-        for state_name, outputs in self.config.states_config.items():
-            for output in outputs:
-                cp_info = output["control_point"]
-                controller = cp_info["controller"]
-                cp_name = cp_info["name"]
-                
-                control_point_found = False
-                if controller in self.PM.control_points:
-                    if cp_name in self.PM.control_points[controller]:
-                        control_point_found = True
-                
-                if not control_point_found:
-                    raise ValueError(f"Control point '{cp_name}' on controller '{controller}' used in state '{state_name}' "
-                                  f"does not exist in points manager")
+    def _load_transitions_config(self):
+        self._transitions_config = json.load(open(os.path.join(self._config_path, "transitions.json")))
 
     def save_full_config(self, filename: str = "full_config.json"):
         """Save full configuration to file"""
-        self.config.save_full_config(filename)
+        config = {
+            "settings": self._settings,
+            "states": self._states_config, 
+            "transitions": self._transitions_config, 
+            "points": self._points_config
+        }
+        with open(os.path.join(self._config_path, filename), 'w') as f:
+            json.dump(config, f, indent=2)
 
+    @property
+    def points_config(self) -> Dict[str, Any]:
+        return self._points_config
 
+    @property
+    def settings(self) -> Dict[str, Any]:
+        return self._settings
 
+    @property
+    def states_config(self) -> Dict[str, Any]:
+        return self._states_config
 
+    @property
+    def transitions_config(self) -> Dict[str, Any]:
+        return self._transitions_config
 
-
-
-
-
-  
+    @property
+    def driver_name(self) -> str:
+        return self._driver_name 
