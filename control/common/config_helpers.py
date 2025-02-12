@@ -1,7 +1,7 @@
 import json
 from typing import Dict, Any, Tuple, List, Optional, Type
 from collections import defaultdict
-from construction import BaseConfiguration
+from configuration import BaseConfiguration
 import os
 
 def load_json(file_path:str):
