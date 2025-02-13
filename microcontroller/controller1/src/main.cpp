@@ -64,6 +64,7 @@ void printWiFiStatus();
 #define MAX_MQTT_ATTEMPTS 10      // total = attempt*delay
 #define MQTT_ATTEMPT_DELAY 6000  // 
 #define DELAY_AFTER_SENSOR_POST 100 //Delay to give power time to stabilize after sensor post
+#define DELAY_BETWEEN_VALUES 50  // 50ms between individual value publishes
 
 //Add near other constants at top of file
 #define WIFI_DURATION_POST_INTERVAL 30000
@@ -96,6 +97,9 @@ enum RestartReason {
 
 Preferences preferences;
 const char* restart_topic = "mush/controllers/C1/sensors/status/last_restart_reason";
+
+// Add with other constants
+#define POWER_SETTLE_TIME 1000  // 1 second to let power stabilize after WiFi connection
 
 // Move these implementations up, before any functions that use them
 void setState(State newState, unsigned long& chronoRef, bool printTransition) {
@@ -210,7 +214,9 @@ void loop() {
       
       if (WiFi.status() == WL_CONNECTED) {
         printWiFiStatus();
-        Serial.println("WiFi connected, resetting connection time");
+        Serial.println("WiFi connected, waiting for power to stabilize");
+        delay(POWER_SETTLE_TIME);  // Let power settle before continuing
+        Serial.println("Power stabilized, continuing");
         wifiConnectedTime = millis();
         Serial.print("Set wifiConnectedTime to: ");
         Serial.println(wifiConnectedTime);
@@ -389,7 +395,9 @@ bool publishSensorData(Sensor* sensor) {
     } else {
       success = false;
     }
+    delay(DELAY_BETWEEN_VALUES);  // Let power stabilize between values
   }
+  
   if (sensor->hasTemperature()) {
     float temperature = sensor->readTemperature();
     const char* topic = sensor->getTemperatureTopic();
@@ -401,7 +409,9 @@ bool publishSensorData(Sensor* sensor) {
     } else {
       success = false;
     }
+    delay(DELAY_BETWEEN_VALUES);  // Let power stabilize between values
   }
+  
   if (sensor->hasCO2()) {
     float co2 = sensor->readCO2();
     const char* topic = sensor->getCO2Topic();
@@ -413,14 +423,15 @@ bool publishSensorData(Sensor* sensor) {
     } else {
       success = false;
     }
+    delay(DELAY_BETWEEN_VALUES);  // Let power stabilize between values
   }
+  
   return success;
 }
 
 void tryPublishSensor(Sensor* sensor) {
     if (publishSensorData(sensor)) {
         sensor->resetTimeLastPublished();
-        delay(DELAY_AFTER_SENSOR_POST);//small delay to try to manage power spikes from transmitting
     }
     else {
         Serial.print("Failed to publish sensor at topic root: ");
