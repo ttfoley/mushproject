@@ -8,8 +8,9 @@ class FSMRunner:
                  config_path: str,
                  update_frequency: int = 10):
         """Base FSM class that handles common initialization and update logic"""
-        self.builder = FSMConstructor(config_path) #Save full config early to help ID issues
-        self.builder.save_full_config() 
+        self.builder = FSMConstructor(config_path)
+        # Save fresh config before building system
+        self.builder.save_full_config()
         self.fsm, self.pm, self.tm, self.mqtt = (self.builder
             .build_points()
             .build_states_manager()

@@ -1,7 +1,6 @@
 from typing import Dict, NamedTuple, Protocol, Optional
 from datetime import datetime
 from values import Value, Discrete_Value,Continuous_Value
-from points_messenger import PointsMessenger
 
 class PublishInfo(NamedTuple):
     name: str

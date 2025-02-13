@@ -120,6 +120,8 @@ class FSMConstructor:
 
     def save_full_config(self, filename: str = "full_config.json"):
         """Save full configuration to file"""
+        # Rebuild config to capture any changes to underlying files
+        self.config = FSMConfiguration(self.config._config_path)
         self.config.save_full_config(filename)
 
 
