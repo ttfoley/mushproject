@@ -1,6 +1,5 @@
 from typing import Dict,Sequence
-
-from points_manager import Points_Manager,Active_Points_Manager
+from points_core import PointsRegistry
 from states import State,States_Manager
 import time
 
@@ -19,18 +18,15 @@ being weird so you don't actually know the state of the equipment and how long i
 
 class Constraint:
     """
-    Satisfied or not. Base class for time constaint and eventually other constraints.
+    Satisfied or not. Base class for time constraint and eventually other constraints.
     Note the definition of the constraint doesn't include the current state, so it can't be evaluated without it.
     This is intentional, I want this be the schema for constraints, and defer the actual evaluation.
-    IMPORTANT: At time of constraint declaration, the value may not be in the surveyor, as in the case of "Virtual Pints" attached to the FSM.
-    I wanted satisfied to be a property, but it needs the current state to be passed in.
-    What about values that are supposed to remain strings?
     """
-    def __init__(self, points_manager: Points_Manager, definition: dict):
-        self.pm = points_manager
+    def __init__(self, registry: PointsRegistry, definition: dict):
+        self.registry = registry
         self._definition = definition
         self._converted_comparand = self._convert_value(definition['comparand'])
-        self.last_eval = None  # Initialize last_eval
+        self.last_eval = None
     
     @property
     def comparator(self):
@@ -62,18 +58,15 @@ class Constraint:
         self._converted_comparand = self._convert_value(new_comparand)
         self._definition['comparand'] = new_comparand
     
-    def update_points_manager(self, new_pm: Points_Manager):
-        self.pm = new_pm
-
     @property
     def value_exists(self)->bool:
-        return self.pm.value_exists(self.value_uuid)
+        return self.registry.value_exists(self.value_uuid)
     
     def eval_string(self) -> str:
         if not self.value_exists:
-            raise ValueError(f"Value {self.value_uuid} does not exist in the surveyor.")
+            raise ValueError(f"Value {self.value_uuid} does not exist in registry.")
         
-        point = self.pm.get_point(self.value_uuid)
+        point = self.registry.get_point(self.value_uuid)
         val = self._convert_value(point.value)
         
         if val is None:
@@ -81,12 +74,11 @@ class Constraint:
         
         return f"{str(val)} {self.comparator} {self.comparand}"
     
-
     def satisfied(self) -> bool:
         if not self.value_exists:
             raise ValueError(f"Value {self.value_uuid} does not exist in the surveyor.")
         
-        point = self.pm.get_point(self.value_uuid)
+        point = self.registry.get_point(self.value_uuid)
         val = self._convert_value(point.value)
         
         if val is None:
@@ -120,7 +112,6 @@ class Constraint:
         }
         return result
 
-    
 class Constraint_Group:
     """
     Combined multiple constraints together, ANDs them (all must be true.)
@@ -131,10 +122,6 @@ class Constraint_Group:
         self.priority = priority
         self.description = description
         self.last_eval = None
-
-    def update_points_manager(self, new_pm: Points_Manager):
-        for constraint in self.constraints:
-            constraint.update_points_manager(new_pm)
 
     @property
     def satisfied(self)->bool:
@@ -164,10 +151,6 @@ class Transition:
         self.to_state = to_state.name
         self.constraint_groups = constraint_groups
         self.last_eval = None
-
-    def update_points_manager(self, new_pm: Points_Manager):
-        for group in self.constraint_groups:
-            group.update_points_manager(new_pm)
 
     def add_constraint_group(self,CG:Constraint_Group):
         #This isn't a very robust check, but it's better than nothing. Should have __equal__ defined for Constraint_Group.
@@ -200,7 +183,7 @@ class Transition:
         }
         return active
 
-def build_transition(from_state: State, to_state: State, transition_config: dict, PM: Points_Manager) -> Transition:
+def build_transition(from_state: State, to_state: State, transition_config: dict, registry: PointsRegistry) -> Transition:
     transition = Transition(from_state, to_state, [])
     for cg_config in transition_config['constraint_groups']:
         constraints = []
@@ -208,7 +191,7 @@ def build_transition(from_state: State, to_state: State, transition_config: dict
             constraints.append(build_constraint(
                 constraint_config['definition']['id'],
                 constraint_config,
-                PM
+                registry
             ))
         constraint_group = Constraint_Group(
             constraints=constraints,
@@ -218,15 +201,14 @@ def build_transition(from_state: State, to_state: State, transition_config: dict
         transition.add_constraint_group(constraint_group)
     return transition
 
-def build_constraint(constraint_id:int,constraint_config:dict,PM:Points_Manager)->Constraint:
-    #TODO Want to handle different kinds of constraints with different config structures.
-    return Constraint(PM, constraint_config['definition'])
+def build_constraint(constraint_id: int, constraint_config: dict, registry: PointsRegistry) -> Constraint:
+    return Constraint(registry, constraint_config['definition'])
 
 class Transitions_Manager:
-    def __init__(self, transitions_config: dict, SM: States_Manager, PM: Points_Manager):
+    def __init__(self, transitions_config: dict, SM: States_Manager, registry: PointsRegistry):
         self.transitions_config = transitions_config
         self.SM = SM
-        self.PM = PM
+        self.registry = registry
         self.build_from_config(transitions_config)
 
     def next_state(self, cur_state: State) -> State:
@@ -278,7 +260,7 @@ class Transitions_Manager:
                     self.SM.get_state(from_state), 
                     self.SM.get_state(to_state), 
                     transition_config, 
-                    self.PM
+                    self.registry
                 )
                 self.transitions[from_state][to_state] = transition
                 
@@ -287,13 +269,6 @@ class Transitions_Manager:
                 if from_state not in self.transitions:
                     self.transitions[from_state] = {}
                 self.transitions[from_state].update(to_states)
-
-    def update_points_manager(self, new_pm: Points_Manager):
-        #you better be using an Active_Points_Manager
-        assert isinstance(new_pm, Active_Points_Manager)
-        for transitions in self.transitions.values():
-            for transition in transitions.values():
-                transition.update_points_manager(new_pm)
 
     
 
