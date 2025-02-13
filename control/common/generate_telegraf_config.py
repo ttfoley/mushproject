@@ -61,8 +61,7 @@ def generate_mqtt_state_config(config_path: str, driver_name: str) -> str:
   [[inputs.mqtt_consumer.topic_parsing]]
     topic = "mush/drivers/{driver_name}/status/+"
     measurement = "{driver_name}_state"
-    [inputs.mqtt_consumer.topic_parsing.tags]
-    metric = "_1"  # captures state or state_time
+    tags = {{ metric = "_1" }}  # Inline table syntax
 """
     
     # Validate before returning
