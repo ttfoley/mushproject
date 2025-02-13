@@ -3,6 +3,17 @@ import os
 import sys
 from pathlib import Path
 from utils import find_project_root
+import toml
+from io import StringIO
+
+def validate_toml(config_str: str) -> bool:
+    """Validate TOML syntax"""
+    try:
+        toml.loads(config_str)
+        return True
+    except toml.TomlDecodeError as e:
+        print(f"Invalid TOML: {e}")
+        return False
 
 def generate_mqtt_state_config(config_path: str, driver_name: str) -> str:
     """Generate Telegraf MQTT config for a specific driver's state monitoring"""
@@ -50,10 +61,14 @@ def generate_mqtt_state_config(config_path: str, driver_name: str) -> str:
   [[inputs.mqtt_consumer.topic_parsing]]
     topic = "mush/drivers/{driver_name}/status/+"
     measurement = "{driver_name}_state"
-    tags = {{
-      "metric" = "_1"  # captures state or state_time
-    }}
+    [inputs.mqtt_consumer.topic_parsing.tags]
+    metric = "_1"  # captures state or state_time
 """
+    
+    # Validate before returning
+    if not validate_toml(config):
+        raise ValueError("Generated invalid TOML config")
+        
     return config
 
 
