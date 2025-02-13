@@ -2,7 +2,7 @@
   "settings": {
     "driver": {
       "initial_state": "off",
-      "name": "temperature_control",
+      "name": "temperature_driver",
       "needs_governor": true
     },
     "mqtt": {
@@ -10,7 +10,7 @@
       "password": "password",
       "broker": "192.168.1.17",
       "port": 1883,
-      "client_id": "temperature_control_driver"
+      "client_id": "temperature_driver"
     },
     "points": {
       "publish": {
@@ -412,11 +412,11 @@
       }
     },
     "drivers": {
-      "temperature_control": {
+      "temperature_driver": {
         "status": {
           "state": {
-            "addr": "mush/drivers/temperature_control/status/state",
-            "UUID": 18,
+            "addr": "mush/drivers/temperature_driver/status/state",
+            "UUID": 21,
             "value_type": "discrete",
             "valid_values": [
               "off",
@@ -426,8 +426,8 @@
             "description": "driver state"
           },
           "state_time": {
-            "addr": "mush/drivers/temperature_control/status/state_time",
-            "UUID": 19,
+            "addr": "mush/drivers/temperature_driver/status/state_time",
+            "UUID": 22,
             "value_type": "continuous",
             "valid_range": {
               "lower": 0,
@@ -438,8 +438,8 @@
         },
         "command": {
           "state": {
-            "addr": "mush/drivers/temperature_control/command/state",
-            "UUID": 20,
+            "addr": "mush/drivers/temperature_driver/command/state",
+            "UUID": 23,
             "value_type": "discrete",
             "valid_values": [
               "off",
