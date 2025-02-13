@@ -131,3 +131,23 @@ class PointsMessenger:
             if (now - time_requested).total_seconds() >= point.retry_interval:
                 self.publish_point(point, force=True)
 
+
+class MonitoredPoint:
+    """Point that needs periodic publishing"""
+    def __init__(self, point: Writable_Point, messenger: 'PointsMessenger'):
+        self.point = point
+        self.messenger = messenger
+        self._last_publish = datetime.now()
+    
+    def publish(self, force: bool = False):
+        self.point.pre_publish()
+        self.messenger.publish_point(self.point, force=force)
+        if force:
+            self._last_publish = datetime.now()
+    
+    def check_republish(self):
+        now = datetime.now()
+        time_since_publish = (now - self._last_publish).total_seconds()
+        if time_since_publish >= self.point.republish_frequency:
+            self.publish(force=True)
+
