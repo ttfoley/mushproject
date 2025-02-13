@@ -10,7 +10,7 @@ class FSMRunner:
         self.builder = FSMConstructor(config_path) #Save full config early to help ID issues
         self.builder.save_full_config() 
         self.fsm, self.pm, self.tm, self.mqtt = (self.builder
-            .build_points_manager()
+            .build_points()
             .build_states_manager()
             .build_transitions_manager()
             .add_mqtt()

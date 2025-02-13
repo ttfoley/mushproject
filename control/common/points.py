@@ -1,7 +1,7 @@
 from typing import Dict, NamedTuple, Protocol, Optional
 from datetime import datetime
 from values import Value, Discrete_Value,Continuous_Value
-
+from points_messenger import PointsMessenger
 
 class PublishInfo(NamedTuple):
     name: str
@@ -237,6 +237,10 @@ class FSM_StateTimePoint(Writeable_Continuous_Point):
         super().__init__(value_class, **kwargs)
         self._time_provider = time_provider
         
+    def set_time_provider(self, provider):
+        """Set the time provider safely"""
+        self._time_provider = provider
+        
     @property
     def value(self):
         """Always return fresh time from provider"""
@@ -252,15 +256,15 @@ class FSM_StateTimePoint(Writeable_Continuous_Point):
 
 class MonitoredPoint:
     """Point that needs periodic publishing"""
-    def __init__(self, point: Writable_Point, points_manager):
+    def __init__(self, point: Writable_Point, messenger: PointsMessenger):
         self.point = point
-        self.pm = points_manager
+        self.messenger = messenger  # Use messenger instead of pm
         self._last_publish = datetime.now()
     
     def publish(self, force: bool = False):
         """Publish point value with force option"""
         self.point.pre_publish()  # Important for FSM_StateTimePoint
-        self.pm.publish_point(self.point, force=force)
+        self.messenger.publish_point(self.point, force=force)  # Use messenger
         if force:
             self._last_publish = datetime.now()
     

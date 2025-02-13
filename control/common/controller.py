@@ -1,20 +1,23 @@
 from states import State
 from transitions import Transitions_Manager
-from points_manager import Active_Points_Manager
+from points_messenger import PointsMessenger
+from points_core import PointsRegistry
 from states import States_Manager
 from fsm_monitor import FSMMonitor
 
 class ActiveFSM:
-    """FSM that requires active points manager and monitor.
+    """FSM that requires points messenger and monitor.
     Current state is type StateStatus, desired and previous states are type State."""
     def __init__(self, driver_name: str, SM: States_Manager, 
-                 PM: Active_Points_Manager,
+                 registry: PointsRegistry,
+                 messenger: PointsMessenger,
                  TM: Transitions_Manager, initial_desired_state: State):
         self.driver_name = driver_name
         self.desired_state = initial_desired_state
         self.SM = SM
-        self.states = SM.states
-        self.PM = PM
+        self.states = SM.states  
+        self.registry = registry
+        self.messenger = messenger
         self.TM = TM
         self.current_state = self.SM.get_state("unknown", "Initial state")
         self.previous_state = self.states["unknown"]
@@ -22,7 +25,7 @@ class ActiveFSM:
 
     def _create_monitor(self) -> FSMMonitor:
         """Internal helper to create monitor"""
-        return FSMMonitor(fsm=self, points_manager=self.PM)
+        return FSMMonitor(fsm=self, registry=self.registry)
 
     def _get_compatible_states(self) -> list[State]:
         """Internal helper to find states matching current control point values"""
@@ -30,7 +33,7 @@ class ActiveFSM:
         for state in self.states.values():
             matches = True
             for cp_id, desired_value in state.listed_output_pairs:
-                rb_point, _ = self.PM.get_control_point_pair(cp_id)
+                rb_point, _ = self.registry.get_control_point_pair(cp_id)
                 if rb_point.value != desired_value:
                     matches = False
                     break
@@ -78,9 +81,9 @@ class ActiveFSM:
         """Public interface to write outputs for desired state"""
         if not self.in_desired_state:
             for cp_id, output_value in self.desired_state.listed_output_pairs:
-                _, write_point = self.PM.get_control_point_pair(cp_id)
+                _, write_point = self.registry.get_control_point_pair(cp_id)
                 write_point.requested_value = output_value
-                self.PM.publish_point(write_point, force=immediately)
+                self.messenger.publish_point(write_point, force=immediately)
 
     def update_desired_state(self) -> bool:
         """Public interface to update desired state based on transitions"""

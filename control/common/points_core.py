@@ -186,16 +186,11 @@ class PointsBuilder:
             )
             control_points.append(ControlPointInfo(controller, cp_name, cp))
 
-    def _build_driver_section(self, drivers_config: dict, points_to_register: List[Point]) -> dict:
+    def _build_driver_section(self, drivers_config: dict, points_to_register: List[Point]) -> None:
         """Build driver points which have a different structure from microcontroller points"""
-        points = defaultdict(dict)
-        
         for driver_name, driver_dict in drivers_config.items():
-            points[driver_name] = defaultdict(dict)
-            
             # Build status points
             if "status" in driver_dict:
-                points[driver_name]["status"] = {}
                 for point_name, point_config in driver_dict["status"].items():
                     value = make_value(f"driver:{driver_name} status {point_name}", point_config)
                     if point_name == "state_time":
@@ -204,17 +199,12 @@ class PointsBuilder:
                     else:
                         assert isinstance(value, Discrete_Value), "state value must be Discrete_Value"
                         point = Writeable_Discrete_Point(value)
-                    points[driver_name]["status"][point_name] = point
                     points_to_register.append(point)
 
             # Build command points
             if "command" in driver_dict:
-                points[driver_name]["command"] = {}
                 for point_name, point_config in driver_dict["command"].items():
                     value = make_value(f"driver:{driver_name} command {point_name}", point_config)
                     assert isinstance(value, Discrete_Value), "command value must be Discrete_Value"
                     point = make_command_point(value)
-                    points[driver_name]["command"][point_name] = point
-                    points_to_register.append(point)
-
-        return points 
+                    points_to_register.append(point) 
