@@ -53,7 +53,7 @@ class FSMConstructor:
         return self
 
     def add_mqtt(self):
-        """Create MQTT handler and points messenger"""
+        """Create and connect MQTT handler"""
         mqtt_settings = self.config.settings.get("mqtt", {})
         if not all(key in mqtt_settings for key in ["broker", "port", "username", "password", "client_id"]):
             raise ValueError("Missing required MQTT settings")
@@ -69,16 +69,18 @@ class FSMConstructor:
             password=mqtt_settings["password"],
             client_id=mqtt_settings["client_id"]
         )
-        
-        # Create points messenger with registry
+        return self
+
+    def build_points_messenger(self):
+        """Create points messenger with registry and MQTT handler"""
+        if not hasattr(self, 'mqtt_handler'):
+            raise RuntimeError("Call add_mqtt() before building points messenger")
+            
         self.PM = PointsMessenger(
             registry=self.registry,
             mqtt_handler=self.mqtt_handler,
             settings=self.config.settings
         )
-        
-        # Connect after messenger is setup
-        self.mqtt_handler.connect()
         
         return self
 

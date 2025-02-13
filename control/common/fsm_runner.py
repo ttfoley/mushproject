@@ -1,6 +1,7 @@
 from datetime import datetime
 from mqtt_handler import MQTTHandler
 from construction import FSMConstructor
+import time
 
 class FSMRunner:
     def __init__(self, 
@@ -12,8 +13,9 @@ class FSMRunner:
         self.fsm, self.pm, self.tm, self.mqtt = (self.builder
             .build_points()
             .build_states_manager()
-            .build_transitions_manager()
             .add_mqtt()
+            .build_points_messenger()
+            .build_transitions_manager()
             .build_active_fsm()
             .build())
 
@@ -25,13 +27,40 @@ class FSMRunner:
     def _initial_setup(self):
         """Initial FSM setup"""
         assert isinstance(self.mqtt, MQTTHandler), "MQTT handler not properly initialized"
-        if not self.mqtt.client.is_connected():
-            self.mqtt.connect()  # Ensure MQTT is connected
-        self.mqtt.loop_start()
+        
+        # Ensure MQTT is connected and ready
+        self._ensure_mqtt_connection()
+        
         self.fsm.print_update()
         self.fsm.write_desired_state(immediately=True)
         self.fsm.update_state()
         self.fsm.print_update()
+
+    def _ensure_mqtt_connection(self, timeout: int = 10):
+        """Ensure MQTT is connected and ready for communication
+        
+        Args:
+            timeout: Maximum time in seconds to wait for connection
+            
+        Raises:
+            RuntimeError: If connection cannot be established within timeout
+        """
+        # Start MQTT network loop thread first - this handles all async operations
+        # including connection process, callbacks, and message processing
+        self.mqtt.loop_start()
+        
+        # Now initiate connection if needed
+        if not self.mqtt.client.is_connected():
+            self.mqtt.connect()  # Initiate connection attempt
+            time.sleep(0.1)  # Give connection a moment to start
+            
+            # Wait for connection to be established (with timeout)
+            start_time = datetime.now()
+            while not self.mqtt.client.is_connected():
+                if (datetime.now() - start_time).total_seconds() > timeout:
+                    self.mqtt.loop_stop()
+                    raise RuntimeError(f"MQTT connection timeout after {timeout} seconds")
+                time.sleep(0.1)
 
     def update(self):
         """Single iteration of FSM update loop"""
@@ -67,11 +96,13 @@ class FSMRunner:
 
     def run(self):
         """Main run loop"""
-        self._initial_setup()
         try:
+            self._initial_setup()
             while True:
                 self.update()
         except KeyboardInterrupt:
             print("\nShutting down...")
+        except RuntimeError as e:
+            print(f"\nError during setup or run: {e}")
         finally:
             self.mqtt.loop_stop()
