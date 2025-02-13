@@ -64,7 +64,7 @@ void printWiFiStatus();
 #define MAX_MQTT_ATTEMPTS 10      // total = attempt*delay
 #define MQTT_ATTEMPT_DELAY 6000  // 
 #define DELAY_AFTER_SENSOR_POST 100 //Delay to give power time to stabilize after sensor post
-#define DELAY_BETWEEN_VALUES 50  // 50ms between individual value publishes
+#define DELAY_BETWEEN_VALUES 100  // 50ms between individual value publishes
 
 //Add near other constants at top of file
 #define WIFI_DURATION_POST_INTERVAL 30000
