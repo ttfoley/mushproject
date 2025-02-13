@@ -33,7 +33,7 @@ class PointsMessenger:
         self._pending_publishes = {}
 
         # Register with MQTT handler
-        mqtt_handler.register_connect_handler(self._subscribe_points)
+        self._publisher.register_connect_handler(self._subscribe_points)
         
         # Initialize MQTT monitoring and publishing
         self._initialize_points()
@@ -117,7 +117,7 @@ class PointsMessenger:
         
         # Check regular periodic publishes
         for topic in self._published_points:
-            point = self.get_point_by_topic(topic)
+            point = self.registry.get_point_by_topic(topic)
             if isinstance(point, Writable_Point):
                 point.pre_publish()  # This will update time_in_state for FSM_StateTimePoint
                 time_since_publish = (now - point._time_last_published).total_seconds()
@@ -126,30 +126,8 @@ class PointsMessenger:
 
         # Check pending publishes for retry using point's retry interval
         for topic, (value, time_requested) in list(self._pending_publishes.items()):
-            point = self.get_point_by_topic(topic)
+            point = self.registry.get_point_by_topic(topic)
             assert isinstance(point, Writable_Point)
             if (now - time_requested).total_seconds() >= point.retry_interval:
                 self.publish_point(point, force=True)
 
-    # Delegate lookup methods to registry
-    def get_point(self, uuid: int) -> Point:
-        return self.registry.get_point(uuid)
-
-    def get_point_by_topic(self, topic: str) -> Point:
-        return self.registry.get_point_by_topic(topic)
-
-    def get_control_point_pair(self, cp_id: str):
-        return self.registry.get_control_point_pair(cp_id)
-
-    @property
-    def control_points(self):
-        return self.registry.control_points
-
-    def value_exists(self, uuid: int) -> bool:
-        return self.registry.value_exists(uuid)
-
-    def register_points(self, points: List[Point]):
-        """Register points for backward compatibility"""
-        for point in points:
-            if isinstance(point, Writable_Point):
-                self._published_points.add(point.addr)
