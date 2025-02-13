@@ -44,10 +44,8 @@ def generate_mqtt_state_config(config_path: str, driver_name: str) -> str:
   data_type = "string"
 
   # Map state strings to numeric values for Grafana
-  [inputs.mqtt_consumer.string_fields]
-    state = {{
-{chr(10).join(f'      "{state}" = "{num}"' for state, num in state_mapping.items())}
-    }}
+  [inputs.mqtt_consumer.string_fields.state]
+{chr(10).join(f'    "{state}" = "{num}"' for state, num in state_mapping.items())}
 
   [[inputs.mqtt_consumer.topic_parsing]]
     topic = "mush/drivers/{driver_name}/status/+"
@@ -69,8 +67,10 @@ if __name__ == "__main__":
     driver_name = driver_path.name.replace("_control", "").replace("_driver", "")
     config_path = driver_path / "config" / "full_config.json"
     
-    # Find project root by looking for docker directory
+    # Get project root
     project_root = find_project_root()
+
+    # Build output path
     telegraf_output_path = project_root / "docker" / "config" / "telegraf" / "telegraf.d" / f"{driver_name}_states.conf"
     
     # Generate and write config
