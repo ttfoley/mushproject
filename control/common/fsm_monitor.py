@@ -40,8 +40,8 @@ class FSMMonitor:
         self.reset_time()
         self._state_point.requested_value = self.fsm.current_state.name
         self._time_point.requested_value = 0
-        self._state_point.publish(force=True)
-        self._time_point.publish(force=True)
+        self._state_point.publish_point(force=True)
+        self._time_point.publish_point(force=True)
 
     def update(self):
         """Update time in state and handle periodic publishing"""

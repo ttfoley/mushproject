@@ -33,9 +33,13 @@ class MQTTHandler():
         """MQTT callback when message received"""
         topic = message.topic
         value = message.payload.decode()
+        print(f"MQTT Handler received message - topic: {topic}, value: {value}")
         
         if topic in self._message_handlers:
+            print(f"Found handler for topic: {topic}")
             self._message_handlers[topic](topic, value)
+        else:
+            print(f"No handler registered for topic: {topic}")
 
     def _on_connect(self, client, userdata, flags, rc, properties=None):
         """Called when client connects to broker"""

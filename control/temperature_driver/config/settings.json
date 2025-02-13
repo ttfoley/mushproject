@@ -1,7 +1,7 @@
 {
     "driver":{
         "initial_state":"off",
-        "name": "temperature_control",
+        "name": "temperature_driver",
         "needs_governor": true
     },
     "mqtt":{
@@ -9,7 +9,7 @@
         "password": "password",
         "broker": "192.168.1.17",
         "port": 1883,
-        "client_id": "temperature_control_driver"
+        "client_id": "temperature_driver"
     },
     "points": {
         "publish": {

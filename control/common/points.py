@@ -255,7 +255,7 @@ class FSM_StateTimePoint(Writeable_Continuous_Point):
 
 class PointPublisher(Protocol):
     """Interface for publishing points"""
-    def publish(self, point: 'Writable_Point', force: bool = False) -> None: ...
+    def publish_point(self, point: 'Writable_Point', force: bool = False) -> None: ...
 
 class MonitoredPoint:
     """Point that needs periodic publishing"""
@@ -264,10 +264,10 @@ class MonitoredPoint:
         self.messenger = publisher  # Could be any class that implements PointPublisher
         self._last_publish = datetime.now()
     
-    def publish(self, force: bool = False):
+    def publish_point(self, force: bool = False):
         """Publish point value with force option"""
         self.point.pre_publish()  # Important for FSM_StateTimePoint
-        self.messenger.publish(self.point, force=force)  # Use messenger
+        self.messenger.publish_point(self.point, force=force)  # Use messenger
         if force:
             self._last_publish = datetime.now()
     
@@ -276,7 +276,7 @@ class MonitoredPoint:
         now = datetime.now()
         time_since_publish = (now - self._last_publish).total_seconds()
         if time_since_publish >= self.point.republish_frequency:
-            self.publish(force=True)
+            self.publish_point(force=True)
 
     @property
     def requested_value(self):

@@ -425,7 +425,7 @@
             ],
             "description": "driver state"
           },
-          "time_in_state": {
+          "state_time": {
             "addr": "mush/drivers/temperature_control/status/state_time",
             "UUID": 19,
             "value_type": "continuous",

@@ -61,6 +61,7 @@ class PointsMessenger:
         # Add driver command point if governor needed
         if self._settings["driver"].get("needs_governor", False):
             command_topic = f"mush/drivers/{self.driver_name}/command/state"
+            print(f"Setting up command topic subscription: {command_topic}")
             points_to_monitor.add(command_topic)
 
         return points_to_monitor
@@ -100,6 +101,7 @@ class PointsMessenger:
 
     def handle_mqtt_message(self, topic: str, value: str):
         """Handle incoming MQTT message"""
+        print(f"MQTT message received - topic: {topic}, value: {value}")
         point = self.registry.get_point_by_topic(topic)
         point.value_class.value = value
 
@@ -130,24 +132,4 @@ class PointsMessenger:
             assert isinstance(point, Writable_Point)
             if (now - time_requested).total_seconds() >= point.retry_interval:
                 self.publish_point(point, force=True)
-
-
-class MonitoredPoint:
-    """Point that needs periodic publishing"""
-    def __init__(self, point: Writable_Point, messenger: 'PointsMessenger'):
-        self.point = point
-        self.messenger = messenger
-        self._last_publish = datetime.now()
-    
-    def publish(self, force: bool = False):
-        self.point.pre_publish()
-        self.messenger.publish_point(self.point, force=force)
-        if force:
-            self._last_publish = datetime.now()
-    
-    def check_republish(self):
-        now = datetime.now()
-        time_since_publish = (now - self._last_publish).total_seconds()
-        if time_since_publish >= self.point.republish_frequency:
-            self.publish(force=True)
 
