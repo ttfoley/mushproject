@@ -36,9 +36,7 @@ def generate_mqtt_state_config(config_path: str, driver_name: str) -> str:
 
     # Generate Telegraf config
     config = f"""
-# {driver_name} Driver State Monitoring
 [[inputs.mqtt_consumer]]
-  ## Unique name for this consumer
   name_suffix = "_{driver_name}_states"
   
   servers = ["tcp://localhost:1883"]
@@ -47,8 +45,8 @@ def generate_mqtt_state_config(config_path: str, driver_name: str) -> str:
   
   ## Only subscribe to this specific driver's state topics
   topics = [
-    "mush/drivers/{driver_name}/status/state",
-    "mush/drivers/{driver_name}/status/state_time"
+    "mush/drivers/{driver_name}_driver/status/state",
+    "mush/drivers/{driver_name}_driver/status/state_time"
   ]
 
   data_format = "value"
@@ -59,9 +57,10 @@ def generate_mqtt_state_config(config_path: str, driver_name: str) -> str:
 {chr(10).join(f'    "{state}" = "{num}"' for state, num in state_mapping.items())}
 
   [[inputs.mqtt_consumer.topic_parsing]]
-    topic = "mush/drivers/{driver_name}/status/+"
+    topic = "mush/drivers/{driver_name}_driver/status/+"
     measurement = "{driver_name}_state"
-    tags = {{ metric = "_1" }}  # Inline table syntax
+    tag_keys = ["metric"]
+    tag_values = ["_1"]
 """
     
     # Validate before returning
