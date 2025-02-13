@@ -1,27 +1,35 @@
 from datetime import datetime
-from points import  MonitoredPoint
+from points import MonitoredPoint, Writable_Point, FSM_StateTimePoint
+from points_core import PointsRegistry
 
 
 class FSMMonitor:
     """Monitors FSM state and manages state/time points.
-    Requires that the points already exist in the points manager."""
-    def __init__(self, fsm, points_manager):
+    Requires that the points already exist in the registry."""
+    def __init__(self, fsm, registry: PointsRegistry):
         self.fsm = fsm
-        self.pm = points_manager
+        self.registry = registry
         self._time_started = datetime.now()
         
-        # Get points directly from points manager
-        time_point = self.pm.state_time_point
-        time_point._time_provider = self
+        # Get points from registry and validate types
+        time_point = self.registry.state_time_point
+        state_point = self.registry.state_point
+        
+        if not isinstance(time_point, FSM_StateTimePoint):
+            raise TypeError("state_time_point must be FSM_StateTimePoint")
+        if not isinstance(state_point, Writable_Point):
+            raise TypeError("state_point must be Writable_Point")
+            
+        time_point.set_time_provider(self)
         
         # Create monitored points
         """
-        I know it might seem a little funny having these points exist only here with the PM never knowing
-        about them, but it makes since because 1) the PM knows about the points they're built on and 2)
+        I know it might seem a little funny having these points exist only here with the registry never knowing
+        about them, but it makes since because 1) the registry knows about the points they're built on and 2)
         this keeps them isolated so only their owner will ever be able to change them.
         """
-        self._state_point = MonitoredPoint(self.pm.state_point, points_manager)
-        self._time_point = MonitoredPoint(time_point, points_manager)
+        self._state_point = MonitoredPoint(state_point, self.fsm.messenger)
+        self._time_point = MonitoredPoint(time_point, self.fsm.messenger)
 
     def reset_time(self):
         """Reset the time started to now."""
@@ -32,8 +40,8 @@ class FSMMonitor:
         self.reset_time()
         self._state_point.requested_value = self.fsm.current_state.name
         self._time_point.requested_value = 0
-        self._state_point.publish(force=True)
-        self._time_point.publish(force=True)
+        self._state_point.publish_point(force=True)
+        self._time_point.publish_point(force=True)
 
     def update(self):
         """Update time in state and handle periodic publishing"""

@@ -2,7 +2,6 @@ from typing import Dict, NamedTuple, Protocol, Optional
 from datetime import datetime
 from values import Value, Discrete_Value,Continuous_Value
 
-
 class PublishInfo(NamedTuple):
     name: str
     uuid: int
@@ -237,6 +236,10 @@ class FSM_StateTimePoint(Writeable_Continuous_Point):
         super().__init__(value_class, **kwargs)
         self._time_provider = time_provider
         
+    def set_time_provider(self, provider):
+        """Set the time provider safely"""
+        self._time_provider = provider
+        
     @property
     def value(self):
         """Always return fresh time from provider"""
@@ -250,17 +253,21 @@ class FSM_StateTimePoint(Writeable_Continuous_Point):
             self.requested_value = self._time_provider.get_time_in_state()
 
 
+class PointPublisher(Protocol):
+    """Interface for publishing points"""
+    def publish_point(self, point: 'Writable_Point', force: bool = False) -> None: ...
+
 class MonitoredPoint:
     """Point that needs periodic publishing"""
-    def __init__(self, point: Writable_Point, points_manager):
+    def __init__(self, point: 'Writable_Point', publisher: PointPublisher):
         self.point = point
-        self.pm = points_manager
+        self.messenger = publisher  # Could be any class that implements PointPublisher
         self._last_publish = datetime.now()
     
-    def publish(self, force: bool = False):
+    def publish_point(self, force: bool = False):
         """Publish point value with force option"""
         self.point.pre_publish()  # Important for FSM_StateTimePoint
-        self.pm.publish_point(self.point, force=force)
+        self.messenger.publish_point(self.point, force=force)  # Use messenger
         if force:
             self._last_publish = datetime.now()
     
@@ -269,7 +276,7 @@ class MonitoredPoint:
         now = datetime.now()
         time_since_publish = (now - self._last_publish).total_seconds()
         if time_since_publish >= self.point.republish_frequency:
-            self.publish(force=True)
+            self.publish_point(force=True)
 
     @property
     def requested_value(self):

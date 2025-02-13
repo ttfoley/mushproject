@@ -19,5 +19,8 @@
   "mush/controllers/C2/sensors/status/wifi_uptime": 0,
   "mush/drivers/temperature_control/command/state": 20,
   "mush/drivers/temperature_control/status/state": 18,
-  "mush/drivers/temperature_control/status/state_time": 19
+  "mush/drivers/temperature_control/status/state_time": 19,
+  "mush/drivers/temperature_driver/command/state": 23,
+  "mush/drivers/temperature_driver/status/state": 21,
+  "mush/drivers/temperature_driver/status/state_time": 22
 }

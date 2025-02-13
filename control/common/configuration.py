@@ -52,7 +52,7 @@ class BaseConfiguration:
                     "valid_values": list(self._states_config.keys()) + ["unknown"],
                     "description": "driver state"
                 },
-                "time_in_state": {
+                "state_time": {
                     "addr": f"{base_topic}/status/state_time", 
                     "UUID": time_uuid,
                     "value_type": "continuous",
@@ -137,7 +137,6 @@ class FSMConfiguration(BaseConfiguration):
     def __init__(self, config_path: str):
         super().__init__(config_path)
         self._load_transitions_config()
-        
     def _load_transitions_config(self):
         self._transitions_config = json.load(open(os.path.join(self._config_path, "transitions.json")))
 

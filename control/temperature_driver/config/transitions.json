@@ -9,7 +9,7 @@
                             {
                                 "definition": {
                                     "id": 0,
-                                    "value_uuid": 19,
+                                    "value_uuid": 22,
                                     "comparand": 0,
                                     "comparator": ">=",
                                     "units": "float"
@@ -33,7 +33,7 @@
                             {
                                 "definition": {
                                     "id": 0,
-                                    "value_uuid": 19,
+                                    "value_uuid": 22,
                                     "comparand": 5,
                                     "comparator": ">=",
                                     "units": "float"
@@ -44,7 +44,7 @@
                             {
                                 "definition": {
                                     "id": 1,
-                                    "value_uuid": 20,
+                                    "value_uuid": 23,
                                     "comparand": "on",
                                     "comparator": "==",
                                     "units": "str"
@@ -68,7 +68,7 @@
                             {
                                 "definition": {
                                     "id": 0,
-                                    "value_uuid": 19,
+                                    "value_uuid": 22,
                                     "comparand": 5,
                                     "comparator": ">=",
                                     "units": "float"
@@ -79,7 +79,7 @@
                             {
                                 "definition": {
                                     "id": 1,
-                                    "value_uuid": 20,
+                                    "value_uuid": 23,
                                     "comparand": "off",
                                     "comparator": "==",
                                     "units": "str"
