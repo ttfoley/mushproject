@@ -207,6 +207,23 @@ void loop() {
     case WIFI_CONNECTING:
       static uint8_t wifi_attempts = 0;
       static unsigned long last_wifi_attempt = 0;
+      static wl_status_t last_wifi_status = WL_DISCONNECTED;
+      
+      // Print status changes
+      if (WiFi.status() != last_wifi_status) {
+          Serial.print("WiFi status changed: ");
+          switch(WiFi.status()) {
+              case WL_CONNECTED: Serial.println("CONNECTED"); break;
+              case WL_DISCONNECTED: Serial.println("DISCONNECTED"); break;
+              case WL_IDLE_STATUS: Serial.println("IDLE"); break;
+              case WL_NO_SSID_AVAIL: Serial.println("NO SSID"); break;
+              case WL_SCAN_COMPLETED: Serial.println("SCAN COMPLETE"); break;
+              case WL_CONNECT_FAILED: Serial.println("CONNECT FAILED"); break;
+              case WL_CONNECTION_LOST: Serial.println("CONNECTION LOST"); break;
+              default: Serial.println("UNKNOWN");
+          }
+          last_wifi_status = WiFi.status();
+      }
       
       if (WiFi.status() == WL_CONNECTED) {
         printWiFiStatus();
@@ -345,7 +362,13 @@ bool connect_WiFi() {
     printWiFiStatus();
     return true;
   }
-  WiFi.disconnect();
+      // Only disconnect if in a bad state
+  if (WiFi.status() != WL_DISCONNECTED) {
+        Serial.print("Disconnecting from state: ");
+        Serial.println(WiFi.status());
+        WiFi.disconnect();
+        delay(1000);  // 500ms for safer disconnect
+  }
   Serial.println("Connecting to WiFi...");
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   return (WiFi.status() == WL_CONNECTED);
