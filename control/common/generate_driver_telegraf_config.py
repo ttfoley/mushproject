@@ -5,13 +5,7 @@ from typing import Dict, Any
 from .utils import find_project_root
 
 def generate_driver_telegraf_config(driver_dir: Path) -> str:
-    """
-    Generate telegraf config for a driver based on its full_config.json.
-    Args:
-        driver_dir: Path to driver directory (e.g. temperature_driver)
-    Returns:
-        Formatted TOML config string
-    """
+    """Generate minimal telegraf config for driver state monitoring"""
     # Load driver config
     config_path = driver_dir / "config" / "full_config.json"
     with open(config_path) as f:
@@ -19,16 +13,8 @@ def generate_driver_telegraf_config(driver_dir: Path) -> str:
 
     driver_name = config["settings"]["driver"]["name"]
     mqtt_config = config["settings"]["mqtt"]
-
-    # Get state point info
     state_point = config["points"]["drivers"][driver_name]["status"]["state"]
     state_addr = state_point["addr"]
-    valid_values = state_point["valid_values"]
-
-    # Create value mappings for state
-    # Map unknown->0, off->1, on->2 etc
-    value_mappings = {val: i for i, val in enumerate(valid_values)}
-    mapping_strings = [f'"{val}" = {i}' for val, i in value_mappings.items()]
 
     # Generate TOML config
     config_lines = [
@@ -44,13 +30,10 @@ def generate_driver_telegraf_config(driver_dir: Path) -> str:
         '  data_format = "value"',
         '  data_type = "string"',
         '',
-        '  [[inputs.mqtt_consumer.topic_parsing]]',
-        f'    topic = "{state_addr}"',
-        '    measurement = "state"',
-        '    tags = {"driver" = "' + driver_name + '"}',
-        '',
         '  [inputs.mqtt_consumer.string_mappings]',
-        *[f'    {mapping}' for mapping in mapping_strings]
+        '    "off" = 0',
+        '    "on" = 1', 
+        '    "unknown" = 2'
     ]
 
     return '\n'.join(config_lines)
