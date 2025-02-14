@@ -33,13 +33,18 @@ class MQTTHandler():
         """MQTT callback when message received"""
         topic = message.topic
         value = message.payload.decode()
-        print(f"MQTT Handler received message - topic: {topic}, value: {value}")
+        
+        # Only print non-readback messages
+        if "readback" not in topic:
+            print(f"MQTT Handler received message - topic: {topic}, value: {value}")
         
         if topic in self._message_handlers:
-            print(f"Found handler for topic: {topic}")
+            if "readback" not in topic:  # Only print debug for non-readback
+                print(f"Found handler for topic: {topic}")
             self._message_handlers[topic](topic, value)
         else:
-            print(f"No handler registered for topic: {topic}")
+            if "readback" not in topic:  # Only print debug for non-readback
+                print(f"No handler registered for topic: {topic}")
 
     def _on_connect(self, client, userdata, flags, rc, properties=None):
         """Called when client connects to broker"""
@@ -51,9 +56,14 @@ class MQTTHandler():
             print(f"Failed to connect to MQTT broker with code {rc}")
 
     def on_publish(self, client, userdata, mid, reason_code="Success", properties=None):
-        print("Message published with mid: " + str(mid))
+        # Don't print readback publishes
+        pass  # Remove the print entirely for now
 
     def publish(self, topic: str, value: Any) -> bool:
+        """Publish a message to a topic"""
+        # Only print non-readback messages
+        if "readback" not in topic:
+            print(f"MQTT Handler - Publishing to {topic}: {value}, type: {type(value)}")  # Debug
         result = self.client.publish(topic, value)
         return result[0] == 0  # Return True if successful
 

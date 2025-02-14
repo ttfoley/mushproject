@@ -66,6 +66,7 @@ class ActiveFSM:
         
         if new_state != self.current_state:
             self.current_state = new_state
+            self.monitor.on_state_change() #callback to notify monitor of state change
             return True
         else:
             self.monitor.update()
