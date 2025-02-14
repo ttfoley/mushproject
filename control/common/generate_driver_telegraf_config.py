@@ -28,12 +28,12 @@ def generate_driver_telegraf_config(driver_dir: Path) -> str:
         f'    "{state_addr}"',
         '  ]',
         '  data_format = "value"',
-        '  data_type = "string"',
+        '  data_type = "integer"',
         '',
-        '  [inputs.mqtt_consumer.string_mappings]',
-        '    "off" = 0',
-        '    "on" = 1', 
-        '    "unknown" = 2'
+        '  [inputs.mqtt_consumer.value_mapping]',
+        '    off = 0',
+        '    on = 1', 
+        '    unknown = 2'
     ]
 
     return '\n'.join(config_lines)
