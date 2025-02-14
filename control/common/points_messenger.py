@@ -83,6 +83,8 @@ class PointsMessenger:
         """Publish a point's value with retry logic"""
         now = datetime.now()
         
+        print(f"Points Messenger - Publishing to {point.addr}: {point.requested_value}")  # Debug
+        
         # Check if we need to publish
         if not force and point.value == point.requested_value:
             return
@@ -101,7 +103,8 @@ class PointsMessenger:
 
     def handle_mqtt_message(self, topic: str, value: str):
         """Handle incoming MQTT message"""
-        print(f"MQTT message received - topic: {topic}, value: {value}")
+        if "readback" not in topic:  # Only print non-readback messages
+            print(f"MQTT message received - topic: {topic}, value: {value}")
         point = self.registry.get_point_by_topic(topic)
         point.value_class.value = value
 
