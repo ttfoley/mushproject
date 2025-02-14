@@ -30,7 +30,7 @@ def generate_driver_telegraf_config(driver_dir: Path) -> str:
         '  data_format = "value"',
         '  data_type = "integer"',
         '',
-        '  [inputs.mqtt_consumer.value_mapping]',
+        '  [inputs.mqtt_consumer.field_mapping]',
         '    off = 0',
         '    on = 1', 
         '    unknown = 2'
