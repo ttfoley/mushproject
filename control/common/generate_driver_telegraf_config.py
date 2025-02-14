@@ -5,7 +5,7 @@ from typing import Dict, Any
 from .utils import find_project_root
 
 def generate_driver_telegraf_config(driver_dir: Path) -> str:
-    """Generate minimal telegraf config for driver state monitoring"""
+    """Generate telegraf config for driver state monitoring"""
     # Load driver config
     config_path = driver_dir / "config" / "full_config.json"
     with open(config_path) as f:
@@ -28,12 +28,19 @@ def generate_driver_telegraf_config(driver_dir: Path) -> str:
         f'    "{state_addr}"',
         '  ]',
         '  data_format = "value"',
-        '  data_type = "integer"',
+        '  data_type = "string"',
         '',
-        '  [inputs.mqtt_consumer.field_mapping]',
-        '    off = 0',
-        '    on = 1', 
-        '    unknown = 2'
+        '[[processors.enum]]',
+        '  namepass = ["mqtt_consumer"]',
+        '',
+        '  [[processors.enum.mapping]]',
+        '    field = "value"',
+        '    dest = "state"',
+        '    default = 0',  # fallback to unknown state',
+        '    [processors.enum.mapping.value_mappings]',
+        '      unknown = 0',
+        '      off = 1',
+        '      on = 2'
     ]
 
     return '\n'.join(config_lines)
