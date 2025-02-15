@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 from uuid_database import UUIDDatabase
+from point_address import PointAddress
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 uuid_db = UUIDDatabase()
@@ -12,11 +13,10 @@ Should be able to construct much more systematically with the new naming convent
 a given sensor value will have :/mush/controllers/controller_name/sensors/sensor_name/value_name
 and control_point will have :/mush/controllers/controller_name/control_points/CP_name/(reaback,write)
 """
-parent_addrs = {"C1":"mush/controllers/C1/","C2":"mush/controllers/C2/"}
 sensor_config = {"C1":{"sht_0":["temperature","humidity"],"dht_0":["temperature","humidity"],"scd_0":["temperature","humidity","co2"]}}
 sensor_config.update({"C2":{"status":["wifi_uptime"]}})
 CP_config = {"C2":{"CP_25":"Humidifier","CP_26":"HeatingPad","CP_32":"Light","CP_33":"VentFan","led1":"Status_LED"}}
-controllers = list(set(parent_addrs.keys()).union(sensor_config.keys(), CP_config.keys()))
+controllers = list(set(sensor_config.keys()).union(CP_config.keys()))
 #uptime is in minutes,temperature is fahrenheit, humidity is percentage, co2 is ppm
 valid_sensor_ranges = {"temperature":[0,100],"humidity":[0,100],"co2":[0,10000],"wifi_uptime":[0,1000000]}
 #This is a departure from the previous naming for cp vlaues. I think it will be more flexible in the long run.
@@ -35,7 +35,7 @@ for controller in controllers:
         for sensor_name, sensor_types in sensor_config[controller].items():
             p_C_S[sensor_name] = defaultdict(dict)
             for sensor_type in sensor_types:
-                addr = f"{parent_addrs[controller]}sensors/{sensor_name}/{sensor_type}"
+                addr = PointAddress.make_sensor_address(controller, sensor_name, sensor_type)
                 d = {}
                 d["addr"] = addr
                 d["valid_range"] = {}
@@ -53,8 +53,8 @@ for controller in controllers:
             d["readback"] = {}
             d["write"] = {}
             
-            rb_addr = f"{parent_addrs[controller]}control_points/{cp_name}/readback"
-            wr_addr = f"{parent_addrs[controller]}control_points/{cp_name}/write"
+            rb_addr = PointAddress.make_control_point_address(controller, cp_name, "readback")
+            wr_addr = PointAddress.make_control_point_address(controller, cp_name, "write")
             
             d["readback"]["addr"] = rb_addr
             d["write"]["addr"] = wr_addr
