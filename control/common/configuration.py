@@ -1,8 +1,8 @@
 import json
 import os
 from typing import Dict, Any, Optional
-from control.common.config.uuid_database import UUIDDatabase
-from control.common.config.point_address import PointAddress
+from config.uuid_database import UUIDDatabase
+from config.point_address import PointAddress
 
 class BaseConfiguration:
     """Base configuration needed for transitions"""
