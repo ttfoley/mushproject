@@ -1,5 +1,71 @@
 {
     "microcontrollers": {
+        "C1": {
+            "sensors": {
+                "sht_0": {
+                    "temperature": {
+                        "addr": "mush/controllers/C1/sensors/sht_0/temperature",
+                        "valid_range": {
+                            "lower": 0,
+                            "upper": 100
+                        },
+                        "UUID": 11
+                    },
+                    "humidity": {
+                        "addr": "mush/controllers/C1/sensors/sht_0/humidity",
+                        "valid_range": {
+                            "lower": 0,
+                            "upper": 100
+                        },
+                        "UUID": 12
+                    }
+                },
+                "dht_0": {
+                    "temperature": {
+                        "addr": "mush/controllers/C1/sensors/dht_0/temperature",
+                        "valid_range": {
+                            "lower": 0,
+                            "upper": 100
+                        },
+                        "UUID": 13
+                    },
+                    "humidity": {
+                        "addr": "mush/controllers/C1/sensors/dht_0/humidity",
+                        "valid_range": {
+                            "lower": 0,
+                            "upper": 100
+                        },
+                        "UUID": 14
+                    }
+                },
+                "scd_0": {
+                    "temperature": {
+                        "addr": "mush/controllers/C1/sensors/scd_0/temperature",
+                        "valid_range": {
+                            "lower": 0,
+                            "upper": 100
+                        },
+                        "UUID": 15
+                    },
+                    "humidity": {
+                        "addr": "mush/controllers/C1/sensors/scd_0/humidity",
+                        "valid_range": {
+                            "lower": 0,
+                            "upper": 100
+                        },
+                        "UUID": 16
+                    },
+                    "co2": {
+                        "addr": "mush/controllers/C1/sensors/scd_0/co2",
+                        "valid_range": {
+                            "lower": 0,
+                            "upper": 10000
+                        },
+                        "UUID": 17
+                    }
+                }
+            }
+        },
         "C2": {
             "sensors": {
                 "status": {
@@ -187,72 +253,6 @@
                             "str",
                             "str"
                         ]
-                    }
-                }
-            }
-        },
-        "C1": {
-            "sensors": {
-                "sht_0": {
-                    "temperature": {
-                        "addr": "mush/controllers/C1/sensors/sht_0/temperature",
-                        "valid_range": {
-                            "lower": 0,
-                            "upper": 100
-                        },
-                        "UUID": 11
-                    },
-                    "humidity": {
-                        "addr": "mush/controllers/C1/sensors/sht_0/humidity",
-                        "valid_range": {
-                            "lower": 0,
-                            "upper": 100
-                        },
-                        "UUID": 12
-                    }
-                },
-                "dht_0": {
-                    "temperature": {
-                        "addr": "mush/controllers/C1/sensors/dht_0/temperature",
-                        "valid_range": {
-                            "lower": 0,
-                            "upper": 100
-                        },
-                        "UUID": 13
-                    },
-                    "humidity": {
-                        "addr": "mush/controllers/C1/sensors/dht_0/humidity",
-                        "valid_range": {
-                            "lower": 0,
-                            "upper": 100
-                        },
-                        "UUID": 14
-                    }
-                },
-                "scd_0": {
-                    "temperature": {
-                        "addr": "mush/controllers/C1/sensors/scd_0/temperature",
-                        "valid_range": {
-                            "lower": 0,
-                            "upper": 100
-                        },
-                        "UUID": 15
-                    },
-                    "humidity": {
-                        "addr": "mush/controllers/C1/sensors/scd_0/humidity",
-                        "valid_range": {
-                            "lower": 0,
-                            "upper": 100
-                        },
-                        "UUID": 16
-                    },
-                    "co2": {
-                        "addr": "mush/controllers/C1/sensors/scd_0/co2",
-                        "valid_range": {
-                            "lower": 0,
-                            "upper": 10000
-                        },
-                        "UUID": 17
                     }
                 }
             }
