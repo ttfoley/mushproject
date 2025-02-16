@@ -303,6 +303,7 @@ void loop() {
 
       // Read and publish sensor data if available
       for (size_t i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
+        //Special cases for dumbass scd sensor
         if (sensors[i]->getType() == SensorType::SCD) {
           unsigned long time_since_publish = millis() - sensors[i]->getTimeLastPublished();
           unsigned long time_to_next_publish = sensors[i]->getPublishFrequency() - time_since_publish;
@@ -318,6 +319,7 @@ void loop() {
             tryPublishSensor(sensors[i]);
           }
         }
+        //If not scd sensor, just publish if it's time
         else if (millis() - sensors[i]->getTimeLastPublished() > sensors[i]->getPublishFrequency()) {
           tryPublishSensor(sensors[i]);
         }
@@ -343,6 +345,7 @@ void loop() {
 
     case MEASURING:
       //Serial.println("State: MEASURING");
+      //You better NEVER enter here if an scd doesn't exist. If so, you've fucked with the logic.
       static SCDSensor* scdSensor = nullptr;  // Add this at start of case
       
       // Find SCD sensor if we haven't already
@@ -415,45 +418,30 @@ bool exceedMaxSensorPublishTime() {
 }
 
 bool publishSensorData(Sensor* sensor) {
-  bool success = true;
-  // Read and publish sensor data if available
-  if (sensor->hasHumidity()) {
-    float humidity = sensor->readHumidity();
-    const char* topic = sensor->getHumidityTopic();
-    if (client.publish(topic, String(humidity,2).c_str())) {
-      Serial.print("Published humidity: ");
-      Serial.print(humidity);
-      Serial.print(" to topic: ");
-      Serial.println(topic);
-    } else {
-      success = false;
+    bool success = true;
+    static const Sensor::MeasurementType types[] = {
+        Sensor::MeasurementType::TEMPERATURE,
+        Sensor::MeasurementType::HUMIDITY,
+        Sensor::MeasurementType::CO2
+    };
+
+    for (const auto& type : types) {
+        if (sensor->hasMeasurement(type)) {
+            float value = sensor->read(type);
+            const char* topic = sensor->getTopic(type);
+            if (client.publish(topic, String(value,2).c_str())) {
+                Serial.print("Published ");
+                Serial.print(Sensor::getMeasurementTypeName(type));
+                Serial.print(": ");
+                Serial.print(value);
+                Serial.print(" to topic: ");
+                Serial.println(topic);
+            } else {
+                success = false;
+            }
+        }
     }
-  }
-  if (sensor->hasTemperature()) {
-    float temperature = sensor->readTemperature();
-    const char* topic = sensor->getTemperatureTopic();
-    if (client.publish(topic, String(temperature,2).c_str())) {
-      Serial.print("Published temperature: ");
-      Serial.print(temperature);
-      Serial.print(" to topic: ");
-      Serial.println(topic);
-    } else {
-      success = false;
-    }
-  }
-  if (sensor->hasCO2()) {
-    float co2 = sensor->readCO2();
-    const char* topic = sensor->getCO2Topic();
-    if (client.publish(topic, String(co2,2).c_str())) {
-      Serial.print("Published CO2: ");
-      Serial.print(co2);
-      Serial.print(" to topic: ");
-      Serial.println(topic);
-    } else {
-      success = false;
-    }
-  }
-  return success;
+    return success;
 }
 
 void tryPublishSensor(Sensor* sensor) {
