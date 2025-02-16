@@ -39,15 +39,15 @@ public:
           root_topic(root_topic) {}
 
     virtual bool begin() = 0;
-    virtual bool hasHumidity() { return false; }
-    virtual bool hasTemperature() { return false; }
-    virtual bool hasCO2() { return false; }
+    virtual bool hasHumidity() const { return false; }
+    virtual bool hasTemperature() const { return false; }
+    virtual bool hasCO2() const { return false; }
     virtual float readHumidity() { return 0.0; }
     virtual float readTemperature() { return 0.0; }
     virtual float readCO2() { return 0.0; }
-    virtual const char* getHumidityTopic() = 0;
-    virtual const char* getTemperatureTopic() = 0;
-    virtual const char* getCO2Topic() { return nullptr; }
+    virtual const char* getHumidityTopic() const = 0;
+    virtual const char* getTemperatureTopic() const = 0;
+    virtual const char* getCO2Topic() const { return nullptr; }
 
     void resetTimeLastPublished() {
         time_last_published = millis();
@@ -90,6 +90,48 @@ public:
     }
 
     virtual const char* getTypeString() const = 0;
+
+    enum class MeasurementType {
+        TEMPERATURE,
+        HUMIDITY,
+        CO2
+    };
+
+    virtual bool hasMeasurement(MeasurementType type) const {
+        switch(type) {
+            case MeasurementType::TEMPERATURE: return hasTemperature();
+            case MeasurementType::HUMIDITY: return hasHumidity();
+            case MeasurementType::CO2: return hasCO2();
+            default: return false;
+        }
+    }
+
+    virtual float read(MeasurementType type) {
+        switch(type) {
+            case MeasurementType::TEMPERATURE: return readTemperature();
+            case MeasurementType::HUMIDITY: return readHumidity();
+            case MeasurementType::CO2: return readCO2();
+            default: return 0.0;
+        }
+    }
+
+    virtual const char* getTopic(MeasurementType type) const {
+        switch(type) {
+            case MeasurementType::TEMPERATURE: return getTemperatureTopic();
+            case MeasurementType::HUMIDITY: return getHumidityTopic();
+            case MeasurementType::CO2: return getCO2Topic();
+            default: return nullptr;
+        }
+    }
+
+    static const char* getMeasurementTypeName(MeasurementType type) {
+        switch(type) {
+            case MeasurementType::TEMPERATURE: return "temperature";
+            case MeasurementType::HUMIDITY: return "humidity";
+            case MeasurementType::CO2: return "CO2";
+            default: return "unknown";
+        }
+    }
 };
 
 // Derived classes for specific sensors
@@ -110,8 +152,8 @@ public:
         return sht31.begin(addr); // replace 0x44 with the actual address if different
     }
 
-    bool hasHumidity() override { return true; }
-    bool hasTemperature() override { return true; }
+    bool hasHumidity() const override { return true; }
+    bool hasTemperature() const override { return true; }
 
     float readHumidity() override {
         return sht31.readHumidity() * humidity_slope + humidity_offset;
@@ -121,11 +163,11 @@ public:
         return celsiusToFahrenheit(sht31.readTemperature()) * temperature_slope + temperature_offset;
     }
 
-    const char* getHumidityTopic() override {
+    const char* getHumidityTopic() const override {
         return humidity_topic;
     }
 
-    const char* getTemperatureTopic() override {
+    const char* getTemperatureTopic() const override {
         return temperature_topic;
     }
 
@@ -152,8 +194,8 @@ public:
         return true;
     }
 
-    bool hasHumidity() override { return true; }
-    bool hasTemperature() override { return true; }
+    bool hasHumidity() const override { return true; }
+    bool hasTemperature() const override { return true; }
 
     float readHumidity() override {
         return dht.readHumidity() * humidity_slope + humidity_offset;
@@ -163,11 +205,11 @@ public:
         return celsiusToFahrenheit(dht.readTemperature()) * temperature_slope + temperature_offset;
     }
 
-    const char* getHumidityTopic() override {
+    const char* getHumidityTopic() const override {
         return humidity_topic;
     }
 
-    const char* getTemperatureTopic() override {
+    const char* getTemperatureTopic() const override {
         return temperature_topic;
     }
 
@@ -198,9 +240,9 @@ public:
         return scd4x.begin();
     }
 
-    bool hasHumidity() override { return true; }
-    bool hasTemperature() override { return true; }
-    bool hasCO2() override { return true; }
+    bool hasHumidity() const override { return true; }
+    bool hasTemperature() const override { return true; }
+    bool hasCO2() const override { return true; }
 
     float readHumidity() override {
         return scd4x.getHumidity() * humidity_slope + humidity_offset;
@@ -214,15 +256,15 @@ public:
         return scd4x.getCO2() * co2_slope + co2_offset;
     }
 
-    const char* getHumidityTopic() override {
+    const char* getHumidityTopic() const override {
         return humidity_topic;
     }
 
-    const char* getTemperatureTopic() override {
+    const char* getTemperatureTopic() const override {
         return temperature_topic;
     }
 
-    const char* getCO2Topic() override {
+    const char* getCO2Topic() const override {
         return co2_topic;
     }
 

@@ -38,7 +38,7 @@ enum State {
     WIFI_CONNECTING,
     MQTT_CONNECTING,
     READ_AND_PUBLISH_SENSOR, 
-    MEASURING, 
+    MEASURING_SCD,
     WAIT, 
     RESTART
 };
@@ -115,7 +115,7 @@ const char* stateToString(State state) {
         case WIFI_CONNECTING: return "WIFI_CONNECTING";
         case MQTT_CONNECTING: return "MQTT_CONNECTING";
         case READ_AND_PUBLISH_SENSOR: return "READ_AND_PUBLISH_SENSOR";
-        case MEASURING: return "MEASURING";
+        case MEASURING_SCD: return "MEASURING_SCD";
         case WAIT: return "WAIT";
         case RESTART: return "RESTART";
         default: return "UNKNOWN";
@@ -312,7 +312,7 @@ void loop() {
             continue;  // Skip if currently measuring
           }
           else if (time_to_next_publish <= MEASURE_TIME) {  // Start measuring MEASURE_TIME before publish time
-            setState(MEASURING, chrono, true);
+            setState(MEASURING_SCD, chrono, true);
             break;
           }
           else if (time_since_publish >= sensors[i]->getPublishFrequency()) {  // Time to publish
@@ -338,12 +338,12 @@ void loop() {
         }
       }
 
-      if (state != MEASURING) {
+      if (state != MEASURING_SCD) {
         setState(WAIT, chrono, false);
       }
       break;
 
-    case MEASURING:
+    case MEASURING_SCD:
       //Serial.println("State: MEASURING");
       //You better NEVER enter here if an scd doesn't exist. If so, you've fucked with the logic.
       static SCDSensor* scdSensor = nullptr;  // Add this at start of case
