@@ -15,7 +15,7 @@ struct CalibrationParams {
 
 // Calibration parameters for specific sensor instances
 const CalibrationParams SHT_SENSOR_0_PARAMS = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
-const CalibrationParams DHT_SENSOR_0_PARAMS = {1.0, 7.0, 1.0, -1.1, 1.0, 0.0};
+const CalibrationParams DHT_SENSOR_0_PARAMS = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
 const CalibrationParams SCD_SENSOR_0_PARAMS = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
 
 // Map sensor instance names to their calibration parameters

@@ -80,7 +80,8 @@ DHTSensor dht_0_Sensor(DHT_0_PIN, DHT_0_TYPE, "mush/controllers/C1/sensors/dht_0
 SCDSensor scd_0_Sensor("mush/controllers/C1/sensors/scd_0/", getCalibrationParams("SCD_0"));
 
 //you should only ever have one scd sensor, and it should be the last one in the array
-Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &scd_0_Sensor };
+//Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &scd_0_Sensor };
+Sensor* sensors[] = { &dht_0_Sensor};
 
 #define DEFAULT_WAIT 1000
 #define WAIT_WAIT 10
