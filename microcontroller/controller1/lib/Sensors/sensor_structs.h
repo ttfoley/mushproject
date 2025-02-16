@@ -9,6 +9,13 @@
 #include "calibration.h"
 #include "utils.h"
 
+enum class SensorType {
+    DHT,
+    SHT,
+    SCD,
+    DS18B20
+};
+
 class Sensor {
 protected:
     unsigned long time_last_published;
@@ -63,6 +70,26 @@ public:
     const char* getRootTopic() {
         return root_topic;
     }
+
+    virtual SensorType getType() const = 0;
+    
+    const char* getName() const {
+        const char* sensor_part = strstr(root_topic, "sensors/");
+        if (sensor_part) {
+            sensor_part += 8; // Skip "sensors/"
+            static char name[32]; // Static buffer to hold the name
+            const char* end = strchr(sensor_part, '/');
+            if (end) {
+                size_t len = end - sensor_part;
+                strncpy(name, sensor_part, len);
+                name[len] = '\0';
+                return name;
+            }
+        }
+        return "unknown";
+    }
+
+    virtual const char* getTypeString() const = 0;
 };
 
 // Derived classes for specific sensors
@@ -101,6 +128,10 @@ public:
     const char* getTemperatureTopic() override {
         return temperature_topic;
     }
+
+    SensorType getType() const override { return SensorType::SHT; }
+
+    const char* getTypeString() const override { return "SHT"; }
 };
 
 class DHTSensor : public Sensor {
@@ -139,6 +170,10 @@ public:
     const char* getTemperatureTopic() override {
         return temperature_topic;
     }
+
+    SensorType getType() const override { return SensorType::DHT; }
+
+    const char* getTypeString() const override { return "DHT"; }
 };
 
 class SCDSensor : public Sensor {
@@ -210,6 +245,10 @@ public:
     void completeMeasurement() {
         is_measuring = false;
     }
+
+    SensorType getType() const override { return SensorType::SCD; }
+
+    const char* getTypeString() const override { return "SCD"; }
 };
 
 #endif // SENSOR_STRUCTS_H

@@ -79,8 +79,8 @@ SHTSensor sht_0_Sensor(SHT_0_ADDR, "mush/controllers/C1/sensors/sht_0/", getCali
 DHTSensor dht_0_Sensor(DHT_0_PIN, DHT_0_TYPE, "mush/controllers/C1/sensors/dht_0/", getCalibrationParams("DHT_0"));
 SCDSensor scd_0_Sensor("mush/controllers/C1/sensors/scd_0/", getCalibrationParams("SCD_0"));
 
+//you should only ever have one scd sensor, and it should be the last one in the array
 Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &scd_0_Sensor };
-
 
 #define DEFAULT_WAIT 1000
 #define WAIT_WAIT 10
@@ -158,29 +158,33 @@ void setup() {
   WiFi.mode(WIFI_STA);
   delay(2000);
 
-  // Verify SCD sensor is last in array. Our publish timing depends on this. bad I know.
-  if (sensors[sizeof(sensors)/sizeof(sensors[0]) - 1] != &scd_0_Sensor) {
-    Serial.println("FATAL: SCD sensor must be last in sensors array for proper measurement timing");
-    while(1) delay(1);
+  // Check for SCD sensors - there must be at most one, and if present it must be last
+  bool foundSCD = false;
+  for (size_t i = 0; i < sizeof(sensors)/sizeof(sensors[0]); i++) {
+    if (sensors[i]->getType() == SensorType::SCD) {
+      if (foundSCD) {
+        Serial.println("FATAL: Only one SCD sensor allowed");
+        while(1) delay(1);
+      }
+      if (i != sizeof(sensors)/sizeof(sensors[0]) - 1) {
+        Serial.println("FATAL: SCD sensor must be last in sensors array for proper measurement timing");
+        while(1) delay(1);
+      }
+      foundSCD = true;
+      static_cast<SCDSensor*>(sensors[i])->setPublishFrequency(30000);
+    }
   }
 
-  //more special care for stupid scd sensor
-  scd_0_Sensor.setPublishFrequency(30000);
-
-  // Initialize sensors
-  if (!sht_0_Sensor.begin()) {
-    Serial.println("Couldn't find SHT31 0");
-    while (1) delay(1);
-  }
-
-  if (!dht_0_Sensor.begin()) {
-    Serial.println("Couldn't find DHT22 0");
-    while (1) delay(1);
-  }
-
-  if (!scd_0_Sensor.begin()) {
-    Serial.println("Couldn't find SCD41 0");
-    while (1) delay(1);
+  // Initialize all sensors with appropriate error messages
+  for (size_t i = 0; i < sizeof(sensors)/sizeof(sensors[0]); i++) {
+    if (!sensors[i]->begin()) {
+      Serial.print("Couldn't find ");
+      Serial.print(sensors[i]->getName());
+      Serial.print(" (type: ");
+      Serial.print(sensors[i]->getTypeString());
+      Serial.println(")");
+      while (1) delay(1);
+    }
   }
 }
 
@@ -299,11 +303,11 @@ void loop() {
 
       // Read and publish sensor data if available
       for (size_t i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
-        if (sensors[i] == &scd_0_Sensor) {
+        if (sensors[i]->getType() == SensorType::SCD) {
           unsigned long time_since_publish = millis() - sensors[i]->getTimeLastPublished();
           unsigned long time_to_next_publish = sensors[i]->getPublishFrequency() - time_since_publish;
           
-          if (scd_0_Sensor.isMeasuring()) {
+          if (static_cast<SCDSensor*>(sensors[i])->isMeasuring()) {
             continue;  // Skip if currently measuring
           }
           else if (time_to_next_publish <= MEASURE_TIME) {  // Start measuring MEASURE_TIME before publish time
@@ -339,11 +343,23 @@ void loop() {
 
     case MEASURING:
       //Serial.println("State: MEASURING");
-      if (!scd_0_Sensor.isMeasuring()) {
-        scd_0_Sensor.startMeasurement();  // Only start if not already measuring
+      static SCDSensor* scdSensor = nullptr;  // Add this at start of case
+      
+      // Find SCD sensor if we haven't already
+      if (!scdSensor) {
+        for (size_t i = 0; i < sizeof(sensors)/sizeof(sensors[0]); i++) {
+          if (sensors[i]->getType() == SensorType::SCD) {
+            scdSensor = static_cast<SCDSensor*>(sensors[i]);
+            break;
+          }
+        }
+      }
+      
+      if (!scdSensor->isMeasuring()) {
+        scdSensor->startMeasurement();  // Only start if not already measuring
       }
       if (millis() - chrono >= MEASURE_TIME) {
-        scd_0_Sensor.completeMeasurement();
+        scdSensor->completeMeasurement();
         setState(WAIT, chrono, true);  // Go to WAIT like other states
       }
       break;
