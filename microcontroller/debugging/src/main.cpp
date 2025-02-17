@@ -6,7 +6,7 @@ void setup() {
   delay(2000);  // Give serial time to stabilize
   Serial.println("\n\nI2C Scanner Starting...");
   
-  Wire.begin(21, 22);  // SDA = GPIO21, SCL = GPIO22 (typical ESP32 I2C pins)
+  Wire.begin();  // Use default pins (21, 22 on ESP32)
   Serial.println("Wire.begin() completed");
   Serial.println("Starting scan loop...");
 }
@@ -19,20 +19,24 @@ void loop() {
   Serial.println("Scanning I2C bus...");
   
   for (address = 1; address < 127; address++) {
-    Wire.beginTransmission(address);
-    error = Wire.endTransmission();
+    // Try multiple times to verify it's a real device
+    bool deviceConfirmed = true;
+    for(int tries = 0; tries < 3; tries++) {
+      Wire.beginTransmission(address);
+      error = Wire.endTransmission();
+      if (error != 0) {
+        deviceConfirmed = false;
+        break;
+      }
+      delay(10);  // Small delay between tries
+    }
     
-    if (error == 0) {
-      Serial.print("I2C device found at address 0x");
+    if (deviceConfirmed) {
+      Serial.print("Verified I2C device at address 0x");
       if (address < 16) Serial.print("0");
       Serial.print(address, HEX);
       Serial.println();
       nDevices++;
-    }
-    else if (error == 4) {
-      Serial.print("Unknown error at address 0x");
-      if (address < 16) Serial.print("0");
-      Serial.println(address, HEX);
     }
   }
   
