@@ -20,6 +20,8 @@
 #define SHT_0_ADDR 0x44
 #define DHT_0_PIN 4
 #define DHT_0_TYPE DHT22
+#define DS18B20_0_PIN 32  // First DS18B20 temperature sensor
+#define DS18B20_1_PIN 33  // Second DS18B20 temperature sensor
 
 // MQTT
 const char* mqtt_server = "192.168.1.17";  // IP of the MQTT broker
@@ -78,10 +80,12 @@ const char* wifiTopic = "mush/controllers/C1/sensors/status/wifi_uptime";
 SHTSensor sht_0_Sensor(SHT_0_ADDR, "mush/controllers/C1/sensors/sht_0/", getCalibrationParams("SHT_0"));
 DHTSensor dht_0_Sensor(DHT_0_PIN, DHT_0_TYPE, "mush/controllers/C1/sensors/dht_0/", getCalibrationParams("DHT_0"));
 SCDSensor scd_0_Sensor("mush/controllers/C1/sensors/scd_0/", getCalibrationParams("SCD_0"));
+//DS18B20Sensor ds18b20_0_Sensor(DS18B20_0_PIN, "mush/controllers/C1/sensors/ds18b20_0/", getCalibrationParams("DS18B20_0"));
+//DS18B20Sensor ds18b20_1_Sensor(DS18B20_1_PIN, "mush/controllers/C1/sensors/ds18b20_1/", getCalibrationParams("DS18B20_1"));
 
-//you should only ever have one scd sensor, and it should be the last one in the array
-//Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &scd_0_Sensor };
-Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &scd_0_Sensor};
+
+// Update sensors array to include new sensors
+Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &scd_0_Sensor };
 
 #define DEFAULT_WAIT 1000
 #define WAIT_WAIT 10

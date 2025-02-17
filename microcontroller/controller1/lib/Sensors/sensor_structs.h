@@ -8,6 +8,7 @@
 #include <DHT.h>
 #include "calibration.h"
 #include "utils.h"
+#include <DallasTemperature.h>
 
 enum class SensorType {
     DHT,
@@ -291,6 +292,45 @@ public:
     SensorType getType() const override { return SensorType::SCD; }
 
     const char* getTypeString() const override { return "SCD"; }
+};
+
+class DS18B20Sensor : public Sensor {
+private:
+    OneWire oneWire;
+    DallasTemperature sensor;
+    char temperature_topic[64];
+
+public:
+    DS18B20Sensor(uint8_t pin, const char* root_topic, const CalibrationParams& params)
+        : Sensor(root_topic, params), oneWire(pin), sensor(&oneWire) {
+        snprintf(temperature_topic, sizeof(temperature_topic), "%stemperature", root_topic);
+    }
+
+    bool begin() override {
+        sensor.begin();
+        return sensor.getDeviceCount() > 0;
+    }
+
+    bool hasTemperature() const override { return true; }
+
+    float readTemperature() override {
+        sensor.requestTemperatures();
+        float tempC = sensor.getTempCByIndex(0);
+        if (tempC == DEVICE_DISCONNECTED_C) return 0.0;
+        return celsiusToFahrenheit(tempC) * temperature_slope + temperature_offset;
+    }
+
+    const char* getTemperatureTopic() const override {
+        return temperature_topic;
+    }
+
+    const char* getHumidityTopic() const override {
+        return nullptr;
+    }
+
+    SensorType getType() const override { return SensorType::DS18B20; }
+
+    const char* getTypeString() const override { return "DS18B20"; }
 };
 
 #endif // SENSOR_STRUCTS_H
