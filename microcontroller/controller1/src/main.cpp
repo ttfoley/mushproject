@@ -77,7 +77,7 @@ DS18B20Sensor ds18b20_0_Sensor(DS18B20_0_PIN, "mush/controllers/C1/sensors/ds18b
 //DS18B20Sensor ds18b20_1_Sensor(DS18B20_1_PIN, "mush/controllers/C1/sensors/ds18b20_1/", getCalibrationParams("DS18B20_1"));
 
 
-// Update sensors array to include new sensors
+// Update sensors array to include the working DS18B20
 Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &ds18b20_0_Sensor };
 
 enum RestartReason {
