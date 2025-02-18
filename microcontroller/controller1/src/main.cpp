@@ -18,7 +18,7 @@
 #define WIFI_PASSWORD SECRET_WIFI_PWD
 
 #define SHT_0_ADDR 0x44
-#define DHT_0_PIN 4
+#define DHT_0_PIN 27
 #define DHT_0_TYPE DHT22
 #define DS18B20_0_PIN 32  // First DS18B20 temperature sensor
 #define DS18B20_1_PIN 33  // Second DS18B20 temperature sensor
@@ -60,13 +60,6 @@ bool connect_MQTT();
 void tryPublishSensor(Sensor* sensor);
 void printWiFiStatus();
 
-// Connection attempt configuration
-#define MAX_WIFI_ATTEMPTS 12    // Total = attempt*delay
-#define WIFI_ATTEMPT_DELAY 15000  // 
-#define MAX_MQTT_ATTEMPTS 10      // total = attempt*delay
-#define MQTT_ATTEMPT_DELAY 6000  // 
-#define DELAY_AFTER_SENSOR_POST 100 //Delay to give power time to stabilize after sensor post
-
 //Add near other constants at top of file
 #define WIFI_DURATION_POST_INTERVAL 30000
 unsigned long wifiConnectedTime = 0;
@@ -87,11 +80,6 @@ SCDSensor scd_0_Sensor("mush/controllers/C1/sensors/scd_0/", getCalibrationParam
 // Update sensors array to include new sensors
 Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &scd_0_Sensor };
 
-#define DEFAULT_WAIT 1000
-#define WAIT_WAIT 10
-#define MAX_TIME_NO_PUBLISH 300000 //failsafe in case a sensor breaks or something else goes wrong
-#define MEASURE_TIME 7000 //time to measure SCD sensor
-
 enum RestartReason {
     WIFI_TIMEOUT,
     MQTT_TIMEOUT,
@@ -101,6 +89,9 @@ enum RestartReason {
 
 Preferences preferences;
 const char* restart_topic = "mush/controllers/C1/sensors/status/last_restart_reason";
+
+// Global pointer to SCD sensor
+SCDSensor* scdSensor = nullptr;
 
 // Move these implementations up, before any functions that use them
 void setState(State newState, unsigned long& chronoRef, bool printTransition) {
@@ -154,12 +145,13 @@ void postStoredRestartReason() {
 
 void setup() {
   Serial.begin(115200);
+  Wire.begin();
+  //Wire.setClock(50000);  // Try 50kHz instead of default 100kHz
   state = START;  // Initialize here
   delay(2000); //so I don't miss any messages from setup
   Serial.println("Hello from the setup");
   Serial.println("Connected");
   Serial.setTimeout(2000);
-  Wire.begin();
   WiFi.mode(WIFI_STA);
   delay(2000);
 
@@ -172,11 +164,12 @@ void setup() {
         while(1) delay(1);
       }
       if (i != sizeof(sensors)/sizeof(sensors[0]) - 1) {
-        Serial.println("FATAL: SCD sensor must be last in sensors array for proper measurement timing");
+        Serial.println("FATAL: SCD sensor must be last in sensors array");
         while(1) delay(1);
       }
       foundSCD = true;
-      static_cast<SCDSensor*>(sensors[i])->setPublishFrequency(30000);
+      scdSensor = static_cast<SCDSensor*>(sensors[i]);
+      scdSensor->setPublishFrequency(30000);
     }
   }
 
@@ -313,15 +306,29 @@ void loop() {
           unsigned long time_since_publish = millis() - sensors[i]->getTimeLastPublished();
           unsigned long time_to_next_publish = sensors[i]->getPublishFrequency() - time_since_publish;
           
-          if (static_cast<SCDSensor*>(sensors[i])->isMeasuring()) {
-            continue;  // Skip if currently measuring
+          //Serial.print("SCD time since last publish: ");
+          //Serial.println(time_since_publish);
+          
+          if (scdSensor->isMeasuring()) {
+            Serial.println("SCD is measuring, skipping");
+            continue;
           }
-          else if (time_to_next_publish <= MEASURE_TIME) {  // Start measuring MEASURE_TIME before publish time
-            setState(MEASURING_SCD, chrono, true);
-            break;
+          else if (time_to_next_publish <= MEASURE_TIME) {
+            Serial.println("Time to start new measurement");
+            if (!scdSensor->getDataReadyFlag()) {
+                Serial.println("No data ready, starting measurement");
+                setState(MEASURING_SCD, chrono, true);
+                break;
+            }
+            Serial.println("Data ready flag set, not starting measurement");
           }
-          else if (time_since_publish >= sensors[i]->getPublishFrequency()) {  // Time to publish
-            tryPublishSensor(sensors[i]);
+          else if (time_since_publish >= sensors[i]->getPublishFrequency()) {
+            Serial.println("Time to publish");
+            if (scdSensor->getDataReadyFlag()) {
+                Serial.println("Data ready, publishing");
+                tryPublishSensor(sensors[i]);
+            }
+            Serial.println("Data not ready, skipping publish");
           }
         }
         //If not scd sensor, just publish if it's time
@@ -351,24 +358,22 @@ void loop() {
     case MEASURING_SCD:
       //Serial.println("State: MEASURING");
       //You better NEVER enter here if an scd doesn't exist. If so, you've fucked with the logic.
-      static SCDSensor* scdSensor = nullptr;  // Add this at start of case
+      static bool first_entry = true;
+      static unsigned long measure_start = 0;
+      Serial.println("isMeasuring()");
+      Serial.println(scdSensor->isMeasuring()); 
+      if (first_entry) {
+          scdSensor->startMeasurement();
+          measure_start = millis();
+          first_entry = false;
+      }
       
-      // Find SCD sensor if we haven't already
-      if (!scdSensor) {
-        for (size_t i = 0; i < sizeof(sensors)/sizeof(sensors[0]); i++) {
-          if (sensors[i]->getType() == SensorType::SCD) {
-            scdSensor = static_cast<SCDSensor*>(sensors[i]);
-            break;
+      else if (!scdSensor->isMeasuring()) {  // Use isMeasuring() for state
+          if (scdSensor->getDataReadyFlag()) {  // But verify data is ready before completing
+              scdSensor->completeMeasurement();
+              first_entry = true;
+              setState(WAIT, chrono, true);
           }
-        }
-      }
-      
-      if (!scdSensor->isMeasuring()) {
-        scdSensor->startMeasurement();  // Only start if not already measuring
-      }
-      if (millis() - chrono >= MEASURE_TIME) {
-        scdSensor->completeMeasurement();
-        setState(WAIT, chrono, true);  // Go to WAIT like other states
       }
       break;
 
