@@ -262,9 +262,6 @@ public:
     bool hasTemperature() const override { return true; }
     bool hasCO2() const override { return true; }
 
-    float readHumidity() override { return 0.0; }
-    float readTemperature() override { return 0.0; }
-    float readCO2() override { return 0.0; }
 
     const char* getHumidityTopic() const override { return humidity_topic; }
     const char* getTemperatureTopic() const override { return temperature_topic; }
@@ -334,6 +331,12 @@ public:
         Serial.print("SCD measurement took: ");
         Serial.print((millis() - measurement_start_time));
         Serial.println("ms");
+    }
+
+    bool isResponsive() {
+        uint16_t error = scd4x.performSelfTest();
+        delay(10);
+        return error == 0;
     }
 };
 

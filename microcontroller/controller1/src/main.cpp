@@ -326,25 +326,35 @@ void loop() {
       break;
 
     case MEASURING_SCD:
+        if (millis() - chrono > MEASURE_TIMEOUT) {
+            Serial.println("Measurement timeout - breaking out");
+            setState(WAIT, chrono, true);
+            break;
+        }
         static unsigned long last_debug_print = 0;
         
         if (!scdSensor->isMeasuring()) {
-            if (scdSensor->startMeasurement()) {
+            if (!scdSensor->isResponsive()) {
+                Serial.println("SCD not responsive");
+                setState(WAIT, chrono, true);
+            }
+            else if (scdSensor->startMeasurement()) {
                 Serial.println("Started SCD measurement");
                 last_debug_print = millis();
             } else {
-                setState(WAIT, chrono, true);  // Failed to start, go back to WAIT
+                Serial.println("Failed to start measurement");
+                setState(WAIT, chrono, true);
             }
         }
-        else if (scdSensor->isDataReady() && scdSensor->readMeasurement()) {
-            scdSensor->printMeasurementTime();
-            setState(PUBLISH_SCD, chrono, true);
-        }
-        else if (millis() - last_debug_print > 10000) {  // Print every 10s
-            Serial.print("In MEASURING_SCD state for: ");
-            Serial.print((millis() - chrono));
-            Serial.println("ms");
-            last_debug_print = millis();
+        else if (scdSensor->isDataReady()) {
+            Serial.println("Data is ready, attempting to read");
+            if (scdSensor->readMeasurement()) {
+                Serial.println("Successfully read measurement");
+                scdSensor->printMeasurementTime();
+                setState(PUBLISH_SCD, chrono, true);
+            } else {
+                Serial.println("Failed to read measurement");
+            }
         }
         break;
 

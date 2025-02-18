@@ -3,9 +3,11 @@
 
 // Measurement timings
 #define MEASURE_TIME 8000            // Time to wait for SCD40 measurement (ms)
+#define MEASURE_TIMEOUT 15000        // Maximum time to stay in measuring state (ms)
 #define DEFAULT_WAIT 1000           // Default state machine wait time
 #define WAIT_WAIT 10               // Wait time in WAIT state
 #define READ_DELAY_MS 100          // Delay between sensor reads
+#define SCD_PUBLISH_INTERVAL 30000  // How often to publish SCD data (ms)
 
 // Timeout constants
 #define MAX_TIME_NO_PUBLISH 300000  // Failsafe timeout
