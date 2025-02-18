@@ -189,6 +189,8 @@ void setup() {
 }
 
 void loop() {
+  static unsigned long last_loop = millis();
+  
   client.loop();
 
   if (WiFi.status() == WL_CONNECTED) {
@@ -277,6 +279,9 @@ void loop() {
       break;
 
     case WAIT:
+        static unsigned long last_scd_attempt = 0;
+        static const unsigned long SCD_RETRY_INTERVAL = 15000;
+
         // Check this first to make sure we don't run into some loop with mqtt and wifi
         if (exceedMaxSensorPublishTime()) {
             storeRestartReason(SENSOR_TIMEOUT);
@@ -288,11 +293,17 @@ void loop() {
         else if (!client.connected()) {
             setState(MQTT_CONNECTING, chrono, true);
         }
+        else if (scdSensor && scdSensor->timeToMeasure()) {
+            Serial.print("Time to measure but attempt delta: ");
+            Serial.println(millis() - last_scd_attempt);
+            if (millis() - last_scd_attempt > SCD_RETRY_INTERVAL) {
+                Serial.println("Starting SCD measurement");
+                last_scd_attempt = millis();
+                setState(MEASURING_SCD, chrono, true);
+            }
+        }
         else if (millis() - chrono > WAIT_WAIT) {
             setState(READ_AND_PUBLISH_SENSOR, chrono, false);
-        }
-        else if (scdSensor && scdSensor->timeToMeasure()) {
-            setState(MEASURING_SCD, chrono, true);
         }
         break;
 
@@ -306,7 +317,8 @@ void loop() {
 
       // Read and publish sensor data if available
       for (size_t i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
-        if (millis() - sensors[i]->getTimeLastPublished() > sensors[i]->getPublishFrequency()) {
+        if (millis() - sensors[i]->getTimeLastPublished() > sensors[i]->getPublishFrequency() 
+            && sensors[i]->isDataReady()) {
             tryPublishSensor(sensors[i]);
         }
       }
@@ -327,35 +339,54 @@ void loop() {
 
     case MEASURING_SCD:
         if (millis() - chrono > MEASURE_TIMEOUT) {
-            Serial.println("Measurement timeout - breaking out");
+            Serial.print("Timeout: elapsed=");
+            Serial.print(millis() - chrono);
+            Serial.print("ms, MEASURE_TIMEOUT=");
+            Serial.print(MEASURE_TIMEOUT);
+            Serial.println("ms");
+            scdSensor->resetMeasurement();
             setState(WAIT, chrono, true);
             break;
         }
         static unsigned long last_debug_print = 0;
+
+        //Serial.print("isMeasuring: ");
+        //Serial.println(scdSensor->isMeasuring());
         
         if (!scdSensor->isMeasuring()) {
+            Serial.println("Not measuring, checking if responsive...");
+            unsigned long resp_start = millis();
             if (!scdSensor->isResponsive()) {
                 Serial.println("SCD not responsive");
                 setState(WAIT, chrono, true);
             }
-            else if (scdSensor->startMeasurement()) {
-                Serial.println("Started SCD measurement");
-                last_debug_print = millis();
-            } else {
-                Serial.println("Failed to start measurement");
-                setState(WAIT, chrono, true);
+            else {
+                Serial.print("Self-test took: ");
+                Serial.print(millis() - resp_start);
+                Serial.println("ms");
+                if (scdSensor->startMeasurement()) {
+                    Serial.print("Started SCD measurement at t=");
+                    Serial.println(millis());
+                    last_debug_print = millis();
+                } else {
+                    Serial.println("Failed to start measurement");
+                    setState(WAIT, chrono, true);
+                }
             }
         }
+        
         else if (scdSensor->isDataReady()) {
-            Serial.println("Data is ready, attempting to read");
+            Serial.print("Data ready at t=");
+            Serial.println(millis());
+            delay(100);
             if (scdSensor->readMeasurement()) {
                 Serial.println("Successfully read measurement");
-                scdSensor->printMeasurementTime();
                 setState(PUBLISH_SCD, chrono, true);
             } else {
                 Serial.println("Failed to read measurement");
             }
         }
+        delay(100);
         break;
 
     case PUBLISH_SCD:
@@ -371,6 +402,14 @@ void loop() {
       ESP.restart();
       break;    
   }
+
+  unsigned long loop_time = millis() - last_loop;
+  if (loop_time > 250) {  // Only print if loop takes longer than 50ms
+    Serial.print("Loop took: ");
+    Serial.print(loop_time);
+    Serial.println("ms");
+  }
+  last_loop = millis();
 }
 
 

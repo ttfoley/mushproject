@@ -134,6 +134,8 @@ public:
             default: return "unknown";
         }
     }
+
+    virtual bool isDataReady() { return true; }
 };
 
 // Derived classes for specific sensors
@@ -231,6 +233,9 @@ private:
     float humidity;
     bool measurement_in_progress = false;
     unsigned long measurement_start_time = 0;
+    unsigned long last_measurement_attempt = 0;
+    static const unsigned long RETRY_INTERVAL = 15000;  // 15s between attempts
+    bool data_is_ready = false;
 
 public:
     SCDSensor(const char* root_topic, const CalibrationParams& params)
@@ -272,43 +277,67 @@ public:
 
     // Start a single measurement cycle
     bool startMeasurement() {
+        Serial.print("Starting measurement. in_progress=");
+        Serial.print(measurement_in_progress);
+        Serial.print(" last_attempt_delta=");
+        Serial.print(millis() - last_measurement_attempt);
+        Serial.println("ms");
+
+        last_measurement_attempt = millis();  // Update attempt time
         if (measurement_in_progress) return false;
         
+        Serial.println("Attempting to start measurement...");
         uint16_t error = scd4x.measureSingleShot();
-        delay(10);  // Small delay after I2C command
+        delay(10);
         if (error) {
-            Serial.println("Error starting measurement");
+            Serial.print("Error starting measurement: ");
+            Serial.println(error);
             return false;
         }
         measurement_in_progress = true;
-        measurement_start_time = millis();
+        data_is_ready = false;  // Reset data ready flag when starting new measurement
+        measurement_start_time = millis() - 5000;
         return true;
     }
 
     // Check if measurement is complete
-    bool isDataReady() {
+    bool isDataReady() override {
         if (!measurement_in_progress) return false;
         
-        bool data_ready = false;
-        uint16_t error = scd4x.getDataReadyFlag(data_ready);
-        delay(10);  // Small delay after I2C command
-        if (error) {
-            Serial.println("Error checking data ready status");
-            return false;
+        if (!data_is_ready) {  // Only check hardware if we haven't seen data ready
+            delay(250);
+            bool data_ready = false;
+            uint16_t error = scd4x.getDataReadyFlag(data_ready);
+            Serial.print("Raw data ready value: 0x");
+            Serial.println(data_ready, HEX);
+            delay(50);
+            if (error) {
+                Serial.println("Error checking data ready status");
+                return false;
+            }
+            if (data_ready) {
+                Serial.print("Data ready after: ");
+                Serial.print(millis() - measurement_start_time);
+                Serial.println("ms");
+                measurement_in_progress = false;  // Measurement is complete here
+                data_is_ready = true;
+            }
         }
-        return data_ready;
+        return data_is_ready;  // Return our stored state
     }
 
     // Read the measurement if ready
     bool readMeasurement() {
-        if (!measurement_in_progress || !isDataReady()) return false;
+        if (!data_is_ready) return false;  // Only check if data is ready
 
         uint16_t error = scd4x.readMeasurement(co2, temperature, humidity);
         if (error) {
-            Serial.println("Error reading measurement");
+            Serial.print("Error reading measurement: 0x");
+            Serial.println(error, HEX);
+            data_is_ready = false;  // Clear data ready so we can retry
             return false;
         }
-        measurement_in_progress = false;
+        data_is_ready = false;
         return true;
     }
 
@@ -319,7 +348,8 @@ public:
 
     bool timeToMeasure() const {
         unsigned long time_since_publish = millis() - time_last_published;
-        unsigned long time_to_next_publish = publish_frequency - time_since_publish;
+        unsigned long time_to_next_publish = publish_frequency - (time_since_publish % publish_frequency);
+        
         return time_to_next_publish <= MEASURE_TIME && !measurement_in_progress;
     }
 
@@ -327,16 +357,22 @@ public:
         return measurement_in_progress;
     }
 
-    void printMeasurementTime() const {
-        Serial.print("SCD measurement took: ");
-        Serial.print((millis() - measurement_start_time));
-        Serial.println("ms");
+    bool isResponsive() {
+        uint16_t serial0;
+        uint16_t serial1;
+        uint16_t serial2;
+        uint16_t error = scd4x.getSerialNumber(serial0, serial1, serial2);
+        delay(10);
+        if (error) {
+            Serial.print("SCD serial number check error: ");
+            Serial.println(error);
+        }
+        return error == 0;
     }
 
-    bool isResponsive() {
-        uint16_t error = scd4x.performSelfTest();
-        delay(10);
-        return error == 0;
+    void resetMeasurement() {
+        measurement_in_progress = false;
+        Serial.println("Reset measurement state");
     }
 };
 
