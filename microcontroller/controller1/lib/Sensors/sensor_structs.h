@@ -4,7 +4,6 @@
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_SHT31.h>
-#include <SparkFun_SCD4x_Arduino_Library.h>
 #include <DHT.h>
 #include "calibration.h"
 #include "utils.h"
@@ -227,13 +226,11 @@ private:
     char humidity_topic[64];
     char temperature_topic[64];
     char co2_topic[64];
-    bool is_measuring = false;
-    unsigned long measure_start_time = 0;
-    static const unsigned long scd_measure_time = MEASURE_TIME;
     uint16_t co2;
     float temperature;
     float humidity;
-    bool have_current_reading = false;
+    bool measurement_in_progress = false;
+    unsigned long measurement_start_time = 0;
 
 public:
     SCDSensor(const char* root_topic, const CalibrationParams& params)
@@ -244,177 +241,99 @@ public:
     }
 
     bool begin() override {
-        Serial.print("SCD40: Attempting to begin... ");
         scd4x.begin(Wire);
-        delay(1000);
         
-        Serial.print("SCD40: Performing factory reset... ");
-        uint16_t error = scd4x.performFactoryReset();
+        uint16_t error = scd4x.stopPeriodicMeasurement();
         if (error) {
-            Serial.print("FAILED (error: 0x");
-            Serial.print(error, HEX);
-            Serial.println(")");
+            Serial.println("Error stopping measurement");
             return false;
         }
-        Serial.println("SUCCESS");
-
-        Serial.print("SCD40: Stopping periodic measurement... ");
-        error = scd4x.stopPeriodicMeasurement();
-        Serial.println(error ? "FAILED" : "SUCCESS");
-        if (error) return false;
-
-        Serial.print("SCD40: Disabling auto-calibration... ");
+        
         error = scd4x.setAutomaticSelfCalibration(0);
-        Serial.println(error ? "FAILED" : "SUCCESS");
-        return error == 0;
+        if (error) {
+            Serial.println("Error disabling auto-calibration");
+            return false;
+        }
+        
+        return true;
     }
 
     bool hasHumidity() const override { return true; }
     bool hasTemperature() const override { return true; }
     bool hasCO2() const override { return true; }
 
-    float readHumidity() override {
-        if (updateMeasurements()) {
-            return humidity * humidity_slope + humidity_offset;
-        }
-        return 0.0;
-    }
+    float readHumidity() override { return 0.0; }
+    float readTemperature() override { return 0.0; }
+    float readCO2() override { return 0.0; }
 
-    float readTemperature() override {
-        if (updateMeasurements()) {
-            return celsiusToFahrenheit(temperature) * temperature_slope + temperature_offset;
-        }
-        return 0.0;
-    }
-
-    float readCO2() override {
-        if (updateMeasurements()) {
-            Serial.print("SCD40 raw CO2: "); Serial.println(co2);
-            return co2 * co2_slope + co2_offset;
-        }
-        return 0.0;
-    }
-
-    const char* getHumidityTopic() const override {
-        return humidity_topic;
-    }
-
-    const char* getTemperatureTopic() const override {
-        return temperature_topic;
-    }
-
-    const char* getCO2Topic() const override {
-        return co2_topic;
-    }
-
-    void startMeasurement() {
-        Serial.println("SCD40: Starting measurement");
-        
-        uint16_t error = scd4x.reinit();
-        if (error) {
-            Serial.print("Error reinitializing: 0x");
-            Serial.println(error, HEX);
-        }
-        
-        measure_start_time = millis();
-        error = scd4x.measureSingleShot();
-        if (error) {
-            Serial.print("Error starting measurement: 0x");
-            Serial.println(error, HEX);
-            set_measuring(false);
-        } else {
-            set_measuring(true);
-            Serial.println("SCD40: Measurement started successfully");
-            delay(1000);
-        }
-    }
-
-    bool isMeasuring() {
-        //Serial.println("isMeasuring() called");
-        if (!is_measuring) return false;
-        
-        bool dataReady = false;
-        uint16_t error = scd4x.getDataReadyFlag(dataReady);
-        if (error) {
-            Serial.print("Error checking if done measuring: 0x");
-            Serial.println(error, HEX);
-            return true;
-        }
-        
-        if (dataReady) {
-            unsigned long elapsed = millis() - measure_start_time;
-            Serial.print("SCD40: Measurement completed after ");
-            Serial.print(elapsed);
-            Serial.println("ms");
-            set_measuring(false);
-            return false;
-        }
-        return true;//still measuring
-    }
-
-    void completeMeasurement() {
-        Serial.println("SCD40: Completing measurement");
-        set_measuring(false);
-        have_current_reading = false;  // Reset for next cycle
-    }
-
-    bool getDataReadyFlag() {
-        Serial.println("getDataReadyFlag() called");
-        bool dataReady = false;
-        uint16_t error = scd4x.getDataReadyFlag(dataReady);
-        if (error) {
-            Serial.print("Error in getDataReadyFlag: 0x");
-            Serial.println(error, HEX);
-        }
-        unsigned long elapsed = millis() - measure_start_time;
-        if (elapsed % 1000 == 0) {  // Print every second
-            Serial.print("Waiting for data ready: ");
-            Serial.print(elapsed);
-            Serial.println("ms");
-        }
-        return !error && dataReady;
-    }
-
+    const char* getHumidityTopic() const override { return humidity_topic; }
+    const char* getTemperatureTopic() const override { return temperature_topic; }
+    const char* getCO2Topic() const override { return co2_topic; }
+    
     SensorType getType() const override { return SensorType::SCD; }
-
     const char* getTypeString() const override { return "SCD"; }
 
-private:
-    bool updateMeasurements() {
-        Serial.println("SCD40: updateMeasurements() called");
-        if (!have_current_reading) {
-            Serial.println("SCD40: No current reading, checking data ready");
-            bool dataReady = false;
-            uint16_t error = scd4x.getDataReadyFlag(dataReady);
-            if (error) {
-                Serial.print("Error checking data ready: 0x");
-                Serial.println(error, HEX);
-                return false;
-            }
-            if (!dataReady) {
-                Serial.println("Data not ready yet");
-                return false;
-            }
-            error = scd4x.readMeasurement(co2, temperature, humidity);
-            if (error) {
-                Serial.print("Error reading measurements: 0x");
-                Serial.println(error, HEX);
-                return false;
-            }
-            have_current_reading = true;
-            Serial.println("SCD40: Successfully read new measurements");
-        } else {
-            Serial.println("SCD40: Using cached reading");
+    // Start a single measurement cycle
+    bool startMeasurement() {
+        if (measurement_in_progress) return false;
+        
+        uint16_t error = scd4x.measureSingleShot();
+        delay(10);  // Small delay after I2C command
+        if (error) {
+            Serial.println("Error starting measurement");
+            return false;
         }
+        measurement_in_progress = true;
+        measurement_start_time = millis();
         return true;
     }
 
-    void set_measuring(bool val) {
-        Serial.print("is_measuring changing from ");
-        Serial.print(is_measuring);
-        Serial.print(" to ");
-        Serial.println(val);
-        is_measuring = val;
+    // Check if measurement is complete
+    bool isDataReady() {
+        if (!measurement_in_progress) return false;
+        
+        bool data_ready = false;
+        uint16_t error = scd4x.getDataReadyFlag(data_ready);
+        delay(10);  // Small delay after I2C command
+        if (error) {
+            Serial.println("Error checking data ready status");
+            return false;
+        }
+        return data_ready;
+    }
+
+    // Read the measurement if ready
+    bool readMeasurement() {
+        if (!measurement_in_progress || !isDataReady()) return false;
+
+        uint16_t error = scd4x.readMeasurement(co2, temperature, humidity);
+        if (error) {
+            Serial.println("Error reading measurement");
+            return false;
+        }
+        measurement_in_progress = false;
+        return true;
+    }
+
+    // Override base class read methods to use stored values
+    float readHumidity() override { return humidity * humidity_slope + humidity_offset; }
+    float readTemperature() override { return celsiusToFahrenheit(temperature) * temperature_slope + temperature_offset; }
+    float readCO2() override { return co2 * co2_slope + co2_offset; }
+
+    bool timeToMeasure() const {
+        unsigned long time_since_publish = millis() - time_last_published;
+        unsigned long time_to_next_publish = publish_frequency - time_since_publish;
+        return time_to_next_publish <= MEASURE_TIME && !measurement_in_progress;
+    }
+
+    bool isMeasuring() const {
+        return measurement_in_progress;
+    }
+
+    void printMeasurementTime() const {
+        Serial.print("SCD measurement took: ");
+        Serial.print((millis() - measurement_start_time));
+        Serial.println("ms");
     }
 };
 

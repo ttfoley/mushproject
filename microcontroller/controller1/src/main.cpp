@@ -39,8 +39,9 @@ enum State {
     START, 
     WIFI_CONNECTING,
     MQTT_CONNECTING,
-    READ_AND_PUBLISH_SENSOR, 
+    READ_AND_PUBLISH_SENSOR,
     MEASURING_SCD,
+    PUBLISH_SCD,
     WAIT, 
     RESTART
 };
@@ -112,6 +113,7 @@ const char* stateToString(State state) {
         case MQTT_CONNECTING: return "MQTT_CONNECTING";
         case READ_AND_PUBLISH_SENSOR: return "READ_AND_PUBLISH_SENSOR";
         case MEASURING_SCD: return "MEASURING_SCD";
+        case PUBLISH_SCD: return "PUBLISH_SCD";
         case WAIT: return "WAIT";
         case RESTART: return "RESTART";
         default: return "UNKNOWN";
@@ -169,7 +171,7 @@ void setup() {
       }
       foundSCD = true;
       scdSensor = static_cast<SCDSensor*>(sensors[i]);
-      scdSensor->setPublishFrequency(30000);
+      scdSensor->setPublishFrequency(SCD_PUBLISH_INTERVAL);
     }
   }
 
@@ -275,21 +277,24 @@ void loop() {
       break;
 
     case WAIT:
-    // Check this first to make sure we don't run into some loop with mqtt and wifi
-      if (exceedMaxSensorPublishTime()) {
-          storeRestartReason(SENSOR_TIMEOUT);
-          setState(RESTART, chrono, true);
-      }
-      else if (WiFi.status() != WL_CONNECTED) {
-          setState(WIFI_CONNECTING, chrono, true);
-      }
-      else if (!client.connected()) {
-          setState(MQTT_CONNECTING, chrono, true);
-      }
-      else if (millis() - chrono > WAIT_WAIT) {
-          setState(READ_AND_PUBLISH_SENSOR, chrono, false);
-      }
-      break;
+        // Check this first to make sure we don't run into some loop with mqtt and wifi
+        if (exceedMaxSensorPublishTime()) {
+            storeRestartReason(SENSOR_TIMEOUT);
+            setState(RESTART, chrono, true);
+        }
+        else if (WiFi.status() != WL_CONNECTED) {
+            setState(WIFI_CONNECTING, chrono, true);
+        }
+        else if (!client.connected()) {
+            setState(MQTT_CONNECTING, chrono, true);
+        }
+        else if (millis() - chrono > WAIT_WAIT) {
+            setState(READ_AND_PUBLISH_SENSOR, chrono, false);
+        }
+        else if (scdSensor && scdSensor->timeToMeasure()) {
+            setState(MEASURING_SCD, chrono, true);
+        }
+        break;
 
     case READ_AND_PUBLISH_SENSOR:
       static bool posted_restart_reason = false;
@@ -301,81 +306,54 @@ void loop() {
 
       // Read and publish sensor data if available
       for (size_t i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
-        //Special cases for dumbass scd sensor
-        if (sensors[i]->getType() == SensorType::SCD) {
-          unsigned long time_since_publish = millis() - sensors[i]->getTimeLastPublished();
-          unsigned long time_to_next_publish = sensors[i]->getPublishFrequency() - time_since_publish;
-          
-          //Serial.print("SCD time since last publish: ");
-          //Serial.println(time_since_publish);
-          
-          if (scdSensor->isMeasuring()) {
-            Serial.println("SCD is measuring, skipping");
-            continue;
-          }
-          else if (time_to_next_publish <= MEASURE_TIME) {
-            Serial.println("Time to start new measurement");
-            if (!scdSensor->getDataReadyFlag()) {
-                Serial.println("No data ready, starting measurement");
-                setState(MEASURING_SCD, chrono, true);
-                break;
-            }
-            Serial.println("Data ready flag set, not starting measurement");
-          }
-          else if (time_since_publish >= sensors[i]->getPublishFrequency()) {
-            Serial.println("Time to publish");
-            if (scdSensor->getDataReadyFlag()) {
-                Serial.println("Data ready, publishing");
-                tryPublishSensor(sensors[i]);
-            }
-            Serial.println("Data not ready, skipping publish");
-          }
-        }
-        //If not scd sensor, just publish if it's time
-        else if (millis() - sensors[i]->getTimeLastPublished() > sensors[i]->getPublishFrequency()) {
-          tryPublishSensor(sensors[i]);
+        if (millis() - sensors[i]->getTimeLastPublished() > sensors[i]->getPublishFrequency()) {
+            tryPublishSensor(sensors[i]);
         }
       }
 
       // Check if it's time to post wifiConnectionDuration
       if (millis() - lastWifiDurationPostTime > WIFI_DURATION_POST_INTERVAL) {
         char durationString[16];
-        dtostrf(wifiConnectionDuration / 60000.0, 1, 2, durationString); // Convert to minutes
+        dtostrf(wifiConnectionDuration / 60000.0, 1, 2, durationString);
         if (client.publish(wifiTopic, durationString)) {
-          Serial.print("WiFi connection duration: ");
-          Serial.println(durationString);
-          lastWifiDurationPostTime = millis();
-        } else {
-          Serial.println("Failed to publish WiFi connection duration");
+            Serial.print("WiFi connection duration: ");
+            Serial.println(durationString);
+            lastWifiDurationPostTime = millis();
         }
       }
 
-      if (state != MEASURING_SCD) {
-        setState(WAIT, chrono, false);
-      }
+      setState(WAIT, chrono, false);
       break;
 
     case MEASURING_SCD:
-      //Serial.println("State: MEASURING");
-      //You better NEVER enter here if an scd doesn't exist. If so, you've fucked with the logic.
-      static bool first_entry = true;
-      static unsigned long measure_start = 0;
-      Serial.println("isMeasuring()");
-      Serial.println(scdSensor->isMeasuring()); 
-      if (first_entry) {
-          scdSensor->startMeasurement();
-          measure_start = millis();
-          first_entry = false;
-      }
-      
-      else if (!scdSensor->isMeasuring()) {  // Use isMeasuring() for state
-          if (scdSensor->getDataReadyFlag()) {  // But verify data is ready before completing
-              scdSensor->completeMeasurement();
-              first_entry = true;
-              setState(WAIT, chrono, true);
-          }
-      }
-      break;
+        static unsigned long last_debug_print = 0;
+        
+        if (!scdSensor->isMeasuring()) {
+            if (scdSensor->startMeasurement()) {
+                Serial.println("Started SCD measurement");
+                last_debug_print = millis();
+            } else {
+                setState(WAIT, chrono, true);  // Failed to start, go back to WAIT
+            }
+        }
+        else if (scdSensor->isDataReady() && scdSensor->readMeasurement()) {
+            scdSensor->printMeasurementTime();
+            setState(PUBLISH_SCD, chrono, true);
+        }
+        else if (millis() - last_debug_print > 10000) {  // Print every 10s
+            Serial.print("In MEASURING_SCD state for: ");
+            Serial.print((millis() - chrono));
+            Serial.println("ms");
+            last_debug_print = millis();
+        }
+        break;
+
+    case PUBLISH_SCD:
+        Serial.println("State: PUBLISH_SCD");
+        delay(1000); // trying everything to make sure 
+        tryPublishSensor(scdSensor);
+        setState(WAIT, chrono, true);
+        break;
 
     case RESTART:
       Serial.println("State: RESTART");
