@@ -73,13 +73,13 @@ const char* wifiTopic = "mush/controllers/C1/sensors/status/wifi_uptime";
 //it easier to find configurations (wouldn't need to add extra arguments to the sensor constructors)
 SHTSensor sht_0_Sensor(SHT_0_ADDR, "mush/controllers/C1/sensors/sht_0/", getCalibrationParams("SHT_0"));
 DHTSensor dht_0_Sensor(DHT_0_PIN, DHT_0_TYPE, "mush/controllers/C1/sensors/dht_0/", getCalibrationParams("DHT_0"));
-SCDSensor scd_0_Sensor("mush/controllers/C1/sensors/scd_0/", getCalibrationParams("SCD_0"));
+//SCDSensor scd_0_Sensor("mush/controllers/C1/sensors/scd_0/", getCalibrationParams("SCD_0"));
 DS18B20Sensor ds18b20_0_Sensor(DS18B20_0_PIN, "mush/controllers/C1/sensors/ds18b20_0/", getCalibrationParams("DS18B20_0"));
 DS18B20Sensor ds18b20_1_Sensor(DS18B20_1_PIN, "mush/controllers/C1/sensors/ds18b20_1/", getCalibrationParams("DS18B20_1"));
 
 
 // Update sensors array to include the working DS18B20
-Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &ds18b20_0_Sensor,&ds18b20_1_Sensor, &scd_0_Sensor };
+Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &ds18b20_0_Sensor,&ds18b20_1_Sensor};
 
 enum RestartReason {
     WIFI_TIMEOUT,
