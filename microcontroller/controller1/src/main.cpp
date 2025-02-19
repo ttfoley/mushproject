@@ -18,8 +18,10 @@
 #define WIFI_PASSWORD SECRET_WIFI_PWD
 
 #define SHT_0_ADDR 0x44
-#define DHT_0_PIN 4
+#define DHT_0_PIN 27
 #define DHT_0_TYPE DHT22
+#define DS18B20_0_PIN 32  // First DS18B20 temperature sensor
+#define DS18B20_1_PIN 33  // Second DS18B20 temperature sensor
 
 // MQTT
 const char* mqtt_server = "192.168.1.17";  // IP of the MQTT broker
@@ -37,8 +39,9 @@ enum State {
     START, 
     WIFI_CONNECTING,
     MQTT_CONNECTING,
-    READ_AND_PUBLISH_SENSOR, 
-    MEASURING, 
+    READ_AND_PUBLISH_SENSOR,
+    MEASURING_SCD,
+    PUBLISH_SCD,
     WAIT, 
     RESTART
 };
@@ -58,13 +61,6 @@ bool connect_MQTT();
 void tryPublishSensor(Sensor* sensor);
 void printWiFiStatus();
 
-// Connection attempt configuration
-#define MAX_WIFI_ATTEMPTS 12    // Total = attempt*delay
-#define WIFI_ATTEMPT_DELAY 15000  // 
-#define MAX_MQTT_ATTEMPTS 10      // total = attempt*delay
-#define MQTT_ATTEMPT_DELAY 6000  // 
-#define DELAY_AFTER_SENSOR_POST 100 //Delay to give power time to stabilize after sensor post
-
 //Add near other constants at top of file
 #define WIFI_DURATION_POST_INTERVAL 30000
 unsigned long wifiConnectedTime = 0;
@@ -77,15 +73,13 @@ const char* wifiTopic = "mush/controllers/C1/sensors/status/wifi_uptime";
 //it easier to find configurations (wouldn't need to add extra arguments to the sensor constructors)
 SHTSensor sht_0_Sensor(SHT_0_ADDR, "mush/controllers/C1/sensors/sht_0/", getCalibrationParams("SHT_0"));
 DHTSensor dht_0_Sensor(DHT_0_PIN, DHT_0_TYPE, "mush/controllers/C1/sensors/dht_0/", getCalibrationParams("DHT_0"));
-SCDSensor scd_0_Sensor("mush/controllers/C1/sensors/scd_0/", getCalibrationParams("SCD_0"));
+//SCDSensor scd_0_Sensor("mush/controllers/C1/sensors/scd_0/", getCalibrationParams("SCD_0"));
+DS18B20Sensor ds18b20_0_Sensor(DS18B20_0_PIN, "mush/controllers/C1/sensors/ds18b20_0/", getCalibrationParams("DS18B20_0"));
+DS18B20Sensor ds18b20_1_Sensor(DS18B20_1_PIN, "mush/controllers/C1/sensors/ds18b20_1/", getCalibrationParams("DS18B20_1"));
 
-Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &scd_0_Sensor };
 
-
-#define DEFAULT_WAIT 1000
-#define WAIT_WAIT 10
-#define MAX_TIME_NO_PUBLISH 300000 //failsafe in case a sensor breaks or something else goes wrong
-#define MEASURE_TIME 7000 //time to measure SCD sensor
+// Update sensors array to include the working DS18B20
+Sensor* sensors[] = { &sht_0_Sensor, &dht_0_Sensor, &ds18b20_0_Sensor,&ds18b20_1_Sensor};
 
 enum RestartReason {
     WIFI_TIMEOUT,
@@ -96,6 +90,9 @@ enum RestartReason {
 
 Preferences preferences;
 const char* restart_topic = "mush/controllers/C1/sensors/status/last_restart_reason";
+
+// Global pointer to SCD sensor
+SCDSensor* scdSensor = nullptr;
 
 // Move these implementations up, before any functions that use them
 void setState(State newState, unsigned long& chronoRef, bool printTransition) {
@@ -115,7 +112,8 @@ const char* stateToString(State state) {
         case WIFI_CONNECTING: return "WIFI_CONNECTING";
         case MQTT_CONNECTING: return "MQTT_CONNECTING";
         case READ_AND_PUBLISH_SENSOR: return "READ_AND_PUBLISH_SENSOR";
-        case MEASURING: return "MEASURING";
+        case MEASURING_SCD: return "MEASURING_SCD";
+        case PUBLISH_SCD: return "PUBLISH_SCD";
         case WAIT: return "WAIT";
         case RESTART: return "RESTART";
         default: return "UNKNOWN";
@@ -149,48 +147,55 @@ void postStoredRestartReason() {
 
 void setup() {
   Serial.begin(115200);
+  Wire.begin();
+  //Wire.setClock(50000);  // Try 50kHz instead of default 100kHz
   state = START;  // Initialize here
   delay(2000); //so I don't miss any messages from setup
   Serial.println("Hello from the setup");
   Serial.println("Connected");
   Serial.setTimeout(2000);
-  Wire.begin();
   WiFi.mode(WIFI_STA);
   delay(2000);
 
-  // Verify SCD sensor is last in array. Our publish timing depends on this. bad I know.
-  if (sensors[sizeof(sensors)/sizeof(sensors[0]) - 1] != &scd_0_Sensor) {
-    Serial.println("FATAL: SCD sensor must be last in sensors array for proper measurement timing");
-    while(1) delay(1);
+  // Check for SCD sensors - there must be at most one, and if present it must be last
+  bool foundSCD = false;
+  for (size_t i = 0; i < sizeof(sensors)/sizeof(sensors[0]); i++) {
+    if (sensors[i]->getType() == SensorType::SCD) {
+      if (foundSCD) {
+        Serial.println("FATAL: Only one SCD sensor allowed");
+        while(1) delay(1);
+      }
+      if (i != sizeof(sensors)/sizeof(sensors[0]) - 1) {
+        Serial.println("FATAL: SCD sensor must be last in sensors array");
+        while(1) delay(1);
+      }
+      foundSCD = true;
+      scdSensor = static_cast<SCDSensor*>(sensors[i]);
+      scdSensor->setPublishFrequency(SCD_PUBLISH_INTERVAL);
+    }
   }
 
-  //more special care for stupid scd sensor
-  scd_0_Sensor.setPublishFrequency(30000);
-
-  // Initialize sensors
-  if (!sht_0_Sensor.begin()) {
-    Serial.println("Couldn't find SHT31 0");
-    while (1) delay(1);
-  }
-
-  if (!dht_0_Sensor.begin()) {
-    Serial.println("Couldn't find DHT22 0");
-    while (1) delay(1);
-  }
-
-  if (!scd_0_Sensor.begin()) {
-    Serial.println("Couldn't find SCD41 0");
-    while (1) delay(1);
+  // Initialize all sensors with appropriate error messages
+  for (size_t i = 0; i < sizeof(sensors)/sizeof(sensors[0]); i++) {
+    if (!sensors[i]->begin()) {
+      Serial.print("Couldn't find ");
+      Serial.print(sensors[i]->getName());
+      Serial.print(" (type: ");
+      Serial.print(sensors[i]->getTypeString());
+      Serial.println(")");
+      while (1) delay(1);
+    }
   }
 }
 
 void loop() {
+  static unsigned long last_loop = millis();
+  
   client.loop();
 
   if (WiFi.status() == WL_CONNECTED) {
     wifiConnectionDuration = millis() - wifiConnectedTime;
-    //Serial.print("Current duration: ");
-    //Serial.println(wifiConnectionDuration);
+
   }
 
   static unsigned long chrono;  // For timing in states (static means only initialized once?)
@@ -273,21 +278,33 @@ void loop() {
       break;
 
     case WAIT:
-    // Check this first to make sure we don't run into some loop with mqtt and wifi
-      if (exceedMaxSensorPublishTime()) {
-          storeRestartReason(SENSOR_TIMEOUT);
-          setState(RESTART, chrono, true);
-      }
-      else if (WiFi.status() != WL_CONNECTED) {
-          setState(WIFI_CONNECTING, chrono, true);
-      }
-      else if (!client.connected()) {
-          setState(MQTT_CONNECTING, chrono, true);
-      }
-      else if (millis() - chrono > WAIT_WAIT) {
-          setState(READ_AND_PUBLISH_SENSOR, chrono, false);
-      }
-      break;
+        static unsigned long last_scd_attempt = 0;
+        static const unsigned long SCD_RETRY_INTERVAL = 15000;
+
+        // Check this first to make sure we don't run into some loop with mqtt and wifi
+        if (exceedMaxSensorPublishTime()) {
+            storeRestartReason(SENSOR_TIMEOUT);
+            setState(RESTART, chrono, true);
+        }
+        else if (WiFi.status() != WL_CONNECTED) {
+            setState(WIFI_CONNECTING, chrono, true);
+        }
+        else if (!client.connected()) {
+            setState(MQTT_CONNECTING, chrono, true);
+        }
+        else if (scdSensor && scdSensor->timeToMeasure()) {
+            Serial.print("Time to measure but attempt delta: ");
+            Serial.println(millis() - last_scd_attempt);
+            if (millis() - last_scd_attempt > SCD_RETRY_INTERVAL) {
+                Serial.println("Starting SCD measurement");
+                last_scd_attempt = millis();
+                setState(MEASURING_SCD, chrono, true);
+            }
+        }
+        else if (millis() - chrono > WAIT_WAIT) {
+            setState(READ_AND_PUBLISH_SENSOR, chrono, false);
+        }
+        break;
 
     case READ_AND_PUBLISH_SENSOR:
       static bool posted_restart_reason = false;
@@ -299,54 +316,84 @@ void loop() {
 
       // Read and publish sensor data if available
       for (size_t i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
-        if (sensors[i] == &scd_0_Sensor) {
-          unsigned long time_since_publish = millis() - sensors[i]->getTimeLastPublished();
-          unsigned long time_to_next_publish = sensors[i]->getPublishFrequency() - time_since_publish;
-          
-          if (scd_0_Sensor.isMeasuring()) {
-            continue;  // Skip if currently measuring
-          }
-          else if (time_to_next_publish <= MEASURE_TIME) {  // Start measuring MEASURE_TIME before publish time
-            setState(MEASURING, chrono, true);
-            break;
-          }
-          else if (time_since_publish >= sensors[i]->getPublishFrequency()) {  // Time to publish
+        if (millis() - sensors[i]->getTimeLastPublished() > sensors[i]->getPublishFrequency() 
+            && sensors[i]->isDataReady()) {
             tryPublishSensor(sensors[i]);
-          }
-        }
-        else if (millis() - sensors[i]->getTimeLastPublished() > sensors[i]->getPublishFrequency()) {
-          tryPublishSensor(sensors[i]);
         }
       }
 
       // Check if it's time to post wifiConnectionDuration
       if (millis() - lastWifiDurationPostTime > WIFI_DURATION_POST_INTERVAL) {
         char durationString[16];
-        dtostrf(wifiConnectionDuration / 60000.0, 1, 2, durationString); // Convert to minutes
+        dtostrf(wifiConnectionDuration / 60000.0, 1, 2, durationString);
         if (client.publish(wifiTopic, durationString)) {
-          Serial.print("WiFi connection duration: ");
-          Serial.println(durationString);
-          lastWifiDurationPostTime = millis();
-        } else {
-          Serial.println("Failed to publish WiFi connection duration");
+            Serial.print("WiFi connection duration: ");
+            Serial.println(durationString);
+            lastWifiDurationPostTime = millis();
         }
       }
 
-      if (state != MEASURING) {
-        setState(WAIT, chrono, false);
-      }
+      setState(WAIT, chrono, false);
       break;
 
-    case MEASURING:
-      //Serial.println("State: MEASURING");
-      if (!scd_0_Sensor.isMeasuring()) {
-        scd_0_Sensor.startMeasurement();  // Only start if not already measuring
-      }
-      if (millis() - chrono >= MEASURE_TIME) {
-        scd_0_Sensor.completeMeasurement();
-        setState(WAIT, chrono, true);  // Go to WAIT like other states
-      }
-      break;
+    case MEASURING_SCD:
+        if (millis() - chrono > MEASURE_TIMEOUT) {
+            Serial.print("Timeout: elapsed=");
+            Serial.print(millis() - chrono);
+            Serial.print("ms, MEASURE_TIMEOUT=");
+            Serial.print(MEASURE_TIMEOUT);
+            Serial.println("ms");
+            scdSensor->resetMeasurement();
+            setState(WAIT, chrono, true);
+            break;
+        }
+        static unsigned long last_debug_print = 0;
+
+        //Serial.print("isMeasuring: ");
+        //Serial.println(scdSensor->isMeasuring());
+        
+        if (!scdSensor->isMeasuring()) {
+            Serial.println("Not measuring, checking if responsive...");
+            unsigned long resp_start = millis();
+            if (!scdSensor->isResponsive()) {
+                Serial.println("SCD not responsive");
+                setState(WAIT, chrono, true);
+            }
+            else {
+                Serial.print("Self-test took: ");
+                Serial.print(millis() - resp_start);
+                Serial.println("ms");
+                if (scdSensor->startMeasurement()) {
+                    Serial.print("Started SCD measurement at t=");
+                    Serial.println(millis());
+                    last_debug_print = millis();
+                } else {
+                    Serial.println("Failed to start measurement");
+                    setState(WAIT, chrono, true);
+                }
+            }
+        }
+        
+        else if (scdSensor->isDataReady()) {
+            Serial.print("Data ready at t=");
+            Serial.println(millis());
+            delay(100);
+            if (scdSensor->readMeasurement()) {
+                Serial.println("Successfully read measurement");
+                setState(PUBLISH_SCD, chrono, true);
+            } else {
+                Serial.println("Failed to read measurement");
+            }
+        }
+        delay(100);
+        break;
+
+    case PUBLISH_SCD:
+        Serial.println("State: PUBLISH_SCD");
+        delay(1000); // trying everything to make sure 
+        tryPublishSensor(scdSensor);
+        setState(WAIT, chrono, true);
+        break;
 
     case RESTART:
       Serial.println("State: RESTART");
@@ -354,6 +401,14 @@ void loop() {
       ESP.restart();
       break;    
   }
+
+  unsigned long loop_time = millis() - last_loop;
+  if (loop_time > 250) {  // Only print if loop takes longer than 50ms
+    Serial.print("Loop took: ");
+    Serial.print(loop_time);
+    Serial.println("ms");
+  }
+  last_loop = millis();
 }
 
 
@@ -399,45 +454,30 @@ bool exceedMaxSensorPublishTime() {
 }
 
 bool publishSensorData(Sensor* sensor) {
-  bool success = true;
-  // Read and publish sensor data if available
-  if (sensor->hasHumidity()) {
-    float humidity = sensor->readHumidity();
-    const char* topic = sensor->getHumidityTopic();
-    if (client.publish(topic, String(humidity,2).c_str())) {
-      Serial.print("Published humidity: ");
-      Serial.print(humidity);
-      Serial.print(" to topic: ");
-      Serial.println(topic);
-    } else {
-      success = false;
+    bool success = true;
+    static const Sensor::MeasurementType types[] = {
+        Sensor::MeasurementType::TEMPERATURE,
+        Sensor::MeasurementType::HUMIDITY,
+        Sensor::MeasurementType::CO2
+    };
+
+    for (const auto& type : types) {
+        if (sensor->hasMeasurement(type)) {
+            float value = sensor->read(type);
+            const char* topic = sensor->getTopic(type);
+            if (client.publish(topic, String(value,2).c_str())) {
+                Serial.print("Published ");
+                Serial.print(Sensor::getMeasurementTypeName(type));
+                Serial.print(": ");
+                Serial.print(value);
+                Serial.print(" to topic: ");
+                Serial.println(topic);
+            } else {
+                success = false;
+            }
+        }
     }
-  }
-  if (sensor->hasTemperature()) {
-    float temperature = sensor->readTemperature();
-    const char* topic = sensor->getTemperatureTopic();
-    if (client.publish(topic, String(temperature,2).c_str())) {
-      Serial.print("Published temperature: ");
-      Serial.print(temperature);
-      Serial.print(" to topic: ");
-      Serial.println(topic);
-    } else {
-      success = false;
-    }
-  }
-  if (sensor->hasCO2()) {
-    float co2 = sensor->readCO2();
-    const char* topic = sensor->getCO2Topic();
-    if (client.publish(topic, String(co2,2).c_str())) {
-      Serial.print("Published CO2: ");
-      Serial.print(co2);
-      Serial.print(" to topic: ");
-      Serial.println(topic);
-    } else {
-      success = false;
-    }
-  }
-  return success;
+    return success;
 }
 
 void tryPublishSensor(Sensor* sensor) {

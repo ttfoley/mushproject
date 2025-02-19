@@ -4,10 +4,19 @@
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_SHT31.h>
-#include <SparkFun_SCD4x_Arduino_Library.h>
 #include <DHT.h>
 #include "calibration.h"
 #include "utils.h"
+#include <DallasTemperature.h>
+#include "SensirionI2CScd4x.h"
+#include "timing_constants.h"
+
+enum class SensorType {
+    DHT,
+    SHT,
+    SCD,
+    DS18B20
+};
 
 class Sensor {
 protected:
@@ -18,7 +27,7 @@ protected:
     float temperature_offset;
     float co2_slope;
     float co2_offset;
-    static const int READ_DELAY_MS = 100;
+    static const unsigned long readDelayMs = READ_DELAY_MS;
     unsigned long publish_frequency = 15000;  // Default 15s
     const char* root_topic;  // Store the root topic path
 
@@ -32,15 +41,15 @@ public:
           root_topic(root_topic) {}
 
     virtual bool begin() = 0;
-    virtual bool hasHumidity() { return false; }
-    virtual bool hasTemperature() { return false; }
-    virtual bool hasCO2() { return false; }
+    virtual bool hasHumidity() const { return false; }
+    virtual bool hasTemperature() const { return false; }
+    virtual bool hasCO2() const { return false; }
     virtual float readHumidity() { return 0.0; }
     virtual float readTemperature() { return 0.0; }
     virtual float readCO2() { return 0.0; }
-    virtual const char* getHumidityTopic() = 0;
-    virtual const char* getTemperatureTopic() = 0;
-    virtual const char* getCO2Topic() { return nullptr; }
+    virtual const char* getHumidityTopic() const = 0;
+    virtual const char* getTemperatureTopic() const = 0;
+    virtual const char* getCO2Topic() const { return nullptr; }
 
     void resetTimeLastPublished() {
         time_last_published = millis();
@@ -63,6 +72,70 @@ public:
     const char* getRootTopic() {
         return root_topic;
     }
+
+    virtual SensorType getType() const = 0;
+    
+    const char* getName() const {
+        const char* sensor_part = strstr(root_topic, "sensors/");
+        if (sensor_part) {
+            sensor_part += 8; // Skip "sensors/"
+            static char name[32]; // Static buffer to hold the name
+            const char* end = strchr(sensor_part, '/');
+            if (end) {
+                size_t len = end - sensor_part;
+                strncpy(name, sensor_part, len);
+                name[len] = '\0';
+                return name;
+            }
+        }
+        return "unknown";
+    }
+
+    virtual const char* getTypeString() const = 0;
+
+    enum class MeasurementType {
+        TEMPERATURE,
+        HUMIDITY,
+        CO2
+    };
+
+    virtual bool hasMeasurement(MeasurementType type) const {
+        switch(type) {
+            case MeasurementType::TEMPERATURE: return hasTemperature();
+            case MeasurementType::HUMIDITY: return hasHumidity();
+            case MeasurementType::CO2: return hasCO2();
+            default: return false;
+        }
+    }
+
+    virtual float read(MeasurementType type) {
+        switch(type) {
+            case MeasurementType::TEMPERATURE: return readTemperature();
+            case MeasurementType::HUMIDITY: return readHumidity();
+            case MeasurementType::CO2: return readCO2();
+            default: return 0.0;
+        }
+    }
+
+    virtual const char* getTopic(MeasurementType type) const {
+        switch(type) {
+            case MeasurementType::TEMPERATURE: return getTemperatureTopic();
+            case MeasurementType::HUMIDITY: return getHumidityTopic();
+            case MeasurementType::CO2: return getCO2Topic();
+            default: return nullptr;
+        }
+    }
+
+    static const char* getMeasurementTypeName(MeasurementType type) {
+        switch(type) {
+            case MeasurementType::TEMPERATURE: return "temperature";
+            case MeasurementType::HUMIDITY: return "humidity";
+            case MeasurementType::CO2: return "CO2";
+            default: return "unknown";
+        }
+    }
+
+    virtual bool isDataReady() { return true; }
 };
 
 // Derived classes for specific sensors
@@ -83,8 +156,8 @@ public:
         return sht31.begin(addr); // replace 0x44 with the actual address if different
     }
 
-    bool hasHumidity() override { return true; }
-    bool hasTemperature() override { return true; }
+    bool hasHumidity() const override { return true; }
+    bool hasTemperature() const override { return true; }
 
     float readHumidity() override {
         return sht31.readHumidity() * humidity_slope + humidity_offset;
@@ -94,13 +167,17 @@ public:
         return celsiusToFahrenheit(sht31.readTemperature()) * temperature_slope + temperature_offset;
     }
 
-    const char* getHumidityTopic() override {
+    const char* getHumidityTopic() const override {
         return humidity_topic;
     }
 
-    const char* getTemperatureTopic() override {
+    const char* getTemperatureTopic() const override {
         return temperature_topic;
     }
+
+    SensorType getType() const override { return SensorType::SHT; }
+
+    const char* getTypeString() const override { return "SHT"; }
 };
 
 class DHTSensor : public Sensor {
@@ -121,8 +198,8 @@ public:
         return true;
     }
 
-    bool hasHumidity() override { return true; }
-    bool hasTemperature() override { return true; }
+    bool hasHumidity() const override { return true; }
+    bool hasTemperature() const override { return true; }
 
     float readHumidity() override {
         return dht.readHumidity() * humidity_slope + humidity_offset;
@@ -132,24 +209,33 @@ public:
         return celsiusToFahrenheit(dht.readTemperature()) * temperature_slope + temperature_offset;
     }
 
-    const char* getHumidityTopic() override {
+    const char* getHumidityTopic() const override {
         return humidity_topic;
     }
 
-    const char* getTemperatureTopic() override {
+    const char* getTemperatureTopic() const override {
         return temperature_topic;
     }
+
+    SensorType getType() const override { return SensorType::DHT; }
+
+    const char* getTypeString() const override { return "DHT"; }
 };
 
 class SCDSensor : public Sensor {
 private:
-    SCD4x scd4x;
+    SensirionI2CScd4x scd4x;
     char humidity_topic[64];
     char temperature_topic[64];
     char co2_topic[64];
-    bool is_measuring = false;
-    unsigned long measure_start_time = 0;
-    static const unsigned long MEASURE_TIME = 5000; // 5 seconds
+    uint16_t co2;
+    float temperature;
+    float humidity;
+    bool measurement_in_progress = false;
+    unsigned long measurement_start_time = 0;
+    unsigned long last_measurement_attempt = 0;
+    static const unsigned long RETRY_INTERVAL = 15000;  // 15s between attempts
+    bool data_is_ready = false;
 
 public:
     SCDSensor(const char* root_topic, const CalibrationParams& params)
@@ -160,56 +246,173 @@ public:
     }
 
     bool begin() override {
-        return scd4x.begin();
-    }
-
-    bool hasHumidity() override { return true; }
-    bool hasTemperature() override { return true; }
-    bool hasCO2() override { return true; }
-
-    float readHumidity() override {
-        return scd4x.getHumidity() * humidity_slope + humidity_offset;
-    }
-
-    float readTemperature() override {
-        return celsiusToFahrenheit(scd4x.getTemperature()) * temperature_slope + temperature_offset;
-    }
-
-    float readCO2() override {
-        return scd4x.getCO2() * co2_slope + co2_offset;
-    }
-
-    const char* getHumidityTopic() override {
-        return humidity_topic;
-    }
-
-    const char* getTemperatureTopic() override {
-        return temperature_topic;
-    }
-
-    const char* getCO2Topic() override {
-        return co2_topic;
-    }
-
-    void startMeasurement() {
-        scd4x.measureSingleShot();  // Start actual SCD measurement
-        is_measuring = true;
-        measure_start_time = millis();
-    }
-
-    bool isMeasuring() {
-        if (!is_measuring) return false;
+        scd4x.begin(Wire);
         
-        if (millis() - measure_start_time >= MEASURE_TIME) {
-            is_measuring = false;  // Measurement complete
+        uint16_t error = scd4x.stopPeriodicMeasurement();
+        if (error) {
+            Serial.println("Error stopping measurement");
             return false;
         }
+        
+        error = scd4x.setAutomaticSelfCalibration(0);
+        if (error) {
+            Serial.println("Error disabling auto-calibration");
+            return false;
+        }
+        
         return true;
     }
 
-    void completeMeasurement() {
-        is_measuring = false;
+    bool hasHumidity() const override { return true; }
+    bool hasTemperature() const override { return true; }
+    bool hasCO2() const override { return true; }
+
+
+    const char* getHumidityTopic() const override { return humidity_topic; }
+    const char* getTemperatureTopic() const override { return temperature_topic; }
+    const char* getCO2Topic() const override { return co2_topic; }
+    
+    SensorType getType() const override { return SensorType::SCD; }
+    const char* getTypeString() const override { return "SCD"; }
+
+    // Start a single measurement cycle
+    bool startMeasurement() {
+        Serial.print("Starting measurement. in_progress=");
+        Serial.print(measurement_in_progress);
+        Serial.print(" last_attempt_delta=");
+        Serial.print(millis() - last_measurement_attempt);
+        Serial.println("ms");
+
+        last_measurement_attempt = millis();  // Update attempt time
+        if (measurement_in_progress) return false;
+        
+        Serial.println("Attempting to start measurement...");
+        uint16_t error = scd4x.measureSingleShot();
+        delay(10);
+        if (error) {
+            Serial.print("Error starting measurement: ");
+            Serial.println(error);
+            return false;
+        }
+        measurement_in_progress = true;
+        data_is_ready = false;  // Reset data ready flag when starting new measurement
+        measurement_start_time = millis() - 5000;
+        return true;
     }
+
+    // Check if measurement is complete
+    bool isDataReady() override {
+        if (!measurement_in_progress) return false;
+        
+        if (!data_is_ready) {  // Only check hardware if we haven't seen data ready
+            delay(250);
+            bool data_ready = false;
+            uint16_t error = scd4x.getDataReadyFlag(data_ready);
+            Serial.print("Raw data ready value: 0x");
+            Serial.println(data_ready, HEX);
+            delay(50);
+            if (error) {
+                Serial.println("Error checking data ready status");
+                return false;
+            }
+            if (data_ready) {
+                Serial.print("Data ready after: ");
+                Serial.print(millis() - measurement_start_time);
+                Serial.println("ms");
+                measurement_in_progress = false;  // Measurement is complete here
+                data_is_ready = true;
+            }
+        }
+        return data_is_ready;  // Return our stored state
+    }
+
+    // Read the measurement if ready
+    bool readMeasurement() {
+        if (!data_is_ready) return false;  // Only check if data is ready
+
+        uint16_t error = scd4x.readMeasurement(co2, temperature, humidity);
+        if (error) {
+            Serial.print("Error reading measurement: 0x");
+            Serial.println(error, HEX);
+            data_is_ready = false;  // Clear data ready so we can retry
+            return false;
+        }
+        data_is_ready = false;
+        return true;
+    }
+
+    // Override base class read methods to use stored values
+    float readHumidity() override { return humidity * humidity_slope + humidity_offset; }
+    float readTemperature() override { return celsiusToFahrenheit(temperature) * temperature_slope + temperature_offset; }
+    float readCO2() override { return co2 * co2_slope + co2_offset; }
+
+    bool timeToMeasure() const {
+        unsigned long time_since_publish = millis() - time_last_published;
+        unsigned long time_to_next_publish = publish_frequency - (time_since_publish % publish_frequency);
+        
+        return time_to_next_publish <= MEASURE_TIME && !measurement_in_progress;
+    }
+
+    bool isMeasuring() const {
+        return measurement_in_progress;
+    }
+
+    bool isResponsive() {
+        uint16_t serial0;
+        uint16_t serial1;
+        uint16_t serial2;
+        uint16_t error = scd4x.getSerialNumber(serial0, serial1, serial2);
+        delay(10);
+        if (error) {
+            Serial.print("SCD serial number check error: ");
+            Serial.println(error);
+        }
+        return error == 0;
+    }
+
+    void resetMeasurement() {
+        measurement_in_progress = false;
+        Serial.println("Reset measurement state");
+    }
+};
+
+class DS18B20Sensor : public Sensor {
+private:
+    OneWire oneWire;
+    DallasTemperature sensor;
+    char temperature_topic[64];
+
+public:
+    DS18B20Sensor(uint8_t pin, const char* root_topic, const CalibrationParams& params)
+        : Sensor(root_topic, params), oneWire(pin), sensor(&oneWire) {
+        snprintf(temperature_topic, sizeof(temperature_topic), "%stemperature", root_topic);
+    }
+
+    bool begin() override {
+        sensor.begin();
+        return sensor.getDeviceCount() > 0;
+    }
+
+    bool hasTemperature() const override { return true; }
+
+    float readTemperature() override {
+        sensor.requestTemperatures();
+        float tempC = sensor.getTempCByIndex(0);
+        if (tempC == DEVICE_DISCONNECTED_C) return 0.0;
+        return celsiusToFahrenheit(tempC) * temperature_slope + temperature_offset;
+    }
+
+    const char* getTemperatureTopic() const override {
+        return temperature_topic;
+    }
+
+    const char* getHumidityTopic() const override {
+        return nullptr;
+    }
+
+    SensorType getType() const override { return SensorType::DS18B20; }
+
+    const char* getTypeString() const override { return "DS18B20"; }
 };
 
 #endif // SENSOR_STRUCTS_H

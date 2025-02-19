@@ -1,60 +1,53 @@
-#include "WiFi.h"
-#include <secrets.h>
+#include <Arduino.h>
 #include <Wire.h>
-#include <SPI.h>
-
-#define WIFI_SSID SECRET_WIFI_SSID
-#define WIFI_PASSWORD SECRET_WIFI_PWD
-
-
-void connect_WiFi();
-
 
 void setup() {
   Serial.begin(115200);
-
-  // Set WiFi to station mode and disconnect from an AP if it was previously connected
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();//I'm not sure either of these actually do anything
-  delay(100);
-
-  Serial.println("Setup done");
-  connect_WiFi();
+  delay(2000);  // Give serial time to stabilize
+  Serial.println("\n\nI2C Scanner Starting...");
+  
+  Wire.begin();  // Use default pins (21, 22 on ESP32)
+  Serial.println("Wire.begin() completed");
+  Serial.println("Starting scan loop...");
 }
-
 
 void loop() {
-
-  if (WiFi.status() == WL_CONNECTED)
-  {
-    Serial.println("Still Connected");
+  byte error, address;
+  int nDevices = 0;
+  
+  Serial.println("\n----------------------------------------");
+  Serial.println("Scanning I2C bus...");
+  
+  for (address = 1; address < 127; address++) {
+    // Try multiple times to verify it's a real device
+    bool deviceConfirmed = true;
+    for(int tries = 0; tries < 3; tries++) {
+      Wire.beginTransmission(address);
+      error = Wire.endTransmission();
+      if (error != 0) {
+        deviceConfirmed = false;
+        break;
+      }
+      delay(10);  // Small delay between tries
+    }
+    
+    if (deviceConfirmed) {
+      Serial.print("Verified I2C device at address 0x");
+      if (address < 16) Serial.print("0");
+      Serial.print(address, HEX);
+      Serial.println();
+      nDevices++;
+    }
   }
-  else
-  {
-    Serial.println("Disconnected, trying to reconnect");
-    connect_WiFi();
-
+  
+  if (nDevices == 0) {
+    Serial.println("No I2C devices found");
+  } else {
+    Serial.print("Found ");
+    Serial.print(nDevices);
+    Serial.println(" device(s)");
   }
+  Serial.println("----------------------------------------\n");
+  
   delay(5000);
-}
-
-
-void connect_WiFi() {
-  Serial.print("Connecting to ");
-  Serial.println(WIFI_SSID);
-
-  // Connect to the WiFi
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  delay(10000);
-  Serial.print("WiFi status: ");
-  Serial.println(WiFi.status());
-  if (WiFi.status() == WL_CONNECTED)
-  {
-    Serial.println("WiFi connected");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
-    Serial.println(WiFi.RSSI());
-    Serial.print("\n");
-  }
-
 }
