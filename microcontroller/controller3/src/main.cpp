@@ -100,8 +100,13 @@ void loop() {
         case WIFI_CONNECTING:
             if (WiFi.status() == WL_CONNECTED) {
                 Serial.println("WiFi connected!");
+                Serial.print("MAC address: ");
+                Serial.println(WiFi.macAddress());
                 Serial.print("IP address: ");
                 Serial.println(WiFi.localIP());
+                Serial.print("Signal strength: ");
+                Serial.print(WiFi.RSSI());
+                Serial.println(" dBm");
                 wifiAttempts = 0;  // Reset counter on success
                 setState(MQTT_CONNECTING);
             } else {
