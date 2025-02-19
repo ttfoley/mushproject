@@ -16,9 +16,9 @@ const char* mqtt_password = "password";
 const char* clientID = "controller3";
 
 // Add MQTT topics near other constants
-const char* mqtt_co2_topic = "mush/controllers/C3/sensors/scd41_0/co2";
-const char* mqtt_temp_topic = "mush/controllers/C3/sensors/scd41_0/temperature";
-const char* mqtt_humidity_topic = "mush/controllers/C3/sensors/scd41_0/humidity";
+const char* mqtt_co2_topic = "mush/controllers/C3/sensors/scd_0/co2";
+const char* mqtt_temp_topic = "mush/controllers/C3/sensors/scd_0/temperature";
+const char* mqtt_humidity_topic = "mush/controllers/C3/sensors/scd_0/humidity";
 
 // Timing constants
 const unsigned long WIFI_RETRY_DELAY = 5000;      // 5 seconds between retries
