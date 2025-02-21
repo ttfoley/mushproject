@@ -2,7 +2,7 @@
 #include <Wire.h>
 #include "WiFi.h"
 #include <PubSubClient.h>
-#include <SparkFun_SCD4x_Arduino_Library.h>
+#include <SensirionI2CScd4x.h>
 #include "secrets.h"
 
 // WiFi credentials from secrets.h
@@ -29,7 +29,7 @@ const unsigned long MEASURE_TIME = 5000;  // Time to wait for measurement (5s)
 const unsigned long MEASUREMENT_INTERVAL = 30000; // Time between measurements (30s)
 
 // Initialize objects
-SCD4x scd4x;
+SensirionI2CScd4x scd4x;
 WiFiClient wifiClient;
 PubSubClient mqttClient(mqtt_server, 1883, wifiClient);
 
@@ -65,6 +65,10 @@ float humidity;
 void setup() {
     Serial.begin(115200);
     Wire.begin(21, 22);  // SDA = 21, SCL = 22
+    Wire.setClock(100000);  // Set to 100kHz
+    // Actually we DO want the internal pullups
+    pinMode(21, INPUT_PULLUP);  // SDA
+    pinMode(22, INPUT_PULLUP);  // SCL
     delay(2000);
     
     Serial.println("Controller3 starting up - SCD41 dedicated controller");
@@ -144,36 +148,50 @@ void loop() {
             break;
             
         case MEASURING:
-            static unsigned long measureStartTime = 0;
-            
-            if (measureStartTime == 0) {
-                Serial.println("Starting measurement...");
-                scd4x.measureSingleShot();
-                measureStartTime = millis();
-                break;
-            }
-            
-            if (millis() - measureStartTime < MEASURE_TIME) {
-                break;
-            }
-            
-            if (scd4x.readMeasurement()) {
-                co2 = scd4x.getCO2();
-                temperature = celsiusToFahrenheit(scd4x.getTemperature());
-                humidity = scd4x.getHumidity();
+            {
+                uint16_t error;
                 
-                Serial.print("Co2: ");
-                Serial.print(co2);
-                Serial.print(" ppm, Temp: ");
-                Serial.print(temperature);
-                Serial.print(" F, Humidity: ");
-                Serial.print(humidity);
-                Serial.println(" %");
+                // Reset I2C before trying
+                Wire.end();
+                delay(100);
+                Wire.begin(21, 22);
+                Wire.setClock(100000);
+                delay(100);
+                scd4x.begin(Wire);
+                delay(1000);
                 
-                setState(PUBLISH);
+                // Start the measurement
+                error = scd4x.measureSingleShot();
+                if (error) {
+                    Serial.println("Failed to start measurement");
+                    delay(2000);  // Add delay before returning to WAIT
+                    setState(WAIT);
+                    break;
+                }
+                
+                // Conservative wait for measurement
+                delay(2000);
+                
+                // Try reading once
+                error = scd4x.readMeasurement(co2, temperature, humidity);
+                if (!error && co2 != 0) {
+                    temperature = celsiusToFahrenheit(temperature);
+                    
+                    Serial.print("Co2: ");
+                    Serial.print(co2);
+                    Serial.print(" ppm, Temp: ");
+                    Serial.print(temperature);
+                    Serial.print(" F, Humidity: ");
+                    Serial.print(humidity);
+                    Serial.println(" %");
+                    
+                    setState(PUBLISH);
+                } else {
+                    Serial.println("Failed to read measurement, returning to WAIT");
+                    delay(2000);  // Add delay here too
+                    setState(WAIT);
+                }
             }
-            
-            measureStartTime = 0;  // Reset timer regardless of measurement success
             break;
             
         case PUBLISH:
@@ -202,8 +220,8 @@ void loop() {
                 break;
             }
             
-            // Start measuring MEASURE_TIME before next publish is due
-            if (millis() - lastPublishTime >= (MEASUREMENT_INTERVAL - MEASURE_TIME)) {
+            // In periodic mode, just wait for MEASUREMENT_INTERVAL
+            if (millis() - lastPublishTime >= MEASUREMENT_INTERVAL) {
                 setState(MEASURING);
                 break;
             }
@@ -246,24 +264,20 @@ const char* stateToString(State state) {
 
 bool initializeSCD4x() {
     Serial.println("Attempting to begin SCD4x...");
-    if (!scd4x.begin()) {
-        Serial.println("Failed to find SCD4x chip");
-        return false;
-    }
+    
+    scd4x.begin(Wire);
+    delay(1000);
     
     // Stop periodic measurement if it was running
-    scd4x.stopPeriodicMeasurement();
+    uint16_t error = scd4x.stopPeriodicMeasurement();
     delay(500);
     
-    // Disable ASC
-    scd4x.setAutomaticSelfCalibrationEnabled(false);
+    error = scd4x.setAutomaticSelfCalibration(0);
+    if (error) {
+        Serial.println("Failed to disable ASC");
+        return false;
+    }
     delay(500);
-    
-    // Get serial number
-    char serialNumber[13];
-    scd4x.getSerialNumber(serialNumber);
-    Serial.print("Serial number: ");
-    Serial.println(serialNumber);
     
     return true;
 }
