@@ -64,14 +64,16 @@ float humidity;
 
 void setup() {
     Serial.begin(115200);
-    Wire.begin(21, 22);  // SDA = 21, SCL = 22
-    Wire.setClock(100000);  // Set to 100kHz
-    // Actually we DO want the internal pullups
-    pinMode(21, INPUT_PULLUP);  // SDA
-    pinMode(22, INPUT_PULLUP);  // SCL
-    delay(2000);
+    
+    // Give everything time to power up stably
+    delay(5000);
     
     Serial.println("Controller3 starting up - SCD41 dedicated controller");
+    
+    Wire.begin(21, 22);  // SDA = 21, SCL = 22
+    Wire.setClock(100000);  // Set to 100kHz
+    delay(2000);
+    
     currentState = START;
 }
 
@@ -160,7 +162,7 @@ void loop() {
                 scd4x.begin(Wire);
                 delay(1000);
                 
-                // Start the measurement
+                // Start the measurement, measureSingleShot is blocking for 5 seconds.
                 error = scd4x.measureSingleShot();
                 if (error) {
                     Serial.println("Failed to start measurement");
@@ -169,10 +171,10 @@ void loop() {
                     break;
                 }
                 
-                // Conservative wait for measurement
+                // Conservative wait for measurement, note measure_single shot already took 5  seconds.
                 delay(2000);
                 
-                // Try reading once
+                // Try reading once. Based on experience, if it doesn't work the first time it won't work at all.
                 error = scd4x.readMeasurement(co2, temperature, humidity);
                 if (!error && co2 != 0) {
                     temperature = celsiusToFahrenheit(temperature);
@@ -188,7 +190,7 @@ void loop() {
                     setState(PUBLISH);
                 } else {
                     Serial.println("Failed to read measurement, returning to WAIT");
-                    delay(2000);  // Add delay here too
+                    delay(250);  // Add delay here too just in case stupid scd needs it to settle.
                     setState(WAIT);
                 }
             }
@@ -263,17 +265,31 @@ const char* stateToString(State state) {
 }
 
 bool initializeSCD4x() {
-    Serial.println("Attempting to begin SCD4x...");
+    Serial.println("Testing I2C communication...");
     
+    Wire.beginTransmission(0x62);  // SCD41 address
+    byte error = Wire.endTransmission();
+    
+    if (error == 0) {
+        Serial.println("Found device at 0x62");
+    } else {
+        Serial.println("No device at 0x62, error: " + String(error));
+        return false;
+    }
+    
+    delay(1000);
+    
+    // Initialize sensor
     scd4x.begin(Wire);
     delay(1000);
     
-    // Stop periodic measurement if it was running
-    uint16_t error = scd4x.stopPeriodicMeasurement();
+    // Stop any periodic measurement
+    uint16_t err = scd4x.stopPeriodicMeasurement();
     delay(500);
     
-    error = scd4x.setAutomaticSelfCalibration(0);
-    if (error) {
+    // Disable automatic self calibration
+    err = scd4x.setAutomaticSelfCalibration(0);
+    if (err) {
         Serial.println("Failed to disable ASC");
         return false;
     }
