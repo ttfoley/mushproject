@@ -5,17 +5,18 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_SHT31.h>
 #include <DHT.h>
+#include <Adafruit_BME280.h>
 #include "calibration.h"
 #include "utils.h"
 #include <DallasTemperature.h>
-#include "SensirionI2CScd4x.h"
 #include "timing_constants.h"
 
 enum class SensorType {
     DHT,
     SHT,
     SCD,
-    DS18B20
+    DS18B20,
+    BME280
 };
 
 class Sensor {
@@ -27,6 +28,8 @@ protected:
     float temperature_offset;
     float co2_slope;
     float co2_offset;
+    float pressure_slope;
+    float pressure_offset;
     static const unsigned long readDelayMs = READ_DELAY_MS;
     unsigned long publish_frequency = 15000;  // Default 15s
     const char* root_topic;  // Store the root topic path
@@ -38,18 +41,22 @@ public:
           temperature_slope(params.temperature_slope), 
           temperature_offset(params.temperature_offset),
           co2_slope(params.co2_slope), co2_offset(params.co2_offset),
+          pressure_slope(params.pressure_slope), pressure_offset(params.pressure_offset),
           root_topic(root_topic) {}
 
     virtual bool begin() = 0;
     virtual bool hasHumidity() const { return false; }
     virtual bool hasTemperature() const { return false; }
     virtual bool hasCO2() const { return false; }
+    virtual bool hasPressure() const { return false; }
     virtual float readHumidity() { return 0.0; }
     virtual float readTemperature() { return 0.0; }
     virtual float readCO2() { return 0.0; }
+    virtual float readPressure() { return 0.0; }
     virtual const char* getHumidityTopic() const = 0;
     virtual const char* getTemperatureTopic() const = 0;
     virtual const char* getCO2Topic() const { return nullptr; }
+    virtual const char* getPressureTopic() const { return nullptr; }
 
     void resetTimeLastPublished() {
         time_last_published = millis();
@@ -96,7 +103,8 @@ public:
     enum class MeasurementType {
         TEMPERATURE,
         HUMIDITY,
-        CO2
+        CO2,
+        PRESSURE
     };
 
     virtual bool hasMeasurement(MeasurementType type) const {
@@ -104,6 +112,7 @@ public:
             case MeasurementType::TEMPERATURE: return hasTemperature();
             case MeasurementType::HUMIDITY: return hasHumidity();
             case MeasurementType::CO2: return hasCO2();
+            case MeasurementType::PRESSURE: return hasPressure();
             default: return false;
         }
     }
@@ -113,6 +122,7 @@ public:
             case MeasurementType::TEMPERATURE: return readTemperature();
             case MeasurementType::HUMIDITY: return readHumidity();
             case MeasurementType::CO2: return readCO2();
+            case MeasurementType::PRESSURE: return readPressure();
             default: return 0.0;
         }
     }
@@ -122,6 +132,7 @@ public:
             case MeasurementType::TEMPERATURE: return getTemperatureTopic();
             case MeasurementType::HUMIDITY: return getHumidityTopic();
             case MeasurementType::CO2: return getCO2Topic();
+            case MeasurementType::PRESSURE: return getPressureTopic();
             default: return nullptr;
         }
     }
@@ -131,6 +142,7 @@ public:
             case MeasurementType::TEMPERATURE: return "temperature";
             case MeasurementType::HUMIDITY: return "humidity";
             case MeasurementType::CO2: return "CO2";
+            case MeasurementType::PRESSURE: return "pressure";
             default: return "unknown";
         }
     }
@@ -260,6 +272,59 @@ public:
     SensorType getType() const override { return SensorType::DS18B20; }
 
     const char* getTypeString() const override { return "DS18B20"; }
+};
+
+class BME280Sensor : public Sensor {
+private:
+    Adafruit_BME280 bme;
+    uint8_t addr;
+    char humidity_topic[64];
+    char temperature_topic[64];
+    char pressure_topic[64];
+
+public:
+    BME280Sensor(uint8_t addr, const char* root_topic, const CalibrationParams& params)
+        : Sensor(root_topic, params), bme(), addr(addr) {
+        snprintf(humidity_topic, sizeof(humidity_topic), "%shumidity", root_topic);
+        snprintf(temperature_topic, sizeof(temperature_topic), "%stemperature", root_topic);
+        snprintf(pressure_topic, sizeof(pressure_topic), "%spressure", root_topic);
+    }
+
+    bool begin() override {
+        return bme.begin(addr);
+    }
+
+    bool hasHumidity() const override { return true; }
+    bool hasTemperature() const override { return true; }
+    bool hasPressure() const override { return true; }
+
+    float readHumidity() override {
+        return bme.readHumidity() * humidity_slope + humidity_offset;
+    }
+
+    float readTemperature() override {
+        return celsiusToFahrenheit(bme.readTemperature()) * temperature_slope + temperature_offset;
+    }
+
+    float readPressure() override {
+        return bme.readPressure() * pressure_slope + pressure_offset;
+    }
+
+    const char* getHumidityTopic() const override {
+        return humidity_topic;
+    }
+
+    const char* getTemperatureTopic() const override {
+        return temperature_topic;
+    }
+
+    const char* getPressureTopic() const override {
+        return pressure_topic;
+    }
+
+    SensorType getType() const override { return SensorType::BME280; }
+
+    const char* getTypeString() const override { return "BME280"; }
 };
 
 #endif // SENSOR_STRUCTS_H

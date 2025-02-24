@@ -11,16 +11,22 @@ struct CalibrationParams {
     float temperature_offset;
     float co2_slope;
     float co2_offset;
+    float pressure_slope;
+    float pressure_offset;
 };
 
 // Calibration parameters for specific sensor instances
-const CalibrationParams SHT_SENSOR_0_PARAMS = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
-const CalibrationParams DHT_SENSOR_0_PARAMS = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
-const CalibrationParams SCD_SENSOR_0_PARAMS = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
+const CalibrationParams SHT_SENSOR_0_PARAMS = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
+const CalibrationParams DHT_SENSOR_0_PARAMS = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
+const CalibrationParams SCD_SENSOR_0_PARAMS = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
 
 // Add new calibration parameter constants
-const CalibrationParams DS18B20_SENSOR_0_PARAMS = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
-const CalibrationParams DS18B20_SENSOR_1_PARAMS = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
+const CalibrationParams DS18B20_SENSOR_0_PARAMS = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
+const CalibrationParams DS18B20_SENSOR_1_PARAMS = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
+
+// Add BME280 calibration parameters
+const CalibrationParams BME280_SENSOR_0_PARAMS = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
+const CalibrationParams BME280_SENSOR_1_PARAMS = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
 
 // Map sensor instance names to their calibration parameters
 std::unordered_map<std::string, CalibrationParams> calibration_map = {
@@ -28,7 +34,9 @@ std::unordered_map<std::string, CalibrationParams> calibration_map = {
     {"DHT_0", DHT_SENSOR_0_PARAMS},
     {"SCD_0", SCD_SENSOR_0_PARAMS},
     {"DS18B20_0", DS18B20_SENSOR_0_PARAMS},
-    {"DS18B20_1", DS18B20_SENSOR_1_PARAMS}
+    {"DS18B20_1", DS18B20_SENSOR_1_PARAMS},
+    {"BME280_0", BME280_SENSOR_0_PARAMS},
+    {"BME280_1", BME280_SENSOR_1_PARAMS}
 };
 
 // Function to retrieve calibration parameters for a given sensor instance
