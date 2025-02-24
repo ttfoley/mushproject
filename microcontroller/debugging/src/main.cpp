@@ -1,15 +1,19 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+// Define I2C pins - using common ESP32 defaults
+#define I2C_SDA 21
+#define I2C_SCL 22
+
 void setup() {
     Serial.begin(115200);
     delay(2000);
     
     Serial.println("Starting I2C scan...");
     
-    Wire.setPins(SDA, SCL);
+    Wire.setPins(I2C_SDA, I2C_SCL);
     Wire.begin();
-    Wire.setClock(10000);
+    Wire.setClock(100000);
     
     delay(1000);
     
