@@ -1,0 +1,13 @@
+{
+    "folders": [
+        {
+            "name": "Control System",
+            "path": "control"
+        },
+        {
+            "name": "Analysis",
+            "path": "analysis"
+        }
+    ],
+    "settings": {}
+} 
