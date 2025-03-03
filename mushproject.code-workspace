@@ -1,0 +1,22 @@
+{
+    "folders": [
+        {
+            "name": "📁 Project Root",
+            "path": "."
+        },
+        {
+            "name": "⚙️ Control",
+            "path": "control"
+        },
+        {
+            "name": "📊 Analysis",
+            "path": "analysis"
+        }
+    ],
+    "settings": {
+        "files.exclude": {
+            "**/control": true,
+            "**/analysis": true
+        }
+    }
+} 
