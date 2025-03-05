@@ -48,20 +48,6 @@ services:
     depends_on:
       - influxdb
 
-  led_control:
-    build: 
-      context: ../control/led_control
-      dockerfile: Dockerfile
-    container_name: led_control
-    ports:
-      - "8000:8000"
-    depends_on:
-      - mosquitto
-    networks:
-      - default
-    environment:
-      - PYTHONBUFFERED=1
-  
   temperature_driver:
     build: 
       context: ../control
