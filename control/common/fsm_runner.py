@@ -101,6 +101,7 @@ class FSMRunner:
             self._initial_setup()
             while True:
                 self.update()
+                time.sleep(0.1)  # Add a 100ms delay to prevent CPU thrashing
         except KeyboardInterrupt:
             print("\nShutting down...")
         except RuntimeError as e:
