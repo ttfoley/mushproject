@@ -22,6 +22,8 @@ services:
       DOCKER_INFLUXDB_INIT_PASSWORD: password
       DOCKER_INFLUXDB_INIT_ORG: mush
       DOCKER_INFLUXDB_INIT_BUCKET: bucket
+      INFLUXDB_DATA_CACHE_MAX_MEMORY_SIZE: 256m
+      INFLUXDB_DATA_CACHE_SNAPSHOT_WRITE_COLD_DURATION: 5m
     volumes:
       - ./data/influxdb:/var/lib/influxdb2
       - ./config/influxdb:/etc/influxdb2
