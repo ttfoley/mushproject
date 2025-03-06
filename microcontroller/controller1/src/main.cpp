@@ -66,7 +66,7 @@ const char* wifiTopic = "mush/controllers/C1/sensors/status/wifi_uptime";
 //Make sensors. The last arg is the sensor instance name for lookup in calibration map
 //Should probably have topics in a map like the scaling, and include a name for the sensor instance to make
 //it easier to find configurations (wouldn't need to add extra arguments to the sensor constructors)
-//SHTSensor sht_0_Sensor(SHT_0_ADDR, "mush/controllers/C1/sensors/sht_0/", getCalibrationParams("SHT_0"));
+SHTSensor sht_0_Sensor(SHT_0_ADDR, "mush/controllers/C1/sensors/sht_0/", getCalibrationParams("SHT_0"));
 DHTSensor dht_0_Sensor(DHT_0_PIN, DHT_0_TYPE, "mush/controllers/C1/sensors/dht_0/", getCalibrationParams("DHT_0"));
 DS18B20Sensor ds18b20_0_Sensor(DS18B20_0_PIN, "mush/controllers/C1/sensors/ds18b20_0/", getCalibrationParams("DS18B20_0"));
 DS18B20Sensor ds18b20_1_Sensor(DS18B20_1_PIN, "mush/controllers/C1/sensors/ds18b20_1/", getCalibrationParams("DS18B20_1"));
@@ -74,7 +74,7 @@ BME280Sensor bme280_0_Sensor(BME280_0_ADDR, "mush/controllers/C1/sensors/bme280_
 BME280Sensor bme280_1_Sensor(BME280_1_ADDR, "mush/controllers/C1/sensors/bme280_1/", getCalibrationParams("BME280_1"));
 
 // Update sensors array to include the working DS18B20
-Sensor* sensors[] = {&dht_0_Sensor, &ds18b20_0_Sensor, &ds18b20_1_Sensor, &bme280_0_Sensor,&bme280_1_Sensor};
+Sensor* sensors[] = {&dht_0_Sensor, &ds18b20_0_Sensor, &ds18b20_1_Sensor, &bme280_0_Sensor,&bme280_1_Sensor, &sht_0_Sensor};
 
 enum RestartReason {
     WIFI_TIMEOUT,
