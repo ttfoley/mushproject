@@ -53,3 +53,8 @@ config.ini
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Pi backup files
+pi_backup.img
+pi_backup_shrunk.img.gz
+pishrink.sh
