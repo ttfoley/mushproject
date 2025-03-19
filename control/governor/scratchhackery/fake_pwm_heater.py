@@ -16,7 +16,7 @@ COMMAND_TOPIC = "mush/drivers/temperature_driver/command/state"
 
 # PWM settings (in seconds)
 TIME_ON = 20
-TIME_OFF = 5   
+TIME_OFF = 60  
 
 def on_connect(client, userdata, flags, rc):
     print(f"Connected with result code {rc}")
