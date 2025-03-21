@@ -9,7 +9,7 @@ from config_helpers import TransitionsConfigHelper, TransitionsBuilder
 helper = TransitionsConfigHelper(config_path)
 builder = TransitionsBuilder(helper)
 
-min_state_time = 5
+min_state_time = 1 ##Don't even remember why we had this? I guess rapid cycling. 
 max_on_time = 15
 lockout_time = 60
 # Unknown to Off - safety transition
