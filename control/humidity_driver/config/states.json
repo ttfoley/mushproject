@@ -1,0 +1,11 @@
+{
+  "off": [
+    {"control_point": {"controller": "C2", "name": "CP_25"}, "value": "off"}
+  ],
+  "on": [
+    {"control_point": {"controller": "C2", "name": "CP_25"}, "value": "on"}
+  ],
+  "lockout": [
+    {"control_point": {"controller": "C2", "name": "CP_25"}, "value": "off"}
+  ]
+}
