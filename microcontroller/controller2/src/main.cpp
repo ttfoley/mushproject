@@ -47,7 +47,7 @@ void connectMQTT(PinControl pinControls[], size_t numPins);
 void mqttCallback(char *topic, byte *payload, unsigned int length);
 void SubscribeMQTT(PinControl pinControls[], size_t numPins);
 void writeDelay(String content, PinControl& pinControl, int delayTime = 10);
-bool publishAndUpdateReadback(PinControl& pinControl);
+bool publishReadback(PinControl& pinControl);
 
 //State machine states
 enum State {START, WAIT, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, RESTART};
@@ -179,15 +179,12 @@ void loop() {
     */
     case MQTT_PUBLISH: 
       //Serial.println("State: MQTT_PUBLISH");
-      {
-        for (auto& pinControl : pinControls){
-          timesUp = ((millis() - pinControl.time_last_published) > FORCE_REPUBLISH_FREQ);
-          if ((pinControl.rb != pinControl.rb_last) || timesUp)  {
-            if (!publishAndUpdateReadback(pinControl)) {
-              Serial.println("Failed to publish");
-            }
+      for (auto& pinControl : pinControls) {
+          if (pinControl.needs_publish) {
+              if (publishReadback(pinControl)) {
+                  pinControl.publishComplete();
+              }
           }
-        }
       }
       // Check if it's time to post wifiConnectionDuration
       if (millis() - lastWifiDurationPostTime > WIFI_DURATION_POST_INTERVAL) {
@@ -322,14 +319,12 @@ void writeDelay(String content, PinControl& pinControl, int delayTime)
   * This is the only way to update the readback value.
   * 
 */
-bool publishAndUpdateReadback(PinControl& pinControl) {
+bool publishReadback(PinControl& pinControl) {
     char tempString[16];
     dtostrf(pinControl.rb, 1, 2, tempString);
     if (client.publish(pinControl.readback_topic, tempString)) {
         Serial.println(tempString);
         Serial.println("Sent!");
-        pinControl.setLastEqual(); 
-        pinControl.resetLastPublished();
         return true;
     }
     return false;
