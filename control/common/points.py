@@ -116,10 +116,10 @@ class Writeable_Discrete_Point(Writable_Point):
 
     @requested_value.setter
     def requested_value(self,candidate_value):
-        print(f"Discrete Point - Setting value: {candidate_value}, type: {type(candidate_value)}")  # Debug
-        print(f"Expected type: {self.value_class._value_type}")  # Debug
-        print(f"Valid values: {self._valid_values}")  # Debug
-        print(f"Type assertion will check: {type(candidate_value)} == {self.value_class._value_type}")  # Debug
+        # print(f"Discrete Point - Setting value: {candidate_value}, type: {type(candidate_value)}")  # Debug
+        # print(f"Expected type: {self.value_class._value_type}")  # Debug
+        # print(f"Valid values: {self._valid_values}")  # Debug
+        # print(f"Type assertion will check: {type(candidate_value)} == {self.value_class._value_type}")  # Debug
         assert type(candidate_value) == self.value_class._value_type
         print(f"Checking if {candidate_value} in {self._valid_values}")  # Debug
         if candidate_value in self._valid_values:

@@ -1,0 +1,144 @@
+{
+    "Transitions": {
+        "unknown": {
+            "off": {
+                "constraint_groups": [
+                    {
+                        "id": 0,
+                        "constraints": [
+                            {
+                                "definition": {
+                                    "id": 0,
+                                    "value_uuid": 25,
+                                    "comparand": 0,
+                                    "comparator": ">=",
+                                    "units": "float"
+                                },
+                                "description": "state_time constraint for state time",
+                                "type": "state_time"
+                            }
+                        ],
+                        "description": "Turn off immediately if unknown",
+                        "priority": 0
+                    }
+                ]
+            }
+        },
+        "off": {
+            "on": {
+                "constraint_groups": [
+                    {
+                        "id": 0,
+                        "constraints": [
+                            {
+                                "definition": {
+                                    "id": 0,
+                                    "value_uuid": 25,
+                                    "comparand": 1,
+                                    "comparator": ">=",
+                                    "units": "float"
+                                },
+                                "description": "state_time constraint for state time",
+                                "type": "state_time"
+                            },
+                            {
+                                "definition": {
+                                    "id": 1,
+                                    "value_uuid": 26,
+                                    "comparand": "on",
+                                    "comparator": "==",
+                                    "units": "str"
+                                },
+                                "description": "discrete_value constraint for Command to enter on state",
+                                "type": "discrete_value"
+                            }
+                        ],
+                        "description": "Governor commanded transition from off to on",
+                        "priority": 0
+                    }
+                ]
+            }
+        },
+        "on": {
+            "off": {
+                "constraint_groups": [
+                    {
+                        "id": 0,
+                        "constraints": [
+                            {
+                                "definition": {
+                                    "id": 0,
+                                    "value_uuid": 25,
+                                    "comparand": 1,
+                                    "comparator": ">=",
+                                    "units": "float"
+                                },
+                                "description": "state_time constraint for state time",
+                                "type": "state_time"
+                            },
+                            {
+                                "definition": {
+                                    "id": 1,
+                                    "value_uuid": 26,
+                                    "comparand": "off",
+                                    "comparator": "==",
+                                    "units": "str"
+                                },
+                                "description": "discrete_value constraint for Command to enter off state",
+                                "type": "discrete_value"
+                            }
+                        ],
+                        "description": "Governor commanded transition from on to off",
+                        "priority": 0
+                    }
+                ]
+            },
+            "lockout": {
+                "constraint_groups": [
+                    {
+                        "id": 0,
+                        "constraints": [
+                            {
+                                "definition": {
+                                    "id": 0,
+                                    "value_uuid": 25,
+                                    "comparand": 15,
+                                    "comparator": ">=",
+                                    "units": "float"
+                                },
+                                "description": "state_time constraint for state time",
+                                "type": "state_time"
+                            }
+                        ],
+                        "description": "On too long, transition from on to lockout",
+                        "priority": 0
+                    }
+                ]
+            }
+        },
+        "lockout": {
+            "off": {
+                "constraint_groups": [
+                    {
+                        "id": 0,
+                        "constraints": [
+                            {
+                                "definition": {
+                                    "id": 0,
+                                    "value_uuid": 25,
+                                    "comparand": 60,
+                                    "comparator": ">=",
+                                    "units": "float"
+                                },
+                                "description": "state_time constraint for state time",
+                                "type": "state_time"
+                            }
+                        ],
+                        "description": "Lockout finished, return to off",
+                        "priority": 0
+                    }
+                ]
+            }
+        }
+    }
+}

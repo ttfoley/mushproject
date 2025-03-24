@@ -83,23 +83,27 @@ class PointsMessenger:
         """Publish a point's value with retry logic"""
         now = datetime.now()
         
-        print(f"Points Messenger - Publishing to {point.addr}: {point.requested_value}")  # Debug
+        print(f"Points Messenger - Attempting publish to {point.addr}: {point.requested_value}")
         
         # Check if we need to publish
         if not force and point.value == point.requested_value:
+            print(f"Points Messenger - Skipping publish to {point.addr} (values match)")
             return
         
         # Check retry interval for pending publishes
         if point.addr in self._pending_publishes:
             _, time_requested = self._pending_publishes[point.addr]
             if (now - time_requested).total_seconds() < point.retry_interval:
+                print(f"Points Messenger - Too soon to retry {point.addr}")
                 return  # Too soon to retry
         
         # Attempt publish
         success = self._publisher.publish(point.addr, point.requested_value)
         if success:
+            point._time_last_published = datetime.now()
+        else:
+            # Add to pending publishes for retry
             self._pending_publishes[point.addr] = (point.requested_value, now)
-        
 
     def handle_mqtt_message(self, topic: str, value: str):
         """Handle incoming MQTT message"""
