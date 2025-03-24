@@ -66,3 +66,17 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  humidity_driver:
+    build: 
+      context: ../control
+      dockerfile: humidity_driver/Dockerfile
+    environment:
+      - MQTT_BROKER=mosquitto
+      - PYTHONUNBUFFERED=1
+      - IN_DOCKER=1
+    container_name: humidity_driver
+    depends_on:
+      - mosquitto
+    networks:
+      - default
