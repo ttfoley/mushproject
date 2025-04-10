@@ -74,7 +74,7 @@ DS18B20Sensor ds18b20_1_Sensor(DS18B20_1_PIN, "mush/controllers/C1/sensors/ds18b
 BME280Sensor bme280_1_Sensor(BME280_1_ADDR, "mush/controllers/C1/sensors/bme280_1/", getCalibrationParams("BME280_1"));
 
 // Update sensors array to include the working DS18B20
-Sensor* sensors[] = {&dht_0_Sensor, &ds18b20_0_Sensor, &ds18b20_1_Sensor, &bme280_1_Sensor, &sht_0_Sensor};
+Sensor* sensors[] = {&dht_0_Sensor, &ds18b20_0_Sensor, &ds18b20_1_Sensor, &bme280_1_Sensor,&sht_0_Sensor};
 
 enum RestartReason {
     WIFI_TIMEOUT,

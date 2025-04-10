@@ -180,6 +180,9 @@ void loop() {
     case MQTT_PUBLISH: 
       //Serial.println("State: MQTT_PUBLISH");
       for (auto& pinControl : pinControls) {
+          // Check if it's time to republish
+          pinControl.checkTimeToRepublish(FORCE_REPUBLISH_FREQ);
+          
           if (pinControl.needs_publish) {
               if (publishReadback(pinControl)) {
                   pinControl.publishComplete();

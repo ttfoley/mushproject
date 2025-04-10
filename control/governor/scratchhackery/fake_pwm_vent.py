@@ -16,7 +16,7 @@ COMMAND_TOPIC = "mush/controllers/C2/control_points/CP_33/write"
 
 # PWM settings (in seconds)
 TIME_ON = 60
-TIME_OFF = 60*60*2
+TIME_OFF = 60*60*1.5
 
 def on_connect(client, userdata, flags, rc):
     print(f"Connected with result code {rc}")
