@@ -15,8 +15,8 @@ MQTT_CLIENT_ID: str = "fake_pwm_vent"
 COMMAND_TOPIC = "mush/controllers/C2/control_points/CP_33/write"
 
 # PWM settings (in seconds)
-TIME_ON = 60
-TIME_OFF = 60*60*1.5
+TIME_ON = 30
+TIME_OFF = 60*60*8
 
 def on_connect(client, userdata, flags, rc):
     print(f"Connected with result code {rc}")

@@ -15,23 +15,16 @@ MQTT_CLIENT_ID: str = "fake_pwm_heater"
 COMMAND_TOPIC = "mush/drivers/temperature_driver/command/state"
 
 # PWM settings (in seconds)
-TIME_ON = 5
+TIME_ON = 15
 TIME_OFF = 90
 
 def on_connect(client, userdata, flags, rc):
     print(f"Connected with result code {rc}")
 
-def on_disconnect(client, userdata, rc):
-    if rc != 0:
-        print(f"Unexpected disconnection with code {rc}")
-    else:
-        print("Clean disconnect")
-
 def main():
     client = mqtt.Client(client_id=MQTT_CLIENT_ID)
     client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
     client.on_connect = on_connect
-    client.on_disconnect = on_disconnect
 
     try:
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
