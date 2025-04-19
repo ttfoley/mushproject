@@ -9,14 +9,14 @@ MQTT_BROKER: str = "192.168.1.17" ## Don't know why this type hint is needed all
 MQTT_PORT: int = 1883
 MQTT_USERNAME: str = "ttfoley"
 MQTT_PASSWORD: str = "password"
-MQTT_CLIENT_ID: str = "fake_pwm_heater"
+MQTT_CLIENT_ID: str = "fake_pwm_vent"
 
 # Topic for temperature driver command
-COMMAND_TOPIC = "mush/drivers/temperature_driver/command/state"
+COMMAND_TOPIC = "mush/controllers/C2/control_points/CP_33/write"
 
 # PWM settings (in seconds)
-TIME_ON = 15
-TIME_OFF = 90
+TIME_ON = 30
+TIME_OFF = 60*60*8
 
 def on_connect(client, userdata, flags, rc):
     print(f"Connected with result code {rc}")

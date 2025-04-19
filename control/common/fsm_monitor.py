@@ -37,6 +37,8 @@ class FSMMonitor:
 
     def on_state_change(self):
         """Called when FSM state changes"""
+        # Publish final time in previous state
+        self._time_point.publish_point(force=True)
         self.reset_time()
         print(f"FSM Monitor - New state: {self.fsm.current_state.name}")  # Debug
         self._state_point.requested_value = self.fsm.current_state.name
