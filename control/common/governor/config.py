@@ -124,35 +124,30 @@ class GovernorConfiguration:
         print(f"Loading Governor configuration from: {self.governor_config_path}")
         self._raw_governor_config = self._load_json_file(self.governor_config_path, "main governor config")
 
-        # --- 1. Extract and Validate Top-Level Sections ---
+
         # --- 1. Extract and Validate Top-Level Sections ---
         print("Validating top-level sections...")
-        required_top_level = ["mqtt", "runner", "controllers", "config_references"]
-        # Check the main config first
+        # Updated required key list
+        required_top_level = ["mqtt", "runner", "control_strategies", "config_references"]
         self._validate_required_keys(self._raw_governor_config, required_top_level, "governor_config.json")
 
-        # Now that we know the keys exist, assign them
         self._mqtt_config = self._raw_governor_config["mqtt"]
         self._runner_config = self._raw_governor_config["runner"]
-        self._controllers_config = self._raw_governor_config["controllers"]
-        self._point_manager_config = self._raw_governor_config.get("point_manager", {}) # Optional
+        # Updated assignment
+        self._control_strategies_config = self._raw_governor_config["control_strategies"]
+        self._point_manager_config = self._raw_governor_config.get("point_manager", {})
 
-        # --- ADD ASSERTIONS HERE ---
-        # Ensure the extracted sections are actually dictionaries before further validation
-        # These assertions satisfy the type checker and add a runtime safety check.
         assert isinstance(self._mqtt_config, dict), "'mqtt' section must be a dictionary."
         assert isinstance(self._runner_config, dict), "'runner' section must be a dictionary."
-        # --- END OF ADDED ASSERTIONS ---
+        # Updated check
+        assert isinstance(self._control_strategies_config, list), "'control_strategies' must be a list."
+        if not self._control_strategies_config:
+             raise GovernorConfigurationError("'control_strategies' list cannot be empty.")
 
-        # Basic validation for required sub-keys (NOW SAFE TO CALL)
-        self._validate_required_keys(self._mqtt_config, ["broker", "port", "username", "password", "client_id"], "mqtt config") # Line ~138
-        self._validate_required_keys(self._runner_config, ["update_interval_seconds"], "runner config") # Line ~139
-
-        if not isinstance(self._controllers_config, list) or not self._controllers_config:
-             raise GovernorConfigurationError("'controllers' must be a non-empty list.")
+        self._validate_required_keys(self._mqtt_config, ["broker", "port", "username", "password", "client_id"], "mqtt config")
+        self._validate_required_keys(self._runner_config, ["update_interval_seconds"], "runner config")
 
         print("Top-level sections validated.")
-
         # --- 2. Load Referenced Configs ---
         print("Loading referenced configurations...")
         references = self._raw_governor_config["config_references"]
@@ -228,21 +223,22 @@ class GovernorConfiguration:
 
         # --- 4. Perform Cross-Config Validation ---
         print("Performing cross-config validation...")
-        # Validate controller point references
-        for i, controller_conf in enumerate(self._controllers_config):
-             context = f"controllers[{i}]"
-             self._validate_required_keys(controller_conf, ["name", "type", "settings"], context)
-             settings = controller_conf["settings"]
-             context = f"controllers[{i}].settings"
-             # Check specific points needed by BangBang controller
-             if controller_conf["type"] == "BangBang":
+        # Validate control strategy point references
+        for i, strategy_conf in enumerate(self._control_strategies_config):
+             context = f"control_strategies[{i}]" # Updated context string
+             self._validate_required_keys(strategy_conf, ["name", "type", "settings"], context)
+             settings = strategy_conf["settings"]
+             context = f"control_strategies[{i}].settings" # Updated context string
+
+             # Check specific points needed by BangBang controller type
+             if strategy_conf["type"] == "BangBang":
                  required_points = ["sensor_point_addr", "setpoint_point_addr",
                                     "deadband_point_addr", "actuator_command_addr"]
                  optional_points = ["actuator_status_addr"]
                  self._validate_required_keys(settings, required_points, context)
 
-                 all_controller_points = required_points + optional_points
-                 for point_key in all_controller_points:
+                 all_strategy_points = required_points + optional_points
+                 for point_key in all_strategy_points:
                      if point_key in settings:
                          addr_to_check = settings[point_key]
                          if not isinstance(addr_to_check, str) or not addr_to_check:
@@ -252,10 +248,10 @@ class GovernorConfiguration:
                                  f"Point address '{addr_to_check}' referenced by '{point_key}' in {context} "
                                  f"not found in any loaded configuration (microC, driver, or governor points)."
                              )
-                         print(f"Validated point reference: {point_key} -> {addr_to_check}")
+                         # print(f"Validated point reference: {point_key} -> {addr_to_check}") # Keep commented for less noise
 
+             # TODO: Add validation for other strategy types if needed
 
-             # TODO: Add validation for other controller types if needed
 
         print("Cross-config validation complete.")
 
@@ -274,17 +270,17 @@ class GovernorConfiguration:
             raise GovernorConfigurationError("Runner config accessed before successful loading.")
         return self._runner_config
 
-    def get_controllers_config(self) -> List[Dict[str, Any]]:
-         """Returns the validated configuration for the controller(s)."""
-         if self._controllers_config is None:
-            raise GovernorConfigurationError("Controllers config accessed before successful loading.")
-         return self._controllers_config
+    def get_control_strategies_config(self) -> List[Dict[str, Any]]:
+         """Returns the validated configuration for the control strategy/strategies."""
+         if self._control_strategies_config is None:
+            raise GovernorConfigurationError("Control strategies config accessed before successful loading.")
+         return self._control_strategies_config
 
     def get_point_manager_config(self) -> Dict[str, Any]:
          """Returns the validated configuration specifically for the Point Manager."""
-         if self._point_manager_config is None:
-             # This section is optional, return empty dict if not present
-             return {}
+
+         assert self._point_manager_config is not None, \
+                "Point Manager config accessed before being initialized (should not happen)."
          return self._point_manager_config
 
     def get_all_point_definitions(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
@@ -305,16 +301,12 @@ class GovernorConfiguration:
             "drivers": {}
         }
         for _, driver_conf in self._referenced_driver_configs.items():
-             # Merge driver points under the driver's name
              driver_name = driver_conf.get("settings", {}).get("driver", {}).get("name")
              driver_points_section = driver_conf.get("points", {}).get("drivers", {})
              if driver_name and driver_name in driver_points_section:
                   if driver_name not in external_points["drivers"]:
                        external_points["drivers"][driver_name] = {}
-                  # Careful merging needed if multiple files define points for the same driver?
-                  # For now, assume only one config per relevant driver is loaded.
                   external_points["drivers"][driver_name].update(driver_points_section[driver_name])
-             # else: handle cases where driver name/points might be missing?
 
         return self._governor_points_config, external_points
 

@@ -16,29 +16,19 @@
         "value_type": "continuous",
         "initial_value": 75.0,
         "description": "Temperature Setpoint (F)",
-        "valid_range": {
-          "lower": 50,
-          "upper": 90
-        },
-        "publish": {
-          "republish_frequency": 300
-        }
+        "valid_range": { "lower": 50, "upper": 90 },
+        "publish": { "republish_frequency": 300 }
       },
       "temperature_deadband": {
         "addr": "mush/governors/temperature/deadband/write",
         "value_type": "continuous",
         "initial_value": 1.0,
         "description": "Temperature Deadband (F)",
-        "valid_range": {
-          "lower": 0.1,
-          "upper": 5.0
-        },
-        "publish": {
-          "republish_frequency": 300
-        }
+        "valid_range": { "lower": 0.1, "upper": 5.0 },
+        "publish": { "republish_frequency": 300 }
       }
     },
-    "controllers": [
+    "control_strategies": [
       {
         "name": "TemperatureBangBang",
         "type": "BangBang",

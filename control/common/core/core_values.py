@@ -76,6 +76,21 @@ class BaseValue(ABC):
         """
         pass
 
+    @abstractmethod
+    def is_value_valid(self, value: Any) -> bool:
+        """
+        Checks if the given value would be valid according to this
+        value object's rules (type, range, set membership, etc.)
+        without changing the internal state.
+
+        Args:
+            value: The potential value to check.
+
+        Returns:
+            True if the value is valid, False otherwise.
+        """
+        pass
+
     # Optional: Maybe an internal helper?
     # @abstractmethod
     # def _check_rules(self, processed_value: Any) -> bool:
