@@ -1,0 +1,61 @@
+{
+    "mqtt": {
+      "broker": "192.168.1.17",
+      "port": 1883,
+      "username": "ttfoley",
+      "password": "password",
+      "client_id": "governor_temperature"
+    },
+    "runner": {
+      "update_interval_seconds": 5.0
+    },
+    "point_manager": {},
+    "governor_points": {
+      "temperature_setpoint": {
+        "addr": "mush/governors/temperature/setpoint/write",
+        "value_type": "continuous",
+        "initial_value": 75.0,
+        "description": "Temperature Setpoint (F)",
+        "valid_range": {
+          "lower": 50,
+          "upper": 90
+        },
+        "publish": {
+          "republish_frequency": 300
+        }
+      },
+      "temperature_deadband": {
+        "addr": "mush/governors/temperature/deadband/write",
+        "value_type": "continuous",
+        "initial_value": 1.0,
+        "description": "Temperature Deadband (F)",
+        "valid_range": {
+          "lower": 0.1,
+          "upper": 5.0
+        },
+        "publish": {
+          "republish_frequency": 300
+        }
+      }
+    },
+    "controllers": [
+      {
+        "name": "TemperatureBangBang",
+        "type": "BangBang",
+        "settings": {
+          "sensor_point_addr": "mush/controllers/C1/sensors/sht_0/temperature",
+          "setpoint_point_addr": "mush/governors/temperature/setpoint/write",
+          "deadband_point_addr": "mush/governors/temperature/deadband/write",
+          "actuator_command_addr": "mush/drivers/temperature_driver/command/state",
+          "actuator_status_addr": "mush/drivers/temperature_driver/status/state"
+        }
+      }
+    ],
+    "config_references": {
+      "microcontroller_points": "../../../common/config/microC_points.json",
+      "uuid_database": "../../../common/config/uuid_db.json",
+      "driver_configs": [
+        "../../temperature_driver/config/full_config.json"
+      ]
+    }
+  }
