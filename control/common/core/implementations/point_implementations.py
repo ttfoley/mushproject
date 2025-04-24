@@ -126,9 +126,17 @@ class CoreConcreteWritablePoint(CoreConcreteReadOnlyPoint, CoreWritablePoint):
         self._retry_interval: Optional[float] = retry_interval
 
         # Internal state for requested value
-        self._requested_value: Any | None = None
-        # We could initialize _requested_value with the value_instance's initial value?
-        # Or leave it None until explicitly set? Let's leave it None for now.
+        # Initialize requested_value with the validated initial value from the BaseValue instance
+        # Note: value_instance.value returns None if the initial_value in config was invalid
+        self._requested_value: Any | None = self._value_instance.value
+        if self._requested_value is not None:
+            # Optional: Print initialization info
+            # print(f"Info: Initialized Writable Point {self.addr} (UUID: {self.uuid}) requested_value to initial value: {self._requested_value}")
+            pass
+        else:
+            # If initial value was invalid or not provided, requested_value starts as None
+            print(f"Warning: Initialized Writable Point {self.addr} (UUID: {self.uuid}) requested_value to None (no valid initial value).")
+
 
     # --- CoreWritablePoint Interface Properties ---
 
