@@ -102,18 +102,28 @@ class GovernorConfiguration:
         if missing_keys:
             raise GovernorConfigurationError(f"Missing required keys in {context}: {', '.join(missing_keys)}")
 
-    def _extract_point_addrs(self, config: Any):
-         """Recursively extracts all 'addr' values from point definitions."""
-         if isinstance(config, dict):
-             if "addr" in config and isinstance(config["addr"], str):
-                  self._all_point_addrs.add(config["addr"])
-             # Handle common nested structures (readback/write, specific point names)
-             for key, value in config.items():
-                  if key in ["readback", "write"] or isinstance(value, dict):
-                       self._extract_point_addrs(value)
-         elif isinstance(config, list):
-              for item in config:
-                   self._extract_point_addrs(item)
+    def _extract_point_addrs(self, data_structure: Any):
+        """
+        Recursively extracts all 'addr' string values found anywhere within
+        a nested dictionary or list structure.
+        """
+        if isinstance(data_structure, dict):
+            # Check if this dictionary itself contains the 'addr' key
+            if "addr" in data_structure and isinstance(data_structure["addr"], str):
+                addr = data_structure["addr"]
+                # Optional: print when adding
+                # print(f"DEBUG Extract: Adding address {addr}")
+                self._all_point_addrs.add(addr)
+
+            # Recurse into all values within this dictionary
+            for value in data_structure.values():
+                self._extract_point_addrs(value) # Recursive call
+
+        elif isinstance(data_structure, list):
+            # Recurse into all items within this list
+            for item in data_structure:
+                self._extract_point_addrs(item) # Recursive call
+        # Ignore other types (like strings, numbers, booleans, etc.)
 
 
     def load_config(self):
@@ -176,11 +186,16 @@ class GovernorConfiguration:
         for driver_path in driver_config_paths:
             try:
                 resolved_driver_path = self._resolve_path(driver_path)
+                print(f"DEBUG: Attempting to load driver config from resolved path: {resolved_driver_path}") # Keep this
                 driver_conf = self._load_json_file(driver_path, f"driver config ({driver_path})")
-                # Store by resolved path to avoid ambiguity
+                print(f"DEBUG: Successfully loaded driver config: {resolved_driver_path}") # Keep this
                 self._referenced_driver_configs[resolved_driver_path] = driver_conf
-                # Extract addresses from driver points
-                self._extract_point_addrs(driver_conf.get("points", {}).get("drivers", {}))
+
+                # *** Modify this part ***
+                driver_points_data = driver_conf.get("points", {})
+                driver_drivers_data = driver_points_data.get("drivers", {})
+                print(f"DEBUG: Data passed to _extract_point_addrs for driver '{driver_path}': {driver_drivers_data}") # Print what's being passed
+                self._extract_point_addrs(driver_drivers_data) # Call with the extracted data
 
             except FileNotFoundError:
                 print(f"Warning: Optional driver config not found: {driver_path}. Skipping.")

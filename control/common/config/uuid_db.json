@@ -25,5 +25,7 @@
   "mush/drivers/temperature_control/status/state_time": 19,
   "mush/drivers/temperature_driver/command/state": 23,
   "mush/drivers/temperature_driver/status/state": 21,
-  "mush/drivers/temperature_driver/status/state_time": 22
+  "mush/drivers/temperature_driver/status/state_time": 22,
+  "mush/governors/temperature/deadband/write": 28,
+  "mush/governors/temperature/setpoint/write": 27
 }

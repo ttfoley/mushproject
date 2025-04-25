@@ -55,6 +55,7 @@ class BangBangController(BaseController):
         actuator_cmd_addr = strategy_settings["actuator_command_addr"]
 
         # Basic check if addresses are configured
+        #TODO we shouldn't need to do this everytime. They should be set once and then we should just check that they are valid.PYDANTIC
         if not all([sensor_addr, setpoint_addr, deadband_addr, actuator_cmd_addr]):
             logger.warning("BangBangController: Missing required point addresses in strategy settings. Skipping cycle.")
             return
