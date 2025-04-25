@@ -15,7 +15,7 @@ MQTT_CLIENT_ID: str = "fake_pwm_heater"
 COMMAND_TOPIC = "mush/drivers/temperature_driver/command/state"
 
 # PWM settings (in seconds)
-TIME_ON = 30
+TIME_ON = 10
 TIME_OFF = 90
 
 def on_connect(client, userdata, flags, rc):

@@ -3,6 +3,7 @@
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 from typing import Dict, Any, Callable, List
+import socket
 
 # Import the interface definition
 from ..core.mqtt_interface import MQTTInterface, MessageHandler
@@ -70,16 +71,25 @@ class GovernorMQTTHandler: # No need to explicitly inherit if using Protocol
             pass
 
     def _on_disconnect(self, client, userdata, rc, properties=None):
-         """Internal callback for Paho client disconnect."""
-         print(f"GovernorMQTTHandler: Disconnected from MQTT broker with code {rc}")
-         # Handle reconnection logic if needed, though Paho might attempt auto-reconnect
+        print(f"GovernorMQTTHandler: Disconnected from MQTT broker with code {rc}")
+        if rc != 0:
+            print("GovernorMQTTHandler: Unexpected disconnection. Paho client should attempt to reconnect automatically.")
+        # else: rc == 0 is a clean disconnect initiated by client.disconnect()
 
     # --- Implementing MQTTInterface Methods ---
 
     def connect(self) -> None:
         print(f"GovernorMQTTHandler: Attempting connection to {self.broker}...")
-        # Consider adding try/except for connection errors
-        self.client.connect(self.broker, self.port, 60) # 60s keepalive
+        try:
+            # Consider specifying clean_session if needed, default might vary
+            self.client.connect(self.broker, self.port, 60) # 60s keepalive
+        except (socket.error, TimeoutError, OSError) as e: # Catch specific network errors
+            print(f"GovernorMQTTHandler: Connection attempt failed - {e}")
+            # Potentially raise an exception or set an internal error state
+            # raise ConnectionError(f"Failed to connect to MQTT broker: {e}") from e
+        except Exception as e: # Catch any other unexpected errors
+            print(f"GovernorMQTTHandler: Unexpected error during connection: {e}")
+            # raise # Re-raise unexpected errors?
 
     def disconnect(self) -> None:
         print("GovernorMQTTHandler: Disconnecting...")
