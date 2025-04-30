@@ -5,6 +5,7 @@
                 "sht_0": {
                     "temperature": {
                         "addr": "mush/controllers/C1/sensors/sht_0/temperature",
+                        "value_type": "continuous",
                         "valid_range": {
                             "lower": 0,
                             "upper": 100
@@ -13,6 +14,7 @@
                     },
                     "humidity": {
                         "addr": "mush/controllers/C1/sensors/sht_0/humidity",
+                        "value_type": "continuous",
                         "valid_range": {
                             "lower": 0,
                             "upper": 100
@@ -23,6 +25,7 @@
                 "dht_0": {
                     "temperature": {
                         "addr": "mush/controllers/C1/sensors/dht_0/temperature",
+                        "value_type": "continuous",
                         "valid_range": {
                             "lower": 0,
                             "upper": 100
@@ -31,6 +34,7 @@
                     },
                     "humidity": {
                         "addr": "mush/controllers/C1/sensors/dht_0/humidity",
+                        "value_type": "continuous",
                         "valid_range": {
                             "lower": 0,
                             "upper": 100
@@ -41,6 +45,7 @@
                 "scd_0": {
                     "temperature": {
                         "addr": "mush/controllers/C1/sensors/scd_0/temperature",
+                        "value_type": "continuous",
                         "valid_range": {
                             "lower": 0,
                             "upper": 100
@@ -49,6 +54,7 @@
                     },
                     "humidity": {
                         "addr": "mush/controllers/C1/sensors/scd_0/humidity",
+                        "value_type": "continuous",
                         "valid_range": {
                             "lower": 0,
                             "upper": 100
@@ -57,6 +63,7 @@
                     },
                     "co2": {
                         "addr": "mush/controllers/C1/sensors/scd_0/co2",
+                        "value_type": "continuous",
                         "valid_range": {
                             "lower": 0,
                             "upper": 10000
@@ -71,6 +78,7 @@
                 "status": {
                     "wifi_uptime": {
                         "addr": "mush/controllers/C2/sensors/status/wifi_uptime",
+                        "value_type": "continuous",
                         "valid_range": {
                             "lower": 0,
                             "upper": 1000000
@@ -85,7 +93,7 @@
                     "readback": {
                         "addr": "mush/controllers/C2/control_points/CP_25/readback",
                         "UUID": 1,
-                        "value_type": "str",
+                        "value_type": "discrete",
                         "raw_value_type": [
                             "str",
                             "int"
@@ -104,14 +112,14 @@
                     "write": {
                         "addr": "mush/controllers/C2/control_points/CP_25/write",
                         "UUID": 2,
-                        "valid_values": [
-                            "on",
-                            "off"
-                        ],
-                        "value_type": "str",
+                        "value_type": "discrete",
                         "raw_value_type": [
                             "str",
                             "str"
+                        ],
+                        "valid_values": [
+                            "on",
+                            "off"
                         ]
                     }
                 },
@@ -120,7 +128,7 @@
                     "readback": {
                         "addr": "mush/controllers/C2/control_points/CP_26/readback",
                         "UUID": 3,
-                        "value_type": "str",
+                        "value_type": "discrete",
                         "raw_value_type": [
                             "str",
                             "int"
@@ -139,14 +147,14 @@
                     "write": {
                         "addr": "mush/controllers/C2/control_points/CP_26/write",
                         "UUID": 4,
-                        "valid_values": [
-                            "on",
-                            "off"
-                        ],
-                        "value_type": "str",
+                        "value_type": "discrete",
                         "raw_value_type": [
                             "str",
                             "str"
+                        ],
+                        "valid_values": [
+                            "on",
+                            "off"
                         ]
                     }
                 },
@@ -155,7 +163,7 @@
                     "readback": {
                         "addr": "mush/controllers/C2/control_points/CP_32/readback",
                         "UUID": 5,
-                        "value_type": "str",
+                        "value_type": "discrete",
                         "raw_value_type": [
                             "str",
                             "int"
@@ -174,14 +182,14 @@
                     "write": {
                         "addr": "mush/controllers/C2/control_points/CP_32/write",
                         "UUID": 6,
-                        "valid_values": [
-                            "on",
-                            "off"
-                        ],
-                        "value_type": "str",
+                        "value_type": "discrete",
                         "raw_value_type": [
                             "str",
                             "str"
+                        ],
+                        "valid_values": [
+                            "on",
+                            "off"
                         ]
                     }
                 },
@@ -190,7 +198,7 @@
                     "readback": {
                         "addr": "mush/controllers/C2/control_points/CP_33/readback",
                         "UUID": 7,
-                        "value_type": "str",
+                        "value_type": "discrete",
                         "raw_value_type": [
                             "str",
                             "int"
@@ -209,14 +217,14 @@
                     "write": {
                         "addr": "mush/controllers/C2/control_points/CP_33/write",
                         "UUID": 8,
-                        "valid_values": [
-                            "on",
-                            "off"
-                        ],
-                        "value_type": "str",
+                        "value_type": "discrete",
                         "raw_value_type": [
                             "str",
                             "str"
+                        ],
+                        "valid_values": [
+                            "on",
+                            "off"
                         ]
                     }
                 },
@@ -225,7 +233,7 @@
                     "readback": {
                         "addr": "mush/controllers/C2/control_points/led1/readback",
                         "UUID": 9,
-                        "value_type": "str",
+                        "value_type": "discrete",
                         "raw_value_type": [
                             "str",
                             "int"
@@ -244,14 +252,14 @@
                     "write": {
                         "addr": "mush/controllers/C2/control_points/led1/write",
                         "UUID": 10,
-                        "valid_values": [
-                            "on",
-                            "off"
-                        ],
-                        "value_type": "str",
+                        "value_type": "discrete",
                         "raw_value_type": [
                             "str",
                             "str"
+                        ],
+                        "valid_values": [
+                            "on",
+                            "off"
                         ]
                     }
                 }
