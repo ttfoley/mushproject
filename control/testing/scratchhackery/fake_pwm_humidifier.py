@@ -15,8 +15,8 @@ MQTT_CLIENT_ID: str = "fake_pwm_humidifier"
 COMMAND_TOPIC = "mush/drivers/humidity_driver/command/state"
 
 # PWM settings (in seconds)
-TIME_ON = 7
-TIME_OFF = 60*60*1.5
+TIME_ON = 9
+TIME_OFF = 60*60*1.25
 
 def on_connect(client, userdata, flags, rc):
     print(f"Connected with result code {rc}")
