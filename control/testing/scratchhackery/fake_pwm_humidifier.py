@@ -16,7 +16,7 @@ COMMAND_TOPIC = "mush/drivers/humidity_driver/command/state"
 
 # PWM settings (in seconds)
 TIME_ON = 9
-TIME_OFF = 60*60*1.25
+TIME_OFF = 60*60*.75
 
 def on_connect(client, userdata, flags, rc):
     print(f"Connected with result code {rc}")

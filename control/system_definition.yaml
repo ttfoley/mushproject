@@ -1,0 +1,155 @@
+# system_definition.yaml
+# Single Source of Truth for the Mushroom Automation System v2
+
+# --- System Wide Configuration ---
+
+mqtt_broker:
+  host: "mqtt.local" # Or IP address
+  port: 1883
+
+command_hierarchy:
+  - "Manual_HOA"    # Highest priority for overrides
+  - "Watchdog"      # Safety system overrides
+  - "Governor"      # Automated control logic
+
+# --- Master Point Definitions ---
+
+points:
+  # == Sensors ==
+  - uuid: "temp-sensor-1-uuid"
+    name: "FruitingChamber_Temp_Sensor"
+    description: "Main temperature sensor in the fruiting chamber."
+    value_type: CONTINUOUS
+    units: "degC"
+    data_source_layer: microcontroller
+    access: READ_ONLY
+    writable_by: null # Or empty list []
+    persist_to_db: true
+    validation_rules:
+      min_value: -10.0
+      max_value: 50.0
+
+  # == Actuators (Heater Example) ==
+  - uuid: "heater-status-uuid" # Readback from Microcontroller
+    name: "FruitingChamber_Heater_Status"
+    description: "Actual ON/OFF status readback from the heater relay."
+    value_type: DISCRETE # Or BOOLEAN if preferred
+    units: "ON/OFF"
+    data_source_layer: microcontroller
+    access: READ_ONLY
+    writable_by: null
+    persist_to_db: true
+    command_point_uuid: "heater-cmd-uuid" # Link to the command point
+
+  - uuid: "heater-cmd-uuid" # Command sent by Driver
+    name: "FruitingChamber_Heater_Command"
+    description: "Command to turn the heater relay ON or OFF."
+    value_type: DISCRETE # Or BOOLEAN
+    units: "ON/OFF"
+    data_source_layer: driver # Driver directly sends low-level command
+    access: READ_WRITE
+    writable_by: ["temp_driver_fruiting", "Manual_HOA"] # Driver instance ID and Manual level
+    persist_to_db: false # Usually don't persist raw commands? Optional.
+    status_point_uuid: "heater-status-uuid" # Link back to the status point
+    initial_value: "OFF"
+
+  # == PWM Control Related Points ==
+  - uuid: "heater-pwm-setpoint-uuid" # Setpoint (0-1) from Governor
+    name: "FruitingChamber_Heater_PWM_Setpoint"
+    description: "Target PWM duty cycle for the heater (0.0 to 1.0)."
+    value_type: CONTINUOUS
+    units: "PWM_DUTY_CYCLE" # Or just "ratio" / "percent"
+    data_source_layer: governor
+    access: READ_WRITE
+    writable_by: ["env_governor_main", "Manual_HOA"]
+    persist_to_db: true
+    validation_rules:
+      min_value: 0.0
+      max_value: 1.0
+    initial_value: 0.0
+
+  - uuid: "pwm-command-flag-uuid" # Master PWM mode enable flag
+    name: "FruitingChamber_Heater_PWM_Command"
+    description: "Master command flag to enable/disable PWM mode operation."
+    value_type: DISCRETE # Or BOOLEAN
+    units: "ON/OFF"
+    data_source_layer: governor # Or manual
+    access: READ_WRITE
+    writable_by: ["env_governor_main", "Manual_HOA"]
+    persist_to_db: true
+    initial_value: "OFF"
+
+  - uuid: "heater-pwm-on-duration-setpoint-uuid" # Writable duration target for FSM
+    name: "FruitingChamber_Heater_PWM_ON_Duration_Setpoint"
+    description: "Target ON duration (seconds) for PWM cycle, set by Governor."
+    value_type: CONTINUOUS
+    units: "seconds"
+    data_source_layer: governor
+    access: READ_WRITE
+    writable_by: ["env_governor_main"] # Only governor should calculate this
+    persist_to_db: false # Maybe not needed? Governor knows target.
+    validation_rules:
+      min_value: 0.0
+    initial_value: 0.0
+
+  - uuid: "heater-pwm-off-duration-setpoint-uuid" # Writable duration target for FSM
+    name: "FruitingChamber_Heater_PWM_OFF_Duration_Setpoint"
+    description: "Target OFF duration (seconds) for PWM cycle, set by Governor."
+    value_type: CONTINUOUS
+    units: "seconds"
+    data_source_layer: governor
+    access: READ_WRITE
+    writable_by: ["env_governor_main"]
+    persist_to_db: false
+    validation_rules:
+      min_value: 0.0
+    initial_value: 60.0 # Default to some period? Or governor sets initially.
+
+  # == Driver Internal State Example ==
+  - uuid: "temp-driver-time-in-state-uuid"
+    name: "TempDriver_TimeInState"
+    description: "Time elapsed (seconds) since the temperature driver entered its current state."
+    value_type: CONTINUOUS
+    units: "seconds"
+    data_source_layer: driver
+    access: READ_ONLY
+    writable_by: null
+    persist_to_db: false # Internal state, likely not needed in DB
+
+  - uuid: "temp-driver-fsm-state-uuid"
+    name: "TempDriver_FSM_State"
+    description: "Current state name of the temperature driver FSM."
+    value_type: DISCRETE
+    units: "STATE_NAME"
+    data_source_layer: driver
+    access: READ_ONLY
+    writable_by: null
+    persist_to_db: true # Useful for monitoring/debugging
+
+# --- Component Instance Definitions ---
+
+components:
+  # == Microcontroller Instances ==
+  - id: "esp32_fruiting_controller" # Unique ID for this specific microcontroller instance
+    type: microcontroller
+    config_file: "config/microcontrollers/esp32_fruiting_chamber.yaml" # Path to its hardware config
+    # mqtt_client_id: "esp32-fruiting-client" # Optional: specify or let it default to 'id'
+    points_provided: # List UUIDs this micro directly sources
+      - "temp-sensor-1-uuid"
+      - "heater-status-uuid"
+
+  # == Driver Instances ==
+  - id: "temp_driver_fruiting" # Unique ID for this driver instance
+    type: driver
+    config_file: "config/drivers/temp_driver_fruiting.yaml" # Path to its FSM/behavior config
+    controls_microcontroller: "esp32_fruiting_controller" # ID of the micro it talks to
+    virtual_points_provided: # List UUIDs this driver synthesizes/publishes
+      - "temp-driver-time-in-state-uuid"
+      - "temp-driver-fsm-state-uuid"
+
+  # == Governor Instances ==
+  - id: "env_governor_main" # Unique ID for this governor instance
+    type: governor
+    config_file: "config/governors/env_governor_main.yaml" # Path to its logic/PID config
+    controls_drivers: # List driver instance IDs it commands
+      - "temp_driver_fruiting"

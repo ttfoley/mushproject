@@ -1,0 +1,153 @@
+# config/drivers/temp_driver_fruiting.yaml
+# Sample configuration for the Fruiting Chamber Temperature Driver FSM
+
+initial_state: "IDLE_OFF" # Start in the off state
+
+states:
+  # State where actuator is OFF and PWM mode command is OFF
+  IDLE_OFF:
+    defining_conditions:
+      - point_uuid: "heater-status-uuid" # Check physical readback
+        expected_value: "OFF"
+      - point_uuid: "pwm-command-flag-uuid" # Check PWM mode command
+        expected_value: "OFF"
+    entry_actions:
+      - action_type: "write_to_point"
+        point_uuid: "heater-cmd-uuid" # Ensure heater command is OFF
+        value: "OFF"
+    exit_actions: []
+
+  # State where actuator is ON because PWM mode command is ON
+  PWM_on:
+    defining_conditions:
+      - point_uuid: "heater-status-uuid"
+        expected_value: "ON"
+      - point_uuid: "pwm-command-flag-uuid"
+        expected_value: "ON"
+    entry_actions:
+      - action_type: "write_to_point"
+        point_uuid: "heater-cmd-uuid" # Ensure heater command is ON
+        value: "ON"
+    exit_actions: []
+
+  # State where actuator is OFF because PWM mode command is ON (during off-cycle)
+  PWM_off:
+    defining_conditions:
+      - point_uuid: "heater-status-uuid"
+        expected_value: "OFF"
+      - point_uuid: "pwm-command-flag-uuid"
+        expected_value: "ON"
+    entry_actions:
+      - action_type: "write_to_point"
+        point_uuid: "heater-cmd-uuid" # Ensure heater command is OFF
+        value: "OFF"
+    exit_actions: []
+
+  # Add other states like MANUAL_ON if needed later
+  # MANUAL_ON:
+  #   defining_conditions:
+  #     - point_uuid: "heater-status-uuid"
+  #       expected_value: "ON"
+  #     - point_uuid: "pwm-command-flag-uuid" # Example: Manual On requires PWM command OFF
+  #       expected_value: "OFF" 
+  #     # Maybe check an HOA point?
+  #   entry_actions:
+  #     - action_type: "write_to_point"
+  #       point_uuid: "heater-cmd-uuid" 
+  #       value: "ON"
+
+transitions:
+  # Transitions FROM IDLE_OFF state
+  IDLE_OFF:
+    # Target state: PWM_off (start PWM cycle in OFF phase)
+    PWM_off: 
+      constraint_groups:
+        - id: 10 # Example ID
+          priority: 0 # Default priority
+          description: "Enter PWM mode when commanded ON by Governor/Manual"
+          constraints:
+            - type: "discrete_value" # Matches definition.type below
+              description: "Check if PWM mode command is ON"
+              definition:
+                # type is also defined within the specific definition model
+                type: "discrete_value" 
+                value_A_point_uuid: "pwm-command-flag-uuid"
+                comparator: "==" # Use ComparatorType enum value
+                # Compare against a static value for the command flag
+                comparand_B_static_value: "ON" 
+                # comparand_B_point_uuid: null # Explicitly null or omitted
+
+  # Transitions FROM PWM_on state
+  PWM_on:
+    # Target state: IDLE_OFF
+    IDLE_OFF:
+      constraint_groups:
+        - id: 20
+          priority: 0 # High priority to turn off if commanded
+          description: "Exit PWM mode when commanded OFF by Governor/Manual"
+          constraints:
+            - type: "discrete_value"
+              description: "Check if PWM mode command is OFF"
+              definition:
+                type: "discrete_value"
+                value_A_point_uuid: "pwm-command-flag-uuid"
+                comparator: "=="
+                comparand_B_static_value: "OFF"
+    # Target state: PWM_off (flip based on ON-duration timer)
+    PWM_off:
+      constraint_groups:
+        - id: 21
+          priority: 10 # Lower priority than command OFF
+          description: "Switch from PWM ON phase to OFF phase based on duration"
+          constraints:
+            - type: "state_time"
+              description: "Check time in PWM_on state against ON duration setpoint"
+              definition:
+                type: "state_time"
+                # Assumes driver publishes time-in-state to this UUID
+                value_A_point_uuid: "temp-driver-time-in-state-uuid" 
+                comparator: ">=" # Use ComparatorType enum value
+                # comparand_B_static_value: null # Omitted
+                # Compare against the dynamic duration setpoint point written by Governor
+                comparand_B_point_uuid: "heater-pwm-on-duration-setpoint-uuid" 
+
+  # Transitions FROM PWM_off state
+  PWM_off:
+    # Target state: IDLE_OFF
+    IDLE_OFF:
+      constraint_groups:
+        - id: 30
+          priority: 0 # High priority
+          description: "Exit PWM mode when commanded OFF by Governor/Manual"
+          constraints:
+            - type: "discrete_value"
+              description: "Check if PWM mode command is OFF"
+              definition:
+                type: "discrete_value"
+                value_A_point_uuid: "pwm-command-flag-uuid"
+                comparator: "=="
+                comparand_B_static_value: "OFF"
+    # Target state: PWM_on (flip based on OFF-duration timer)
+    PWM_on:
+      constraint_groups:
+        - id: 31
+          priority: 10 # Lower priority
+          description: "Switch from PWM OFF phase to ON phase based on duration"
+          constraints:
+            - type: "state_time"
+              description: "Check time in PWM_off state against OFF duration setpoint"
+              definition:
+                type: "state_time"
+                value_A_point_uuid: "temp-driver-time-in_state-uuid" 
+                comparator: ">=" 
+                # comparand_B_static_value: null # Omitted
+                comparand_B_point_uuid: "heater-pwm-off-duration-setpoint-uuid" 
+
+# Optional PWM Output mapping section (needed if driver calculates durations internally,
+# but useful here perhaps just to document the link for the Governor?)
+# Design Decision #10 put period here. Governor needs period to calculate durations.
+# Maybe driver reads this section just to publish its configured period? Needs thought.
+pwm_outputs:
+  - input_point_uuid: "heater-pwm-setpoint-uuid" # Governor writes 0-1 value here
+    output_actuator_uuid: "heater-cmd-uuid" # Driver controls this actuator
+    pwm_period_seconds: 60.0 # Example: 60 second cycle period
