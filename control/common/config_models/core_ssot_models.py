@@ -92,7 +92,9 @@ class PointDefinition(BaseModel):
     # Optional fields for linking command/status pairs for actuators/control points
     command_point_uuid: Optional[str] = Field(None, description="If this is a status point, the UUID of the corresponding command point.")
     status_point_uuid: Optional[str] = Field(None, description="If this is a command point, the UUID of the corresponding status readback point.")
-
+    
+    input_point_uuids: Optional[List[str]] = Field(None, 
+        description="UUIDs of points used as input for calculating this point's value (for derived/calculated points).")
 # We'd also add validation later (likely in build.py or using Pydantic root_validators) 
 # to ensure that if one is provided, the other exists and they point back to each other,
 # and that they aren't the same UUID.

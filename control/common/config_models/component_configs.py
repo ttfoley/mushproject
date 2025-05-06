@@ -25,13 +25,8 @@ class WriteAction(BaseModel):
 
     model_config = {"extra": "forbid"}
 
-# Add other action types here in the future (e.g., StartTimerAction, LogMessageAction)
-# class OtherAction(BaseModel):
-#    action_type: Literal["other_action"] = "other_action"
-#    ...
-
 # Type alias for all possible action types
-AnyAction = WriteAction # Add OtherAction etc. here
+AnyAction = WriteAction # Add other action types here in the future
 
 # --- State Definition ---
 
@@ -57,7 +52,6 @@ class StateDefinition(BaseModel):
 
 class BaseConstraintDefinition(BaseModel):
     """Base model for the specific parameters defining a constraint's logic."""
-    # Type field is defined in subclasses using Literal
     description: Optional[str] = Field(None, description="Optional description of the constraint's purpose.")
     id: Optional[int] = Field(None, description="Optional numeric identifier for this constraint definition.")
 
@@ -102,19 +96,16 @@ class StateTimeConstraintDefinition(BaseConstraintDefinition):
         return self
 
 # Type alias for all possible constraint definition types
-# Add other constraint definition types here (e.g., RateOfChangeConstraintDefinition)
 AnyConstraintDefinition = Union[StateTimeConstraintDefinition, ValueConstraintDefinition] # Add others to Union
 
 class ConstraintDefinition(BaseModel):
     """Container for a single constraint within a group, matching config structure."""
-    # Assuming 'definition' holds the specific typed parameters, and 'type'/'description' are alongside it
     definition: AnyConstraintDefinition = Field(..., description="The specific parameters defining the constraint's logic.")
     type: str = Field(..., description="Type of the constraint (e.g., state_time, discrete_value). Must match the type within 'definition'.")
     description: Optional[str] = Field(None, description="Overall description of this constraint instance.")
 
     @model_validator(mode='after')
     def check_type_match(self) -> Self:
-        # Check if definition is not None and has a 'type' attribute before comparing
         if self.definition and hasattr(self.definition, 'type') and self.type != self.definition.type:
              raise ValueError(f"Outer constraint type '{self.type}' does not match definition type '{self.definition.type}'")
         return self
@@ -155,10 +146,155 @@ class DriverConfig(BaseModel):
     """Pydantic model for a Driver's complete configuration file."""
     initial_state: str = Field(..., description="The name of the state the driver should start in.")
     states: Dict[str, StateDefinition] = Field(..., description="Definitions for each possible state (map of state_name -> state_definition).")
-    # Transitions: Dict[FromStateName, Dict[ToStateName, TransitionDefinition]]
     transitions: Dict[str, Dict[str, TransitionDefinition]] = Field(..., description="Definitions for transitions between states.")
     pwm_outputs: Optional[List[DriverPWMOutputMapping]] = Field(None, description="Optional list of PWM output configurations handled by this driver.")
-    # Add other driver-specific config sections here as needed
-    # safety_configs: Optional[Any] = None
 
     model_config = {"extra": "forbid"}
+
+
+# ==============================================================================
+# === NEW/UPDATED MODELS FOR MICROCONTROLLER AND GOVERNOR (START) =============
+# ==============================================================================
+
+# --- Microcontroller Supporting Sub-Models ---
+
+class I2CConfig(BaseModel):
+    sda_pin: int = Field(..., description="GPIO pin number for I2C SDA.")
+    scl_pin: int = Field(..., description="GPIO pin number for I2C SCL.")
+    clock_speed: Optional[int] = Field(None, description="Optional I2C clock speed in Hz (e.g., 100000).")
+    model_config = {"extra": "forbid"}
+
+class I2CDevice(BaseModel):
+    # Define the specific sensor models you are using here
+    sensor_model: Literal["SHT85", "BME280", "SCD41", "SHT31", "SHT40", "MCP23017"] = Field(...,
+        description="Specific model of the sensor/device (e.g., 'SHT85', 'BME280').")
+    address: Union[int, str] = Field(..., description="I2C address (e.g., 0x44 or 68).")
+    # Define the measurements provided by this sensor model
+    point_uuids: Dict[Literal["temperature", "humidity", "co2", "pressure"], str] = Field(...,
+        description="Mapping of measurement type (e.g., 'temperature', 'humidity') to Point UUID.")
+    settings: Optional[Dict[str, Any]] = Field(None, description="Optional device-specific settings (e.g., {'automatic_self_calibration': False}).")
+    model_config = {"extra": "forbid"}
+
+class OneWireConfig(BaseModel):
+    pin: int = Field(..., description="GPIO pin number for the OneWire bus.")
+    model_config = {"extra": "forbid"}
+
+class OneWireDevice(BaseModel):
+    sensor_model: Literal["DS18B20"] = Field(..., description="Specific model of the sensor (e.g., 'DS18B20').")
+    point_uuid: str = Field(..., description="Point UUID for the temperature reading from this sensor.")
+    model_config = {"extra": "forbid"}
+
+class DHTSensorConfig(BaseModel):
+    sensor_model: Literal["DHT11", "DHT22"] = Field(..., description="Specific model of the DHT sensor ('DHT11' or 'DHT22').")
+    pin: int = Field(..., description="GPIO pin number connected to the DHT sensor.")
+    point_uuids: Dict[Literal["temperature", "humidity"], str] = Field(...,
+        description="Mapping of measurement type to Point UUID.")
+    model_config = {"extra": "forbid"}
+
+class DigitalOutputConfig(BaseModel):
+    pin: int = Field(..., description="GPIO pin number for the digital output.")
+    name: Optional[str] = Field(None, description="Logical name for this output (e.g., 'MisterRelay').")
+    point_uuid: str = Field(..., description="Point UUID for the command/status of this output.")
+    initial_state: Optional[Literal["on", "off"]] = Field("off", description="Initial state on startup ('on' or 'off').")
+    model_config = {"extra": "forbid"}
+
+# --- Microcontroller Config Root Model ---
+
+class MicrocontrollerConfig(BaseModel):
+    """Pydantic model for a Microcontroller's specific hardware configuration file."""
+    # General hardware bus setup
+    i2c: Optional[I2CConfig] = Field(None, description="I2C bus configuration, required if i2c_devices are listed.")
+    onewire: Optional[OneWireConfig] = Field(None, description="OneWire bus configuration, required if onewire_devices are listed.")
+    # spi: Optional[SPIConfig] = None # Add later if needed
+
+    # Lists of connected devices/pins
+    i2c_devices: Optional[List[I2CDevice]] = Field(None, description="List of sensors/devices connected via I2C.")
+    onewire_devices: Optional[List[OneWireDevice]] = Field(None, description="List of sensors connected via OneWire.")
+    dht_sensors: Optional[List[DHTSensorConfig]] = Field(None, description="List of connected DHT sensors.")
+    digital_outputs: Optional[List[DigitalOutputConfig]] = Field(None, description="List of configured digital output pins.")
+    # digital_inputs: Optional[List[DigitalInputConfig]] = None # Add later if needed
+
+    # Timing parameters controlled by the Microcontroller firmware
+    publish_frequency_ms: Optional[int] = Field(None,
+        description="Sensor publish interval in milliseconds used by the microcontroller. (e.g., 15000 for 15 seconds). If not set, firmware default applies.")
+    output_republish_frequency_ms: Optional[int] = Field(None,
+        description="Output status republish interval in milliseconds used by the microcontroller. If not set, firmware default applies.")
+
+    @model_validator(mode='after')
+    def check_bus_configs(self) -> Self:
+        if self.i2c_devices and not self.i2c:
+            raise ValueError("i2c bus configuration must be provided if i2c_devices are listed.")
+        if self.onewire_devices and not self.onewire:
+             raise ValueError("onewire bus configuration must be provided if onewire_devices are listed.")
+        # Add similar check for SPI if implemented
+        return self
+
+    model_config = {"extra": "forbid"}
+
+
+# --- Governor Supporting Sub-Models (REVISED FOR GENERIC CONTROL) ---
+
+# NEW: Configuration specific to a Bang-Bang controller
+class BangBangControllerConfig(BaseModel):
+    """Configuration for a Bang-Bang (on/off) control loop."""
+    controller_type: Literal["bang_bang"] = Field("bang_bang", description="Discriminator field for controller type.")
+
+    # --- Inputs ---
+    sensor_point_uuid: str = Field(..., description="UUID of the Point providing the process variable (e.g., temperature sensor).")
+    target_setpoint_point_uuid: str = Field(..., description="UUID of the Point providing the desired target value (e.g., target temperature setpoint).")
+    # CHANGED: Replaced static hysteresis with a point UUID
+    hysteresis_point_uuid: str = Field(..., description="UUID of the Point providing the hysteresis value (deadband).")
+
+    # --- Outputs ---
+    output_command_point_uuid: str = Field(..., description="UUID of the Point where the Governor writes the calculated command ('on' or 'off').")
+
+    model_config = {"extra": "forbid"}
+
+
+# UPDATED: Add controller_type discriminator to PID config
+class PIDControllerConfig(BaseModel):
+    """Configuration for a single PID control loop within the Governor."""
+    controller_type: Literal["pid"] = Field("pid", description="Discriminator field for controller type.")
+
+    # --- Inputs ---
+    sensor_point_uuid: str = Field(..., description="UUID of the Point providing the process variable (e.g., temperature sensor).")
+    target_setpoint_point_uuid: str = Field(..., description="UUID of the Point providing the desired target value (e.g., target temperature setpoint).")
+
+    # --- Outputs (Points the Governor WRITES TO) ---
+    output_pwm_setpoint_point_uuid: str = Field(..., description="UUID of the Point where the Governor writes the calculated PWM duty cycle (0.0-1.0).")
+    output_on_duration_point_uuid: str = Field(..., description="UUID of the Point where the Governor writes the calculated ON duration (seconds) for the PWM cycle.")
+    output_off_duration_point_uuid: str = Field(..., description="UUID of the Point where the Governor writes the calculated OFF duration (seconds) for the PWM cycle.")
+    mode_command_point_uuid: str = Field(..., description="UUID of the Point where the Governor writes its mode command (e.g., 'PWM', 'OFF') to the corresponding Driver.")
+
+    # --- Tuning & Parameters ---
+    kp: float = Field(..., description="Proportional gain.")
+    ki: float = Field(..., description="Integral gain.")
+    kd: float = Field(..., description="Derivative gain.")
+    min_output: float = Field(0.0, ge=0.0, le=1.0, description="Minimum output clamp value (usually 0.0).")
+    max_output: float = Field(1.0, ge=0.0, le=1.0, description="Maximum output clamp value (usually 1.0).")
+    pwm_period_seconds: float = Field(..., gt=0, description="The PWM period this PID loop targets (used to calculate ON/OFF durations). Must match the corresponding Driver's PWM configuration period.")
+
+    model_config = {"extra": "forbid"}
+
+
+# NEW: Type Alias for the Union of all possible controller configurations
+AnyControllerConfig = Union[PIDControllerConfig, BangBangControllerConfig]
+# Add future controller config types to this Union, e.g., Union[PIDControllerConfig, BangBangControllerConfig, FuzzyLogicControllerConfig]
+
+
+# --- Governor Config Root Model (UPDATED) ---
+
+class GovernorConfig(BaseModel):
+    """Pydantic model for a Governor's specific configuration file."""
+    update_interval_seconds: float = Field(10.0, gt=0, description="How often the Governor runs its control logic loop (in seconds).")
+    # UPDATED: List now uses the Union type AnyControllerConfig
+    controllers: List[AnyControllerConfig] = Field(...,
+        description="List of control loops (e.g., PID, Bang-Bang) managed by this Governor. The 'controller_type' field determines the specific parameters required for each.")
+    # Add other potential governor configs - e.g., global settings
+
+    model_config = {"extra": "forbid"}
+
+# ==============================================================================
+# === END OF GOVERNOR MODEL SECTION ============================================
+# =============================================
+

@@ -1,0 +1,20 @@
+# Sample configuration for the main Environmental Governor
+# File: control/config/governors/env_governor_main.yaml
+# Conforms to the UPDATED GovernorConfig Pydantic model
+
+update_interval_seconds: 10.0 # How often the governor runs its control loops
+
+controllers:
+  # --- Temperature Control (using Bang-Bang with Point-based Hysteresis) ---
+  - controller_type: bang_bang # Specifies BangBangControllerConfig schema
+    # Input Points Read by Governor:
+    sensor_point_uuid: "temp-sensor-1-uuid"           # FruitingChamber_Temp_Sensor
+    target_setpoint_point_uuid: "temp-target-setpoint-uuid" # FruitingChamber_Temp_Target_Setpoint
+    # Reference the new point for hysteresis/deadband:
+    hysteresis_point_uuid: "temp-target-deadband-uuid"  # FruitingChamber_Temp_Target_Deadband
+
+    # Output Point Written by Governor:
+    # Governor sends its desired command ('on' or 'off') to the point the Driver listens to.
+    output_command_point_uuid: "heater-governor-cmd-uuid" # FruitingChamber_Heater_Governor_Mode_Command
+
+  # Add more controllers as needed...
