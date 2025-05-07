@@ -135,7 +135,7 @@ class GovernorComponentDefinition(ComponentDefinition):
     """Definition for a governor component."""
     type: Literal[ComponentType.GOVERNOR] = ComponentType.GOVERNOR
     controls_drivers: List[str] = Field(..., description="List of driver component 'id's that this governor controls.")
-
+    virtual_points_provided: Optional[List[str]] = Field([], description="List of point UUIDs synthesized or managed by this governor.")
 # --- Main System Definition ---
 
 # Type alias for the union of all possible component types

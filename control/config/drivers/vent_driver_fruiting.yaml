@@ -1,0 +1,61 @@
+# Configuration for the Fruiting Chamber Vent Fan Driver FSM
+# States: off, on
+# Transitions governed by FruitingChamber_VentFan_Governor_Mode_Command
+
+initial_state: "off" # Start in a known safe state
+
+states:
+  "off":
+    defining_conditions:
+      - point_uuid: "b176f1a2-b3c4-4d5e-6f70-8192a3b4c5dc" # VentFan_Status_UUID
+        expected_value: "off"
+    entry_actions:
+      # Ensure the command to the vent fan is 'off' when in this state.
+      - action_type: "write_to_point"
+        point_uuid: "c287f1a2-b3c4-4d5e-6f70-8192a3b4c5dd" # VentFan_Command_UUID
+        value: "off"
+    exit_actions: []
+
+  "on":
+    defining_conditions:
+      - point_uuid: "b176f1a2-b3c4-4d5e-6f70-8192a3b4c5dc" # VentFan_Status_UUID
+        expected_value: "on"
+    entry_actions:
+      # Ensure the command to the vent fan is 'on' when in this state.
+      - action_type: "write_to_point"
+        point_uuid: "c287f1a2-b3c4-4d5e-6f70-8192a3b4c5dd" # VentFan_Command_UUID
+        value: "on"
+    exit_actions: []
+
+transitions:
+  "off":
+    "on":
+      constraint_groups:
+        - priority: 0 # Default priority for normal operation
+          description: "Governor commands vent fan on."
+          constraints:
+            - type: "discrete_value"
+              description: "Check vent fan governor command point for 'on'."
+              definition:
+                type: "discrete_value"
+                value_A_point_uuid: "c263c3fc-018d-4996-800a-5317465c7178" # VentFan_Governor_Mode_Command_UUID
+                comparator: "=="
+                comparand_B_static_value: "on"
+  "on":
+    "off":
+      constraint_groups:
+        - priority: 0 # Default priority for normal operation
+          description: "Governor commands vent fan off."
+          constraints:
+            - type: "discrete_value"
+              description: "Check vent fan governor command point for 'off'."
+              definition:
+                type: "discrete_value"
+                value_A_point_uuid: "c263c3fc-018d-4996-800a-5317465c7178" # VentFan_Governor_Mode_Command_UUID
+                comparator: "=="
+                comparand_B_static_value: "off"
+
+# pwm_outputs section is omitted as this is a simple on/off driver.
+# If PWM control for the fan is needed later, that section and pwm_on/pwm_off states can be added.
+# Time-based lockouts or cycles would also be added here if required, using the
+# VentFanDriver_TimeInState UUID: "37b0558a-a39e-4a3f-9cdc-ad83e0b5c3f9"

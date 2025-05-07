@@ -1,0 +1,92 @@
+# Configuration for the Fruiting Chamber Humidity Driver FSM
+# States: off, on, lockout
+# Includes time-based transitions for lockout mechanism.
+# UUIDs for governor command and driver's time-in-state have been updated.
+
+initial_state: "off" # Start in a known safe state
+
+states:
+  "off":
+    defining_conditions:
+      - point_uuid: "5b10f1a2-b3c4-4d5e-6f70-8192a3b4c5d6" # Humidifier Status UUID
+        expected_value: "off"
+    entry_actions:
+      - action_type: "write_to_point"
+        point_uuid: "6c21f1a2-b3c4-4d5e-6f70-8192a3b4c5d7" # Humidifier Write Command UUID
+        value: "off"
+    exit_actions: []
+
+  "on":
+    defining_conditions:
+      - point_uuid: "5b10f1a2-b3c4-4d5e-6f70-8192a3b4c5d6" # Humidifier Status UUID
+        expected_value: "on"
+    entry_actions:
+      - action_type: "write_to_point"
+        point_uuid: "6c21f1a2-b3c4-4d5e-6f70-8192a3b4c5d7" # Humidifier Write Command UUID
+        value: "on"
+    exit_actions: []
+
+  "lockout":
+    defining_conditions:
+      # During lockout, the humidifier itself should be physically off.
+      - point_uuid: "5b10f1a2-b3c4-4d5e-6f70-8192a3b4c5d6" # Humidifier Status UUID
+        expected_value: "off"
+    entry_actions:
+      # Ensure the command to the humidifier is 'off' when entering lockout.
+      - action_type: "write_to_point"
+        point_uuid: "6c21f1a2-b3c4-4d5e-6f70-8192a3b4c5d7" # Humidifier Write Command UUID
+        value: "off"
+    exit_actions: []
+
+transitions:
+  "off":
+    "on":
+      constraint_groups:
+        - priority: 1 # Standard operational priority
+          description: "Governor commands humidifier on."
+          constraints:
+            - type: "discrete_value"
+              description: "Check governor command point for 'on'."
+              definition:
+                type: "discrete_value"
+                value_A_point_uuid: "16cc030a-27f6-4d46-83c2-e60ec5b84e02" # FruitingChamber_Humidity_Governor_Mode_Command
+                comparator: "=="
+                comparand_B_static_value: "on"
+  "on":
+    "off": # Transition to 'off' based on governor command
+      constraint_groups:
+        - priority: 1 # Standard operational priority
+          description: "Governor commands humidifier off."
+          constraints:
+            - type: "discrete_value"
+              description: "Check governor command point for 'off'."
+              definition:
+                type: "discrete_value"
+                value_A_point_uuid: "16cc030a-27f6-4d46-83c2-e60ec5b84e02" # FruitingChamber_Humidity_Governor_Mode_Command
+                comparator: "=="
+                comparand_B_static_value: "off"
+    "lockout": # Transition to 'lockout' based on time
+      constraint_groups:
+        - priority: 0 # Highest priority - safety/operational override
+          description: "Humidifier has been on for 15 seconds, transitioning to lockout."
+          constraints:
+            - type: "state_time"
+              description: "Check time in 'on' state."
+              definition:
+                type: "state_time"
+                value_A_point_uuid: "274979de-89e2-496e-a751-5c7faa61928c" # HumidityDriver_TimeInState
+                comparator: ">="
+                comparand_B_static_value: 15 # Seconds
+  "lockout":
+    "off": # Only transition from lockout is to off, after lockout duration
+      constraint_groups:
+        - priority: 0 # Highest priority for exiting lockout
+          description: "Lockout duration of 60 seconds has passed."
+          constraints:
+            - type: "state_time"
+              description: "Check time in 'lockout' state."
+              definition:
+                type: "state_time"
+                value_A_point_uuid: "274979de-89e2-496e-a751-5c7faa61928c" # HumidityDriver_TimeInState
+                comparator: ">="
+                comparand_B_static_value: 60 # Seconds

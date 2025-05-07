@@ -1,7 +1,7 @@
 # common/config_models/component_configs.py
 
 import enum
-from typing import Any, Dict, List, Optional, Union, Literal, Self
+from typing import Any, Dict, List, Optional, Union, Literal, Self # Added Self for Pydantic v2
 from pydantic import BaseModel, Field, model_validator
 
 # --- Enums ---
@@ -153,7 +153,7 @@ class DriverConfig(BaseModel):
 
 
 # ==============================================================================
-# === NEW/UPDATED MODELS FOR MICROCONTROLLER AND GOVERNOR (START) =============
+# === MICROCONTROLLER AND GOVERNOR MODELS (START) ==============================
 # ==============================================================================
 
 # --- Microcontroller Supporting Sub-Models ---
@@ -180,7 +180,8 @@ class OneWireConfig(BaseModel):
     model_config = {"extra": "forbid"}
 
 class OneWireDevice(BaseModel):
-    sensor_model: Literal["DS18B20"] = Field(..., description="Specific model of the sensor (e.g., 'DS18B20').")
+    sensor_model: Literal["DS18B20"]
+    pin: int = Field(..., description="GPIO pin number for this OneWire device's bus.")
     point_uuid: str = Field(..., description="Point UUID for the temperature reading from this sensor.")
     model_config = {"extra": "forbid"}
 
@@ -224,17 +225,17 @@ class MicrocontrollerConfig(BaseModel):
     def check_bus_configs(self) -> Self:
         if self.i2c_devices and not self.i2c:
             raise ValueError("i2c bus configuration must be provided if i2c_devices are listed.")
-        if self.onewire_devices and not self.onewire:
-             raise ValueError("onewire bus configuration must be provided if onewire_devices are listed.")
+        # if self.onewire_devices and not self.onewire: # Commented out as OneWireDevice now includes pin
+        #      raise ValueError("onewire bus configuration must be provided if onewire_devices are listed.")
         # Add similar check for SPI if implemented
         return self
 
     model_config = {"extra": "forbid"}
 
 
-# --- Governor Supporting Sub-Models (REVISED FOR GENERIC CONTROL) ---
+# --- Governor Supporting Sub-Models ---
 
-# NEW: Configuration specific to a Bang-Bang controller
+# Configuration specific to a Bang-Bang controller
 class BangBangControllerConfig(BaseModel):
     """Configuration for a Bang-Bang (on/off) control loop."""
     controller_type: Literal["bang_bang"] = Field("bang_bang", description="Discriminator field for controller type.")
@@ -242,7 +243,6 @@ class BangBangControllerConfig(BaseModel):
     # --- Inputs ---
     sensor_point_uuid: str = Field(..., description="UUID of the Point providing the process variable (e.g., temperature sensor).")
     target_setpoint_point_uuid: str = Field(..., description="UUID of the Point providing the desired target value (e.g., target temperature setpoint).")
-    # CHANGED: Replaced static hysteresis with a point UUID
     hysteresis_point_uuid: str = Field(..., description="UUID of the Point providing the hysteresis value (deadband).")
 
     # --- Outputs ---
@@ -251,7 +251,7 @@ class BangBangControllerConfig(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-# UPDATED: Add controller_type discriminator to PID config
+# Configuration specific to a PID controller
 class PIDControllerConfig(BaseModel):
     """Configuration for a single PID control loop within the Governor."""
     controller_type: Literal["pid"] = Field("pid", description="Discriminator field for controller type.")
@@ -277,17 +277,34 @@ class PIDControllerConfig(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-# NEW: Type Alias for the Union of all possible controller configurations
-AnyControllerConfig = Union[PIDControllerConfig, BangBangControllerConfig]
-# Add future controller config types to this Union, e.g., Union[PIDControllerConfig, BangBangControllerConfig, FuzzyLogicControllerConfig]
+# *** NEW MODEL: TimeScheduleControllerConfig ***
+class TimeScheduleControllerConfig(BaseModel):
+    """Configuration for a time-based interval scheduling controller."""
+    controller_type: Literal["time_schedule"] = Field("time_schedule", description="Discriminator field for controller type.")
+
+    # Input points for scheduling parameters
+    on_interval_hours_point_uuid: str = Field(..., description="UUID of the Point providing the ON duration in hours.")
+    off_interval_hours_point_uuid: str = Field(..., description="UUID of the Point providing the OFF duration in hours.")
+
+    # Output point
+    output_command_point_uuid: str = Field(..., description="UUID of the Point where the Governor writes the calculated command ('on' or 'off').")
+
+    # Optional: Add a field for initial phase if needed (e.g., start in "on" or "off" phase)
+    initial_phase: Optional[Literal["on", "off"]] = Field("off", description="The initial phase of the cycle on startup.")
+
+    model_config = {"extra": "forbid"}
 
 
-# --- Governor Config Root Model (UPDATED) ---
+# Type Alias for the Union of all possible controller configurations
+AnyControllerConfig = Union[PIDControllerConfig, BangBangControllerConfig,TimeScheduleControllerConfig] 
+
+
+# --- Governor Config Root Model ---
 
 class GovernorConfig(BaseModel):
     """Pydantic model for a Governor's specific configuration file."""
     update_interval_seconds: float = Field(10.0, gt=0, description="How often the Governor runs its control logic loop (in seconds).")
-    # UPDATED: List now uses the Union type AnyControllerConfig
+    # List now uses the Union type AnyControllerConfig
     controllers: List[AnyControllerConfig] = Field(...,
         description="List of control loops (e.g., PID, Bang-Bang) managed by this Governor. The 'controller_type' field determines the specific parameters required for each.")
     # Add other potential governor configs - e.g., global settings
@@ -296,5 +313,4 @@ class GovernorConfig(BaseModel):
 
 # ==============================================================================
 # === END OF GOVERNOR MODEL SECTION ============================================
-# =============================================
-
+# ==============================================================================
