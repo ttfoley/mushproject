@@ -1,0 +1,15 @@
+# config/governors/vent_fan_governor.yaml
+# Configuration for the Vent Fan Governor
+
+update_interval_seconds: 10 # How often the governor logic runs
+
+controllers:
+  - controller_type: "time_schedule"
+    # Input points for scheduling parameters (ensure these UUIDs match system_definition.yaml)
+    on_interval_minutes_point_uuid: "3039aac8-2816-4191-9f44-1d453e2e7924" # FruitingChamber_VentFan_Timer_OnIntervalMinutes
+    off_interval_minutes_point_uuid: "e0cf042f-5222-4be3-9fad-62ee28f3e3a8" # FruitingChamber_VentFan_Timer_OffIntervalMinutes
+    
+    # Output command point (ensure this UUID matches system_definition.yaml)
+    output_command_point_uuid: "c263c3fc-018d-4996-800a-5317465c7178" # FruitingChamber_VentFan_Governor_Mode_Command
+    
+    initial_phase: "off" # Start with vent fan off

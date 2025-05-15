@@ -29,10 +29,6 @@ digital_outputs:
     point_uuid: "c287f1a2-b3c4-4d5e-6f70-8192a3b4c5dd" # C2_CP33_VentFan_Command
     initial_state: "off"
 
-  - pin: 4  # 
-    name: "StatusLED" # Optional logical name
-    point_uuid: "e4a9f1a2-b3c4-4d5e-6f70-8192a3b4c5df" # C2_LED1_StatusLED_Command
-    initial_state: "off"
 
 # Timing Parameters for C2
 publish_frequency_ms: 15000 # Example: publish sensor data (like WifiUptime) every 15 seconds

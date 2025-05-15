@@ -430,6 +430,7 @@ def main():
     print(f"Running build script from CWD: {Path.cwd()}")
 
     # Step 1: Validate the main SSOT file
+    print(f"Validating SSOT file: {SSOT_FILE_PATH}")
     system_config = validate_ssot(SSOT_FILE_PATH)
     if system_config is None:
         print("\nAborting build due to errors in SSOT file.")

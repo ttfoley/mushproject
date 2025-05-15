@@ -265,31 +265,7 @@ points:
     validation_rules: { allowed_values: ["on", "off"] }
     initial_value: "off" 
 
-  # == Microcontroller C2 Control Points (Status_LED - led1) ==
-  - uuid: "d398f1a2-b3c4-4d5e-6f70-8192a3b4c5de" 
-    name: "C2_LED1_StatusLED_Status"
-    description: "Status_LED status readback"
-    value_type: DISCRETE
-    units: "on/off"
-    data_source_layer: microcontroller
-    access: READ_ONLY
-    writable_by: []
-    persist_to_db: true 
-    command_point_uuid: "e4a9f1a2-b3c4-4d5e-6f70-8192a3b4c5df" 
-    validation_rules: { allowed_values: ["unknown", "on", "off"] }
-    initial_value: "off" 
-  - uuid: "e4a9f1a2-b3c4-4d5e-6f70-8192a3b4c5df" 
-    name: "C2_LED1_StatusLED_Command"
-    description: "Status_LED command"
-    value_type: DISCRETE
-    units: "on/off"
-    data_source_layer: driver 
-    access: READ_WRITE
-    writable_by: ["led_driver_status"] 
-    persist_to_db: true 
-    status_point_uuid: "d398f1a2-b3c4-4d5e-6f70-8192a3b4c5de" 
-    validation_rules: { allowed_values: ["on", "off"] }
-    initial_value: "off" 
+
 
   # == Microcontroller C3 Sensors (SCD4x) ==
   - uuid: "f5baf1a2-b3c4-4d5e-6f70-8192a3b4c5e0" 
@@ -474,7 +450,29 @@ points:
     persist_to_db: true
     initial_value: "off"
     validation_rules: { allowed_values: ["off", "on"] } # Assuming simple on/off for now
-    
+  - uuid: "3039aac8-2816-4191-9f44-1d453e2e7924"
+    name: "FruitingChamber_VentFan_Timer_OnIntervalMinutes" # Name reflects minutes
+    description: "ON duration in minutes for the fruiting vent fan timer. Set manually or by a future scheduler."
+    value_type: CONTINUOUS
+    units: "minutes" # Vent Fan Governor uses MINUTES
+    data_source_layer: manual_input
+    access: READ_WRITE
+    writable_by: ["Manual_HOA"] # Consistent with similar parameter points
+    persist_to_db: true
+    validation_rules: { min_value: 0.0, max_value: 120.0 } # Example: max 120 minutes (2 hours) on
+    initial_value: 5.0 # Value is now in minutes
+  - uuid: "e0cf042f-5222-4be3-9fad-62ee28f3e3a8"
+    name: "FruitingChamber_VentFan_Timer_OffIntervalMinutes" # Name reflects minutes
+    description: "OFF duration in minutes for the fruiting vent fan timer. Set manually or by a future scheduler."
+    value_type: CONTINUOUS
+    units: "minutes" # Vent Fan Governor uses MINUTES
+    data_source_layer: manual_input
+    access: READ_WRITE
+    writable_by: ["Manual_HOA"] # Consistent with similar parameter points
+    persist_to_db: true
+    validation_rules: { min_value: 0.0, max_value: 1440.0 } # Example: max 1440 minutes (24 hours) off
+    initial_value: 55.0 # Value is now in minutes
+
   # == Light Governor Mode Command Point ==
   - uuid: "7bbe9f99-a3b3-4e97-a10a-d3c4f92c838d"
     name: "FruitingChamber_Light_Governor_Mode_Command"
@@ -487,6 +485,28 @@ points:
     persist_to_db: true
     initial_value: "off"
     validation_rules: { allowed_values: ["off", "on"] } # Assuming simple on/off for now
+  - uuid: "2be2a778-d0f6-4d33-97a1-747107b952b3"
+    name: "FruitingChamber_Light_Timer_OnIntervalMinutes"
+    description: "ON duration in minutes for the fruiting light timer. Set manually or by a future scheduler."
+    value_type: CONTINUOUS
+    units: "minutes" # Changed from "h" to "hours"
+    data_source_layer: manual_input
+    access: READ_WRITE
+    writable_by: ["Manual_HOA"] # Or other designated config/UI component
+    persist_to_db: true
+    validation_rules: { min_value: 0.0, max_value: 1440.0 }
+    initial_value: 720.0
+  - uuid: "f9cc975a-89f2-4b93-8159-074edf2a6c88"
+    name: "FruitingChamber_Light_Timer_OffIntervalMinutes"
+    description: "OFF duration in minutes for the fruiting light timer. Set manually or by a future scheduler."
+    value_type: CONTINUOUS
+    units: "minutes" # Changed from "h" to "hours"
+    data_source_layer: manual_input
+    access: READ_WRITE
+    writable_by: ["Manual_HOA"] # Or other designated config/UI component
+    persist_to_db: true
+    validation_rules: { min_value: 0.0, max_value: 1440.0 }
+    initial_value: 720.0
   # == Driver Internal State Points ==
   #temperature driver
   - uuid: "b177f1a2-b3c4-4d5e-6f70-8192a3b4c5ec" 
@@ -709,13 +729,7 @@ components:
       - "0c31a004-741f-4f8a-b2fd-3ceb37cdde8e" # VentFanDriver_FSM_Health
       # TODO: Add FSM points for vent driver if it has its own FSM
 
-  # - id: "led_driver_status" 
-  #   type: driver
-  #   config_file: "config/drivers/led_driver_status.yaml" 
-  #   controls_microcontroller: "c2"
-  #   virtual_points_provided:
-  #     - "e4a9f1a2-b3c4-4d5e-6f70-8192a3b4c5df" # C2_LED1_StatusLED_Command
-  #     # TODO: Add FSM points for LED driver if it has its own FSM
+
       
   # Governor
   - id: "temperature_governor" 
@@ -738,19 +752,19 @@ components:
       - "16cc030a-27f6-4d46-83c2-e60ec5b84e02" # FruitingChamber_Humidity_Governor_Mode_Command
 
 
-  # - id: "light_governor" 
-  #   type: governor
-  #   config_file: "config/governors/light_governor.yaml" 
-  #   controls_drivers:
-  #     - "light_driver_fruiting"     
-  #   virtual_points_provided:
-  #     - "7bbe9f99-a3b3-4e97-a10a-d3c4f92c838d" # FruitingChamber_Light_Governor_Mode_Command
+  - id: "light_governor" 
+    type: governor
+    config_file: "config/governors/light_governor.yaml" 
+    controls_drivers:
+      - "light_driver_fruiting"     
+    virtual_points_provided:
+      - "7bbe9f99-a3b3-4e97-a10a-d3c4f92c838d" # FruitingChamber_Light_Governor_Mode_Command
 
-  # - id: "vent_governor" 
-  #   type: governor
-  #   config_file: "config/governors/vent_governor.yaml" 
-  #   controls_drivers:
-  #     - "vent_driver_fruiting" 
-  #   virtual_points_provided:
-  #     - "c263c3fc-018d-4996-800a-5317465c7178" # FruitingChamber_VentFan_Governor_Mode_Command
+  - id: "vent_fan_governor" 
+    type: governor
+    config_file: "config/governors/vent_fan_governor.yaml" 
+    controls_drivers:
+      - "vent_driver_fruiting" 
+    virtual_points_provided:
+      - "c263c3fc-018d-4996-800a-5317465c7178" # FruitingChamber_VentFan_Governor_Mode_Command
 

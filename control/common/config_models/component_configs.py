@@ -283,8 +283,8 @@ class TimeScheduleControllerConfig(BaseModel):
     controller_type: Literal["time_schedule"] = Field("time_schedule", description="Discriminator field for controller type.")
 
     # Input points for scheduling parameters
-    on_interval_hours_point_uuid: str = Field(..., description="UUID of the Point providing the ON duration in hours.")
-    off_interval_hours_point_uuid: str = Field(..., description="UUID of the Point providing the OFF duration in hours.")
+    on_interval_minutes_point_uuid: str = Field(..., description="UUID of the Point providing the ON duration in minutes.")
+    off_interval_minutes_point_uuid: str = Field(..., description="UUID of the Point providing the OFF duration in minutes.")
 
     # Output point
     output_command_point_uuid: str = Field(..., description="UUID of the Point where the Governor writes the calculated command ('on' or 'off').")
