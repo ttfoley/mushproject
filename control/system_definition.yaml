@@ -674,7 +674,6 @@ components:
       - "7d32f1a2-b3c4-4d5e-6f70-8192a3b4c5d8" # C2_CP26_HeatingPad_Status
       - "9f54f1a2-b3c4-4d5e-6f70-8192a3b4c5da" # C2_CP32_Light_Status
       - "b176f1a2-b3c4-4d5e-6f70-8192a3b4c5dc" # C2_CP33_VentFan_Status
-      - "d398f1a2-b3c4-4d5e-6f70-8192a3b4c5de" # C2_LED1_StatusLED_Status
   - id: "c3"
     type: microcontroller
     config_file: "config/microcontrollers/c3_config.yaml"
@@ -705,7 +704,7 @@ components:
       - "274979de-89e2-496e-a751-5c7faa61928c" # HumidityDriver_TimeInState
       - "b8016f02-56d4-449c-baf6-7602ef845fb7" # HumidityDriver_FSM_State
       - "41f6a24c-e22a-495c-9dde-5eb92b9c9926" # HumidityDriver_FSM_Health  
-      # TODO: Add FSM points for humidity driver if it has its own FSM: state, health, time_in_state
+
 
   - id: "light_driver_fruiting" 
     type: driver
@@ -716,7 +715,7 @@ components:
       - "b6879dfc-c2eb-42e1-a479-5cffd07da6c0" # LightDriver_TimeInState
       - "a30be0ec-54d5-4ccd-ad12-0a8482e61a54" # LightDriver_FSM_State
       - "9f1f19ad-ef0c-42bc-b6fe-9359b331e807" # LightDriver_FSM_Health
-      # TODO: Add FSM points for light driver if it has its own FSM
+
 
   - id: "vent_driver_fruiting" 
     type: driver
@@ -727,7 +726,7 @@ components:
       - "37b0558a-a39e-4a3f-9cdc-ad83e0b5c3f9" # VentFanDriver_TimeInState
       - "2eaa72d4-5b0e-46db-b5ee-8428726cd400" # VentFanDriver_FSM_State
       - "0c31a004-741f-4f8a-b2fd-3ceb37cdde8e" # VentFanDriver_FSM_Health
-      # TODO: Add FSM points for vent driver if it has its own FSM
+
 
 
       

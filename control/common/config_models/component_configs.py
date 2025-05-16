@@ -1,13 +1,19 @@
 # common/config_models/component_configs.py
 
 import enum
-from typing import Any, Dict, List, Optional, Union, Literal, Self # Added Self for Pydantic v2
-from pydantic import BaseModel, Field, model_validator
+from typing import Any, Dict, List, Optional, Union, Literal, Self, Type
+from pydantic import BaseModel, Field, model_validator, ValidationInfo
+from pydantic_core import core_schema
+# Correct import path for GetCoreSchemaHandler in Pydantic V2
+from pydantic.annotated_handlers import GetCoreSchemaHandler
+
+# Assuming PointUUID, ValueType, AccessMode are defined in core_ssot_models
+# and PointDefinition structure is known for lookups.
+from .core_ssot_models import PointUUID, ValueType, AccessMode, PointDefinition
+
 
 # --- Enums ---
-
 class ComparatorType(str, enum.Enum):
-    """Comparison operators."""
     EQ = "=="
     NE = "!="
     GT = ">"
@@ -16,90 +22,68 @@ class ComparatorType(str, enum.Enum):
     LE = "<="
 
 # --- Action Definitions ---
-
 class WriteAction(BaseModel):
-    """Action to write a specific value to a given point."""
     action_type: Literal["write_to_point"] = Field("write_to_point", description="Type indicator for this action.")
-    point_uuid: str = Field(..., description="UUID of the Point to write to.")
+    point_uuid: PointUUID = Field(..., description="UUID of the Point to write to.")
     value: Any = Field(..., description="The value to write to the point.")
-
     model_config = {"extra": "forbid"}
 
-# Type alias for all possible action types
-AnyAction = WriteAction # Add other action types here in the future
+AnyAction = WriteAction
 
 # --- State Definition ---
-
 class StateCondition(BaseModel):
-    """A single condition (point value check) required to be true for defining a state."""
-    point_uuid: str = Field(..., description="UUID of the point whose value is checked.")
+    point_uuid: PointUUID = Field(..., description="UUID of the point whose value is checked.")
     expected_value: Any = Field(..., description="The value the point must have.")
-
     model_config = {"extra": "forbid"}
 
 class StateDefinition(BaseModel):
-    """Defines a state by its required conditions and optional entry/exit actions."""
     defining_conditions: List[StateCondition] = Field(...,
         description="List of conditions that MUST ALL be true simultaneously for the system to BE considered in this state.")
     entry_actions: List[AnyAction] = Field([],
         description="List of actions to perform immediately upon entering this state.")
     exit_actions: List[AnyAction] = Field([],
         description="List of actions to perform immediately upon exiting this state.")
-
     model_config = {"extra": "forbid"}
 
 # --- Constraint Definitions ---
-
 class BaseConstraintDefinition(BaseModel):
-    """Base model for the specific parameters defining a constraint's logic."""
     description: Optional[str] = Field(None, description="Optional description of the constraint's purpose.")
     id: Optional[int] = Field(None, description="Optional numeric identifier for this constraint definition.")
-
     model_config = {"extra": "forbid"}
 
 class ValueConstraintDefinition(BaseConstraintDefinition):
-    """
-    Constraint comparing point A's value against point B's value OR a static value B.
-    Evaluates: value(point_A) <comparator> value(point_B / static_value_B)
-    """
     type: Literal["value", "discrete_value", "continuous_value"] = Field(..., description="Type indicator for value comparison.")
-    value_A_point_uuid: str = Field(..., description="UUID of the primary Point (A) whose value is being checked.")
+    value_A_point_uuid: PointUUID = Field(..., description="UUID of the primary Point (A) whose value is being checked.")
     comparator: ComparatorType = Field(..., description="The comparison operator.")
     comparand_B_static_value: Optional[Any] = Field(None, description="Static value (B) to compare against. Use EITHER this OR comparand_B_point_uuid.")
-    comparand_B_point_uuid: Optional[str] = Field(None, description="UUID of the Point (B) providing the dynamic value to compare against. Use EITHER this OR comparand_B_static_value.")
+    comparand_B_point_uuid: Optional[PointUUID] = Field(None, description="UUID of the Point (B) providing the dynamic value to compare against. Use EITHER this OR comparand_B_static_value.")
 
     @model_validator(mode='after')
     def check_comparand_b_source(self) -> Self:
         static_present = self.comparand_B_static_value is not None
         point_present = self.comparand_B_point_uuid is not None
-        if static_present == point_present: # True if both are present or both are absent
+        if static_present == point_present:
             raise ValueError('Exactly one of "comparand_B_static_value" or "comparand_B_point_uuid" must be provided for ValueConstraintDefinition')
         return self
 
 class StateTimeConstraintDefinition(BaseConstraintDefinition):
-    """
-    Constraint comparing time in state (Point A) against a static duration (B) OR a dynamic duration from Point B.
-    Evaluates: value(time_in_state_A) <comparator> value(duration_point_B / static_duration_B)
-    """
     type: Literal["state_time"] = Field(..., description="Type indicator for state time comparison.")
-    value_A_point_uuid: str = Field(..., description="UUID of the Point representing time elapsed in the current state (A).")
+    value_A_point_uuid: PointUUID = Field(..., description="UUID of the Point representing time elapsed in the current state (A).")
     comparator: ComparatorType = Field(ComparatorType.GE, description="Comparison operator (usually >= for time).")
     comparand_B_static_value: Optional[float] = Field(None, description="Static duration value (B, in seconds). Use EITHER this OR comparand_B_point_uuid.")
-    comparand_B_point_uuid: Optional[str] = Field(None, description="UUID of the Point (B) providing the dynamic duration value. Use EITHER this OR comparand_B_static_value.")
+    comparand_B_point_uuid: Optional[PointUUID] = Field(None, description="UUID of the Point (B) providing the dynamic duration value. Use EITHER this OR comparand_B_static_value.")
 
     @model_validator(mode='after')
     def check_comparand_b_source(self) -> Self:
         static_present = self.comparand_B_static_value is not None
         point_present = self.comparand_B_point_uuid is not None
-        if static_present == point_present: # True if both are present or both are absent
+        if static_present == point_present:
             raise ValueError('Exactly one of "comparand_B_static_value" or "comparand_B_point_uuid" must be provided for StateTimeConstraintDefinition')
         return self
 
-# Type alias for all possible constraint definition types
-AnyConstraintDefinition = Union[StateTimeConstraintDefinition, ValueConstraintDefinition] # Add others to Union
+AnyConstraintDefinition = Union[StateTimeConstraintDefinition, ValueConstraintDefinition]
 
 class ConstraintDefinition(BaseModel):
-    """Container for a single constraint within a group, matching config structure."""
     definition: AnyConstraintDefinition = Field(..., description="The specific parameters defining the constraint's logic.")
     type: str = Field(..., description="Type of the constraint (e.g., state_time, discrete_value). Must match the type within 'definition'.")
     description: Optional[str] = Field(None, description="Overall description of this constraint instance.")
@@ -109,47 +93,85 @@ class ConstraintDefinition(BaseModel):
         if self.definition and hasattr(self.definition, 'type') and self.type != self.definition.type:
              raise ValueError(f"Outer constraint type '{self.type}' does not match definition type '{self.definition.type}'")
         return self
-
     model_config = {"extra": "forbid"}
 
-# --- Constraint Group & Transition Definition ---
-
 class ConstraintGroup(BaseModel):
-    """A group of constraints that must ALL be met (logical AND)."""
     id: Optional[int] = Field(None, description="Optional numeric identifier for the group.")
     constraints: List[ConstraintDefinition] = Field(..., description="List of constraints in this group (AND logic).")
     description: Optional[str] = Field(None, description="Description of this constraint group's purpose.")
     priority: int = Field(0, description="Priority for evaluating this group (lower value = higher priority).")
-
     model_config = {"extra": "forbid"}
 
 class TransitionDefinition(BaseModel):
-    """Defines the conditions for transitioning to a target state."""
     constraint_groups: List[ConstraintGroup] = Field(...,
         description="List of constraint groups. Transition occurs if ANY group is met (OR logic). Evaluated in priority order.")
-
     model_config = {"extra": "forbid"}
 
 # --- PWM Output Mapping ---
-
 class DriverPWMOutputMapping(BaseModel):
-    """Maps a PWM setpoint input point to a physical actuator output point and defines period."""
-    input_point_uuid: str = Field(..., description="UUID of the Point providing the PWM setpoint (e.g., 0.0-1.0 value).")
-    output_actuator_uuid: str = Field(..., description="UUID of the ON/OFF Point controlling the physical actuator.")
+    input_point_uuid: PointUUID = Field(..., description="UUID of the Point providing the PWM setpoint (e.g., 0.0-1.0 value).")
+    output_actuator_uuid: PointUUID = Field(..., description="UUID of the ON/OFF Point controlling the physical actuator.")
     pwm_period_seconds: float = Field(..., gt=0, description="The period (in seconds) over which the PWM cycle repeats (must be > 0).")
-
     model_config = {"extra": "forbid"}
 
-# --- Driver Config Root Model ---
+    @model_validator(mode='after')
+    def check_point_types(self, info: ValidationInfo) -> Self:
+        points_map: Optional[Dict[PointUUID, PointDefinition]] = info.context.get("points_by_uuid_map") if info.context else None
+        if not points_map:
+            return self
 
+        input_p_def = points_map.get(self.input_point_uuid)
+        if input_p_def and input_p_def.value_type != ValueType.CONTINUOUS:
+            raise ValueError(
+                f"PWM input_point_uuid '{self.input_point_uuid}' (name: {input_p_def.name}) "
+                f"must refer to a CONTINUOUS point, but it is {input_p_def.value_type.value}."
+            )
+
+        output_p_def = points_map.get(self.output_actuator_uuid)
+        if output_p_def:
+            if output_p_def.value_type not in [ValueType.DISCRETE, ValueType.BOOLEAN]:
+                raise ValueError(
+                    f"PWM output_actuator_uuid '{self.output_actuator_uuid}' (name: {output_p_def.name}) "
+                    f"must refer to a DISCRETE or BOOLEAN point, but it is {output_p_def.value_type.value}."
+                )
+            if output_p_def.access != AccessMode.READ_WRITE:
+                raise ValueError(
+                    f"PWM output_actuator_uuid '{self.output_actuator_uuid}' (name: {output_p_def.name}) "
+                    f"must be READ_WRITE, but it is {output_p_def.access.value}."
+                )
+        return self
+
+# --- Driver Config Root Model ---
 class DriverConfig(BaseModel):
-    """Pydantic model for a Driver's complete configuration file."""
     initial_state: str = Field(..., description="The name of the state the driver should start in.")
     states: Dict[str, StateDefinition] = Field(..., description="Definitions for each possible state (map of state_name -> state_definition).")
     transitions: Dict[str, Dict[str, TransitionDefinition]] = Field(..., description="Definitions for transitions between states.")
     pwm_outputs: Optional[List[DriverPWMOutputMapping]] = Field(None, description="Optional list of PWM output configurations handled by this driver.")
-
     model_config = {"extra": "forbid"}
+
+    @model_validator(mode='after')
+    def check_initial_state_and_transitions(self, info: ValidationInfo) -> Self:
+        defined_state_names = set(self.states.keys()) if self.states else set()
+        if self.initial_state not in defined_state_names:
+            raise ValueError(
+                f"'initial_state' ('{self.initial_state}') is not a defined state. "
+                f"Defined states: {defined_state_names or '{}'}."
+            )
+        if self.transitions:
+            for from_state, to_states_dict in self.transitions.items():
+                if from_state not in defined_state_names:
+                    raise ValueError(
+                        f"Transition defined FROM non-existent state '{from_state}'. "
+                        f"Defined states: {defined_state_names or '{}'}."
+                    )
+                if to_states_dict:
+                    for to_state in to_states_dict.keys():
+                        if to_state not in defined_state_names:
+                            raise ValueError(
+                                f"Transition defined FROM '{from_state}' TO non-existent state '{to_state}'. "
+                                f"Defined states: {defined_state_names or '{}'}."
+                            )
+        return self
 
 
 # ==============================================================================
@@ -157,7 +179,6 @@ class DriverConfig(BaseModel):
 # ==============================================================================
 
 # --- Microcontroller Supporting Sub-Models ---
-
 class I2CConfig(BaseModel):
     sda_pin: int = Field(..., description="GPIO pin number for I2C SDA.")
     scl_pin: int = Field(..., description="GPIO pin number for I2C SCL.")
@@ -165,12 +186,10 @@ class I2CConfig(BaseModel):
     model_config = {"extra": "forbid"}
 
 class I2CDevice(BaseModel):
-    # Define the specific sensor models you are using here
     sensor_model: Literal["SHT85", "BME280", "SCD41", "SHT31", "SHT40", "MCP23017"] = Field(...,
         description="Specific model of the sensor/device (e.g., 'SHT85', 'BME280').")
     address: Union[int, str] = Field(..., description="I2C address (e.g., 0x44 or 68).")
-    # Define the measurements provided by this sensor model
-    point_uuids: Dict[Literal["temperature", "humidity", "co2", "pressure"], str] = Field(...,
+    point_uuids: Dict[Literal["temperature", "humidity", "co2", "pressure"], PointUUID] = Field(...,
         description="Mapping of measurement type (e.g., 'temperature', 'humidity') to Point UUID.")
     settings: Optional[Dict[str, Any]] = Field(None, description="Optional device-specific settings (e.g., {'automatic_self_calibration': False}).")
     model_config = {"extra": "forbid"}
@@ -182,40 +201,30 @@ class OneWireConfig(BaseModel):
 class OneWireDevice(BaseModel):
     sensor_model: Literal["DS18B20"]
     pin: int = Field(..., description="GPIO pin number for this OneWire device's bus.")
-    point_uuid: str = Field(..., description="Point UUID for the temperature reading from this sensor.")
+    point_uuid: PointUUID = Field(..., description="Point UUID for the temperature reading from this sensor.")
     model_config = {"extra": "forbid"}
 
 class DHTSensorConfig(BaseModel):
     sensor_model: Literal["DHT11", "DHT22"] = Field(..., description="Specific model of the DHT sensor ('DHT11' or 'DHT22').")
     pin: int = Field(..., description="GPIO pin number connected to the DHT sensor.")
-    point_uuids: Dict[Literal["temperature", "humidity"], str] = Field(...,
+    point_uuids: Dict[Literal["temperature", "humidity"], PointUUID] = Field(...,
         description="Mapping of measurement type to Point UUID.")
     model_config = {"extra": "forbid"}
 
 class DigitalOutputConfig(BaseModel):
     pin: int = Field(..., description="GPIO pin number for the digital output.")
     name: Optional[str] = Field(None, description="Logical name for this output (e.g., 'MisterRelay').")
-    point_uuid: str = Field(..., description="Point UUID for the command/status of this output.")
+    point_uuid: PointUUID = Field(..., description="Point UUID for the command/status of this output.")
     initial_state: Optional[Literal["on", "off"]] = Field("off", description="Initial state on startup ('on' or 'off').")
     model_config = {"extra": "forbid"}
 
-# --- Microcontroller Config Root Model ---
-
 class MicrocontrollerConfig(BaseModel):
-    """Pydantic model for a Microcontroller's specific hardware configuration file."""
-    # General hardware bus setup
     i2c: Optional[I2CConfig] = Field(None, description="I2C bus configuration, required if i2c_devices are listed.")
     onewire: Optional[OneWireConfig] = Field(None, description="OneWire bus configuration, required if onewire_devices are listed.")
-    # spi: Optional[SPIConfig] = None # Add later if needed
-
-    # Lists of connected devices/pins
     i2c_devices: Optional[List[I2CDevice]] = Field(None, description="List of sensors/devices connected via I2C.")
     onewire_devices: Optional[List[OneWireDevice]] = Field(None, description="List of sensors connected via OneWire.")
     dht_sensors: Optional[List[DHTSensorConfig]] = Field(None, description="List of connected DHT sensors.")
     digital_outputs: Optional[List[DigitalOutputConfig]] = Field(None, description="List of configured digital output pins.")
-    # digital_inputs: Optional[List[DigitalInputConfig]] = None # Add later if needed
-
-    # Timing parameters controlled by the Microcontroller firmware
     publish_frequency_ms: Optional[int] = Field(None,
         description="Sensor publish interval in milliseconds used by the microcontroller. (e.g., 15000 for 15 seconds). If not set, firmware default applies.")
     output_republish_frequency_ms: Optional[int] = Field(None,
@@ -225,92 +234,134 @@ class MicrocontrollerConfig(BaseModel):
     def check_bus_configs(self) -> Self:
         if self.i2c_devices and not self.i2c:
             raise ValueError("i2c bus configuration must be provided if i2c_devices are listed.")
-        # if self.onewire_devices and not self.onewire: # Commented out as OneWireDevice now includes pin
-        #      raise ValueError("onewire bus configuration must be provided if onewire_devices are listed.")
-        # Add similar check for SPI if implemented
         return self
-
     model_config = {"extra": "forbid"}
-
 
 # --- Governor Supporting Sub-Models ---
+class _BaseGovernorControllerConfig(BaseModel):
+    """Base for governor controllers to share validation logic if needed."""
+    pass
 
-# Configuration specific to a Bang-Bang controller
-class BangBangControllerConfig(BaseModel):
-    """Configuration for a Bang-Bang (on/off) control loop."""
+    def _validate_point_property(
+        self,
+        points_map: Optional[Dict[PointUUID, PointDefinition]],
+        point_uuid: PointUUID,
+        point_attr_name: str, # Name of the attribute in the controller config model
+        component_id: Optional[str], # ID of the governor component
+        expected_access: Optional[AccessMode] = None,
+        expected_value_type: Optional[ValueType] = None,
+        check_writable_by: bool = False
+    ) -> List[str]: # Returns list of error messages
+        errors = []
+        if not points_map: return ["Context (points_map) not available for validation."]
+
+        p_def = points_map.get(point_uuid)
+        if not p_def:
+            errors.append(f"Point UUID '{point_uuid}' for '{point_attr_name}' not found in master point list.")
+            return errors
+
+        if expected_access and p_def.access != expected_access:
+            errors.append(
+                f"Point '{point_uuid}' ({p_def.name}) for '{point_attr_name}' "
+                f"requires access '{expected_access.value}', but has '{p_def.access.value}'."
+            )
+        if expected_value_type and p_def.value_type != expected_value_type:
+            errors.append(
+                f"Point '{point_uuid}' ({p_def.name}) for '{point_attr_name}' "
+                f"requires value_type '{expected_value_type.value}', but has '{p_def.value_type.value}'."
+            )
+        if check_writable_by and component_id:
+            if not (p_def.writable_by and component_id in p_def.writable_by):
+                errors.append(
+                    f"Point '{point_uuid}' ({p_def.name}) for '{point_attr_name}' "
+                    f"is not listed as writable_by component '{component_id}'."
+                )
+        return errors
+
+
+class BangBangControllerConfig(_BaseGovernorControllerConfig):
     controller_type: Literal["bang_bang"] = Field("bang_bang", description="Discriminator field for controller type.")
-
-    # --- Inputs ---
-    sensor_point_uuid: str = Field(..., description="UUID of the Point providing the process variable (e.g., temperature sensor).")
-    target_setpoint_point_uuid: str = Field(..., description="UUID of the Point providing the desired target value (e.g., target temperature setpoint).")
-    hysteresis_point_uuid: str = Field(..., description="UUID of the Point providing the hysteresis value (deadband).")
-
-    # --- Outputs ---
-    output_command_point_uuid: str = Field(..., description="UUID of the Point where the Governor writes the calculated command ('on' or 'off').")
-
+    sensor_point_uuid: PointUUID = Field(..., description="UUID of the Point providing the process variable.")
+    target_setpoint_point_uuid: PointUUID = Field(..., description="UUID of the Point providing the desired target value.")
+    hysteresis_point_uuid: PointUUID = Field(..., description="UUID of the Point providing the hysteresis value (deadband).")
+    output_command_point_uuid: PointUUID = Field(..., description="UUID of the Point where the Governor writes the calculated command ('on' or 'off').")
     model_config = {"extra": "forbid"}
 
+    @model_validator(mode='after')
+    def check_point_config(self, info: ValidationInfo) -> Self:
+        points_map: Optional[Dict[PointUUID, PointDefinition]] = info.context.get("points_by_uuid_map") if info.context else None
+        component_id: Optional[str] = info.context.get("component_id") if info.context else None
+        all_errors: List[str] = []
 
-# Configuration specific to a PID controller
-class PIDControllerConfig(BaseModel):
-    """Configuration for a single PID control loop within the Governor."""
+        all_errors.extend(self._validate_point_property(points_map, self.sensor_point_uuid, "sensor_point_uuid", component_id, expected_access=AccessMode.READ_ONLY))
+        all_errors.extend(self._validate_point_property(points_map, self.target_setpoint_point_uuid, "target_setpoint_point_uuid", component_id, expected_access=AccessMode.READ_WRITE))
+        all_errors.extend(self._validate_point_property(points_map, self.hysteresis_point_uuid, "hysteresis_point_uuid", component_id, expected_access=AccessMode.READ_WRITE))
+        all_errors.extend(self._validate_point_property(points_map, self.output_command_point_uuid, "output_command_point_uuid", component_id, expected_access=AccessMode.READ_WRITE, check_writable_by=True))
+
+        if all_errors:
+            raise ValueError(". ".join(all_errors))
+        return self
+
+class PIDControllerConfig(_BaseGovernorControllerConfig):
     controller_type: Literal["pid"] = Field("pid", description="Discriminator field for controller type.")
-
-    # --- Inputs ---
-    sensor_point_uuid: str = Field(..., description="UUID of the Point providing the process variable (e.g., temperature sensor).")
-    target_setpoint_point_uuid: str = Field(..., description="UUID of the Point providing the desired target value (e.g., target temperature setpoint).")
-
-    # --- Outputs (Points the Governor WRITES TO) ---
-    output_pwm_setpoint_point_uuid: str = Field(..., description="UUID of the Point where the Governor writes the calculated PWM duty cycle (0.0-1.0).")
-    output_on_duration_point_uuid: str = Field(..., description="UUID of the Point where the Governor writes the calculated ON duration (seconds) for the PWM cycle.")
-    output_off_duration_point_uuid: str = Field(..., description="UUID of the Point where the Governor writes the calculated OFF duration (seconds) for the PWM cycle.")
-    mode_command_point_uuid: str = Field(..., description="UUID of the Point where the Governor writes its mode command (e.g., 'PWM', 'OFF') to the corresponding Driver.")
-
-    # --- Tuning & Parameters ---
+    sensor_point_uuid: PointUUID = Field(..., description="UUID of the Point providing the process variable (e.g., temperature sensor).")
+    target_setpoint_point_uuid: PointUUID = Field(..., description="UUID of the Point providing the desired target value (e.g., target temperature setpoint).")
+    output_pwm_setpoint_point_uuid: PointUUID = Field(..., description="UUID of the Point where the Governor writes the calculated PWM duty cycle (0.0-1.0).")
+    output_on_duration_point_uuid: PointUUID = Field(..., description="UUID of the Point where the Governor writes the calculated ON duration (seconds) for the PWM cycle.")
+    output_off_duration_point_uuid: PointUUID = Field(..., description="UUID of the Point where the Governor writes the calculated OFF duration (seconds) for the PWM cycle.")
+    mode_command_point_uuid: PointUUID = Field(..., description="UUID of the Point where the Governor writes its mode command (e.g., 'PWM', 'OFF') to the corresponding Driver.")
     kp: float = Field(..., description="Proportional gain.")
     ki: float = Field(..., description="Integral gain.")
     kd: float = Field(..., description="Derivative gain.")
     min_output: float = Field(0.0, ge=0.0, le=1.0, description="Minimum output clamp value (usually 0.0).")
     max_output: float = Field(1.0, ge=0.0, le=1.0, description="Maximum output clamp value (usually 1.0).")
     pwm_period_seconds: float = Field(..., gt=0, description="The PWM period this PID loop targets (used to calculate ON/OFF durations). Must match the corresponding Driver's PWM configuration period.")
-
     model_config = {"extra": "forbid"}
 
+    @model_validator(mode='after')
+    def check_point_config(self, info: ValidationInfo) -> Self:
+        points_map: Optional[Dict[PointUUID, PointDefinition]] = info.context.get("points_by_uuid_map") if info.context else None
+        component_id: Optional[str] = info.context.get("component_id") if info.context else None
+        all_errors: List[str] = []
 
-# *** NEW MODEL: TimeScheduleControllerConfig ***
-class TimeScheduleControllerConfig(BaseModel):
-    """Configuration for a time-based interval scheduling controller."""
+        all_errors.extend(self._validate_point_property(points_map, self.sensor_point_uuid, "sensor_point_uuid", component_id, expected_access=AccessMode.READ_ONLY, expected_value_type=ValueType.CONTINUOUS))
+        all_errors.extend(self._validate_point_property(points_map, self.target_setpoint_point_uuid, "target_setpoint_point_uuid", component_id, expected_access=AccessMode.READ_WRITE, expected_value_type=ValueType.CONTINUOUS)) # Typically RW
+        all_errors.extend(self._validate_point_property(points_map, self.output_pwm_setpoint_point_uuid, "output_pwm_setpoint_point_uuid", component_id, expected_access=AccessMode.READ_WRITE, check_writable_by=True, expected_value_type=ValueType.CONTINUOUS))
+        all_errors.extend(self._validate_point_property(points_map, self.output_on_duration_point_uuid, "output_on_duration_point_uuid", component_id, expected_access=AccessMode.READ_WRITE, check_writable_by=True, expected_value_type=ValueType.CONTINUOUS))
+        all_errors.extend(self._validate_point_property(points_map, self.output_off_duration_point_uuid, "output_off_duration_point_uuid", component_id, expected_access=AccessMode.READ_WRITE, check_writable_by=True, expected_value_type=ValueType.CONTINUOUS))
+        all_errors.extend(self._validate_point_property(points_map, self.mode_command_point_uuid, "mode_command_point_uuid", component_id, expected_access=AccessMode.READ_WRITE, check_writable_by=True, expected_value_type=ValueType.DISCRETE))
+
+
+        if all_errors:
+            raise ValueError(". ".join(all_errors))
+        return self
+
+class TimeScheduleControllerConfig(_BaseGovernorControllerConfig):
     controller_type: Literal["time_schedule"] = Field("time_schedule", description="Discriminator field for controller type.")
-
-    # Input points for scheduling parameters
-    on_interval_minutes_point_uuid: str = Field(..., description="UUID of the Point providing the ON duration in minutes.")
-    off_interval_minutes_point_uuid: str = Field(..., description="UUID of the Point providing the OFF duration in minutes.")
-
-    # Output point
-    output_command_point_uuid: str = Field(..., description="UUID of the Point where the Governor writes the calculated command ('on' or 'off').")
-
-    # Optional: Add a field for initial phase if needed (e.g., start in "on" or "off" phase)
+    on_interval_minutes_point_uuid: PointUUID = Field(..., description="UUID of the Point providing the ON duration in minutes.")
+    off_interval_minutes_point_uuid: PointUUID = Field(..., description="UUID of the Point providing the OFF duration in minutes.")
+    output_command_point_uuid: PointUUID = Field(..., description="UUID of the Point where the Governor writes the calculated command ('on' or 'off').")
     initial_phase: Optional[Literal["on", "off"]] = Field("off", description="The initial phase of the cycle on startup.")
-
     model_config = {"extra": "forbid"}
 
+    @model_validator(mode='after')
+    def check_point_config(self, info: ValidationInfo) -> Self:
+        points_map: Optional[Dict[PointUUID, PointDefinition]] = info.context.get("points_by_uuid_map") if info.context else None
+        component_id: Optional[str] = info.context.get("component_id") if info.context else None
+        all_errors: List[str] = []
 
-# Type Alias for the Union of all possible controller configurations
-AnyControllerConfig = Union[PIDControllerConfig, BangBangControllerConfig,TimeScheduleControllerConfig] 
+        all_errors.extend(self._validate_point_property(points_map, self.on_interval_minutes_point_uuid, "on_interval_minutes_point_uuid", component_id, expected_access=AccessMode.READ_WRITE, expected_value_type=ValueType.CONTINUOUS)) # Intervals are continuous
+        all_errors.extend(self._validate_point_property(points_map, self.off_interval_minutes_point_uuid, "off_interval_minutes_point_uuid", component_id, expected_access=AccessMode.READ_WRITE, expected_value_type=ValueType.CONTINUOUS))
+        all_errors.extend(self._validate_point_property(points_map, self.output_command_point_uuid, "output_command_point_uuid", component_id, expected_access=AccessMode.READ_WRITE, check_writable_by=True, expected_value_type=ValueType.DISCRETE))
 
+        if all_errors:
+            raise ValueError(". ".join(all_errors))
+        return self
 
-# --- Governor Config Root Model ---
+AnyControllerConfig = Union[PIDControllerConfig, BangBangControllerConfig, TimeScheduleControllerConfig]
 
 class GovernorConfig(BaseModel):
-    """Pydantic model for a Governor's specific configuration file."""
     update_interval_seconds: float = Field(10.0, gt=0, description="How often the Governor runs its control logic loop (in seconds).")
-    # List now uses the Union type AnyControllerConfig
     controllers: List[AnyControllerConfig] = Field(...,
         description="List of control loops (e.g., PID, Bang-Bang) managed by this Governor. The 'controller_type' field determines the specific parameters required for each.")
-    # Add other potential governor configs - e.g., global settings
-
     model_config = {"extra": "forbid"}
-
-# ==============================================================================
-# === END OF GOVERNOR MODEL SECTION ============================================
-# ==============================================================================

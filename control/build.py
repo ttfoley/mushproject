@@ -2,56 +2,52 @@
 
 import yaml
 from pathlib import Path
-from pydantic import ValidationError
+from pydantic import ValidationError, BaseModel # BaseModel for type hinting
 import sys
-from typing import Optional, Dict, Any, Set, Tuple, List # Added Set, Tuple, Dict, Any, List
+from typing import Optional, Dict, Any, Set, Tuple, List, get_args, get_origin, Union
 
 # --- Model Imports ---
-# Assuming build.py is in the project root ('control/') and models are in common/config_models
-# Adjust import if your structure is different
 try:
-    from common.config_models.core_ssot_models import SystemDefinition, ComponentType, PointDefinition
-    from common.config_models.component_configs import (
-        DriverConfig, WriteAction, StateCondition, ValueConstraintDefinition,
-        StateTimeConstraintDefinition, DriverPWMOutputMapping, AnyAction,
-        AnyConstraintDefinition, ConstraintDefinition, ConstraintGroup,
-        TransitionDefinition, BaseConstraintDefinition, GovernorConfig, MicrocontrollerConfig # Added missing base/container models
-    )
+    # Assuming core_ssot_models now defines PointUUID
     from common.config_models.core_ssot_models import (
+        SystemDefinition, ComponentType, PointDefinition, PointUUID,
+        ValueType, AccessMode, # Added ValueType, AccessMode
         DriverComponentDefinition, GovernorComponentDefinition, MicrocontrollerComponentDefinition
     )
-    # Add imports for GovernorConfig, MicrocontrollerConfig etc. when defined
+    from common.config_models.component_configs import (
+        DriverConfig, # Removed unused WriteAction, StateCondition, etc. for this script
+        DriverPWMOutputMapping, # Kept for DriverConfig
+        AnyConstraintDefinition, ConstraintDefinition, ConstraintGroup, # Kept for DriverConfig
+        TransitionDefinition, BaseConstraintDefinition, # Kept for DriverConfig
+        GovernorConfig, MicrocontrollerConfig,
+        BangBangControllerConfig, TimeScheduleControllerConfig, PIDControllerConfig # Added controller configs
+    )
+
 except ImportError as e:
-    print(f"Error: Could not import required Pydantic models: {e}")
+    print(f"Error: Could not import required Pydantic models or PointUUID type: {e}")
     print("Make sure build.py is in the project root ('control/') and models are in common/config_models/")
     print("Ensure __init__.py exists in common/ and common/config_models/ directories.")
-    sys.exit(1) # Exit if core models can't be imported
+    print(f"Current sys.path: {sys.path}")
+    sys.exit(1)
 
 # --- Configuration ---
 SSOT_FILE_PATH = Path("system_definition.yaml")
-# Base directory for relative config file paths within system_definition.yaml
-# Assumes paths like 'config/drivers/...' are relative to the project root (where build.py is)
-CONFIG_BASE_DIR = Path(".") # Current directory (should be 'control/')
+CONFIG_BASE_DIR = Path(".")
 
 # --- Model Mapping ---
-# Map component type Enum/string to the Pydantic model used for its config file
-# Add other mappings here when models are created
 COMPONENT_MODEL_MAP = {
     ComponentType.DRIVER: DriverConfig,
     ComponentType.GOVERNOR: GovernorConfig,
     ComponentType.MICROCONTROLLER: MicrocontrollerConfig,
 }
 
-# --- Validation Functions ---
-
+# --- Validation Functions (validate_ssot, validate_component_configs) ---
 def validate_ssot(file_path: Path) -> Optional[SystemDefinition]:
     """Loads and validates the main SSOT YAML file."""
     print(f"\n--- Validating SSOT File: {file_path} ---")
-
     if not file_path.is_file():
         print(f"❌ Error: SSOT file not found at '{file_path}'")
         return None
-
     try:
         with open(file_path, 'r') as file:
             loaded_data = yaml.safe_load(file)
@@ -64,7 +60,6 @@ def validate_ssot(file_path: Path) -> Optional[SystemDefinition]:
     except Exception as e:
         print(f"❌ An unexpected error occurred loading '{file_path}': {e}")
         return None
-
     try:
         system_config = SystemDefinition(**loaded_data)
         print("✅ SSOT Structure Validation Successful!")
@@ -81,46 +76,29 @@ def validate_ssot(file_path: Path) -> Optional[SystemDefinition]:
         print(f"❌ An unexpected error occurred during SSOT Pydantic validation: {e}")
         return None
 
-def validate_component_configs(system_config: SystemDefinition) -> Tuple[bool, Dict[str, Any]]:
+def validate_component_configs(
+    system_config: SystemDefinition,
+    points_by_uuid_map: Dict[PointUUID, PointDefinition] # Pass the map here
+    ) -> Tuple[bool, Dict[str, Any]]:
     """
     Loads and validates specific config files for each component listed in the SSOT.
-    Returns a tuple: (overall_success_boolean, dictionary_of_validated_configs)
+    Passes context to Pydantic models for cross-referential validation.
     """
     print("\n--- Validating Component Configuration Files ---")
     all_components_valid = True
-    validated_configs = {} # Dictionary to store validated model instances
-
+    validated_configs = {}
     for component in system_config.components:
         print(f"\nValidating component: id='{component.id}', type='{component.type.value}'")
-        component_config_path_str = component.config_file # Get the relative path string
-        component_config_path = CONFIG_BASE_DIR / component_config_path_str # Construct path relative to CWD
-
-        # Optional Debug Block (keep or remove as needed)
-        # print(f"   DEBUG: Current Working Directory: {Path.cwd()}")
-        # print(f"   DEBUG: Raw config path from SSOT: '{component_config_path_str}'")
-        # try:
-        #     resolved_path_debug = component_config_path.resolve()
-        # except FileNotFoundError:
-        #     resolved_path_debug = f"Error resolving path: {component_config_path}"
-        # print(f"   DEBUG: Resolved absolute path being checked: '{resolved_path_debug}'")
-        # print(f"   DEBUG: Checking existence of relative path: '{component_config_path}'")
-        # --- END DEBUG BLOCK ---
-
-        # 1. Check if the component config file exists
+        component_config_path_str = component.config_file
+        component_config_path = CONFIG_BASE_DIR / component_config_path_str
         if not component_config_path.is_file():
             print(f"❌ Error: Config file not found at '{component_config_path}'")
             all_components_valid = False
-            continue # Skip to the next component in the loop
-
-        # 2. Find the correct Pydantic model for this component type
+            continue
         config_model = COMPONENT_MODEL_MAP.get(component.type)
-
         if not config_model:
-            print(f"⚠️ Warning: No Pydantic model defined in COMPONENT_MODEL_MAP for type '{component.type.value}'. Skipping validation for '{component_config_path_str}'.")
-            # Don't mark as invalid overall, just skip this component's config validation
-            continue # Skip to the next component
-
-        # 3. Load the component's YAML file
+            print(f"⚠️ Warning: No Pydantic model defined for type '{component.type.value}'. Skipping validation for '{component_config_path_str}'.")
+            continue
         try:
             print(f"   Loading component config: '{component_config_path}'")
             with open(component_config_path, 'r') as file:
@@ -128,7 +106,7 @@ def validate_component_configs(system_config: SystemDefinition) -> Tuple[bool, D
                 if component_data is None:
                     print(f"❌ Error: Component YAML file '{component_config_path}' is empty or invalid.")
                     all_components_valid = False
-                    continue # Skip to the next component
+                    continue
         except yaml.YAMLError as e:
             print(f"❌ Error parsing component YAML file '{component_config_path}':\n{e}")
             all_components_valid = False
@@ -137,13 +115,13 @@ def validate_component_configs(system_config: SystemDefinition) -> Tuple[bool, D
             print(f"❌ An unexpected error occurred loading '{component_config_path}': {e}")
             all_components_valid = False
             continue
-
-        # 4. Validate the loaded data using the specific Pydantic model
         try:
             print(f"   Validating using {config_model.__name__} model...")
-            validated_component_config = config_model(**component_data)
+            # Pass context to the model validation
+            validation_context = {"points_by_uuid_map": points_by_uuid_map, "component_id": component.id}
+            # Use model_validate for Pydantic V2
+            validated_component_config = config_model.model_validate(component_data, context=validation_context)
             print(f"✅ Validation Successful for '{component_config_path_str}' using {config_model.__name__}.")
-            # Store the validated object using component ID as key
             validated_configs[component.id] = validated_component_config
         except ValidationError as e:
             print(f"❌ Pydantic Validation Failed for '{component_config_path_str}'!")
@@ -151,308 +129,304 @@ def validate_component_configs(system_config: SystemDefinition) -> Tuple[bool, D
             print("   Error details:")
             print(e)
             all_components_valid = False
-            # Continue to validate next component even if this one fails
         except Exception as e:
-            print(f"❌ An unexpected error occurred during component Pydantic validation for '{component_config_path_str}': {e}")
+            print(f"❌ An unexpected error occurred during Pydantic validation for '{component_config_path_str}': {e}")
             all_components_valid = False
-            # Continue to validate next component
-
-    # End of the loop through components
     return all_components_valid, validated_configs
 
 
-# --- Helper function to extract UUIDs from DriverConfig ---
+# --- Generic UUID Extraction Helper using Custom PointUUID Type ---
+def _extract_uuids_from_instance(instance: Optional[Any], uuids_set: Set[str]):
+    """
+    Recursively extracts UUIDs from a Pydantic model instance or iterable
+    by checking if field annotations are PointUUID or generics containing PointUUID.
+    """
+    if instance is None:
+        return
+
+    if isinstance(instance, BaseModel):
+        for field_name, field_definition in instance.model_fields.items(): # Pydantic v2
+            field_value = getattr(instance, field_name)
+            annotation = field_definition.annotation
+
+            origin = get_origin(annotation)
+            args = get_args(annotation)
+
+            if annotation is PointUUID:
+                if isinstance(field_value, str): # PointUUID is a str
+                    uuids_set.add(field_value)
+            elif origin is Union and PointUUID in args: # Handles Optional[PointUUID]
+                if isinstance(field_value, str): # PointUUID is a str
+                    uuids_set.add(field_value)
+            elif origin is list and args and args[0] is PointUUID: # Handles List[PointUUID]
+                if isinstance(field_value, list):
+                    for item in field_value:
+                        if isinstance(item, str): # PointUUID is a str
+                            uuids_set.add(item)
+            elif origin is Union: # Handles Optional[List[PointUUID]]
+                is_optional_list_of_uuid = False
+                for union_arg in args:
+                    if get_origin(union_arg) is list and get_args(union_arg) and get_args(union_arg)[0] is PointUUID:
+                        is_optional_list_of_uuid = True
+                        break
+                if is_optional_list_of_uuid and isinstance(field_value, list):
+                    for item in field_value:
+                        if isinstance(item, str): # PointUUID is a str
+                            uuids_set.add(item)
+            elif origin is dict and args and len(args) == 2: # Handles Dict[_, PointUUID] or Dict[_, Optional[PointUUID]]
+                value_type_in_dict = args[1] # The type of the dictionary's values
+                dict_val_origin = get_origin(value_type_in_dict)
+                dict_val_args = get_args(value_type_in_dict)
+
+                if value_type_in_dict is PointUUID:
+                    if isinstance(field_value, dict):
+                        for val_item in field_value.values():
+                            if isinstance(val_item, str): uuids_set.add(val_item)
+                elif dict_val_origin is Union and PointUUID in dict_val_args: # Optional[PointUUID] in dict values
+                     if isinstance(field_value, dict):
+                        for val_item in field_value.values():
+                            if isinstance(val_item, str): uuids_set.add(val_item)
+            elif isinstance(field_value, BaseModel): # Recurse for nested Pydantic models
+                _extract_uuids_from_instance(field_value, uuids_set)
+            elif isinstance(field_value, list): # Recurse for lists that might contain Pydantic models
+                for item in field_value:
+                    _extract_uuids_from_instance(item, uuids_set)
+            elif isinstance(field_value, dict): # Recurse for dict values if they aren't PointUUID directly
+                for value_in_dict in field_value.values():
+                    _extract_uuids_from_instance(value_in_dict, uuids_set)
+    elif isinstance(instance, list):
+        for item in instance:
+            _extract_uuids_from_instance(item, uuids_set)
+    elif isinstance(instance, dict):
+        for value in instance.values():
+            _extract_uuids_from_instance(value, uuids_set)
+
+# --- Specific Extraction Functions ---
 def extract_driver_point_uuids(config: DriverConfig) -> Set[str]:
-    """Extracts all Point UUIDs referenced within a DriverConfig object."""
     uuids = set()
-    if config.states:
-        for state_def in config.states.values():
-            if state_def.defining_conditions:
-                for condition in state_def.defining_conditions:
-                    if condition.point_uuid: uuids.add(condition.point_uuid)
-            if state_def.entry_actions:
-                for action in state_def.entry_actions:
-                    if isinstance(action, WriteAction):
-                        if action.point_uuid: uuids.add(action.point_uuid)
-            if state_def.exit_actions:
-                 for action in state_def.exit_actions:
-                    if isinstance(action, WriteAction):
-                        if action.point_uuid: uuids.add(action.point_uuid)
-
-    if config.transitions:
-        for from_state, to_states in config.transitions.items():
-            for to_state, transition_def in to_states.items():
-                if transition_def.constraint_groups:
-                    for group in transition_def.constraint_groups:
-                        if group.constraints:
-                            for constraint in group.constraints:
-                                definition = constraint.definition
-                                if isinstance(definition, (ValueConstraintDefinition, StateTimeConstraintDefinition)):
-                                    if definition.value_A_point_uuid: uuids.add(definition.value_A_point_uuid)
-                                    if definition.comparand_B_point_uuid: uuids.add(definition.comparand_B_point_uuid)
-                                # Add checks here if other constraint types reference points
-
-    if config.pwm_outputs:
-        for pwm_map in config.pwm_outputs:
-            if pwm_map.input_point_uuid: uuids.add(pwm_map.input_point_uuid)
-            if pwm_map.output_actuator_uuid: uuids.add(pwm_map.output_actuator_uuid)
-
+    _extract_uuids_from_instance(config, uuids)
     return uuids
+
 def extract_microcontroller_point_uuids(config: MicrocontrollerConfig) -> Set[str]:
-    """Extracts all Point UUIDs referenced within a MicrocontrollerConfig."""
     uuids = set()
-    if config.i2c_devices:
-        for device in config.i2c_devices:
-            if device.point_uuids:
-                uuids.update(device.point_uuids.values())
-    if config.onewire_devices:
-        for device in config.onewire_devices:
-            if device.point_uuid:
-                uuids.add(device.point_uuid)
-    if config.dht_sensors:
-        for sensor in config.dht_sensors:
-            if sensor.point_uuids:
-                uuids.update(sensor.point_uuids.values())
-    if config.digital_outputs:
-        for output in config.digital_outputs:
-            if output.point_uuid: # This is the command point UUID
-                uuids.add(output.point_uuid)
-            # If we added status_point_uuid here later, uncomment below
-            # if output.status_point_uuid: 
-            #     uuids.add(output.status_point_uuid) 
+    _extract_uuids_from_instance(config, uuids)
     return uuids
 
 def extract_governor_point_uuids(config: GovernorConfig) -> Set[str]:
-    """Extracts all Point UUIDs referenced within a GovernorConfig."""
     uuids = set()
-    if config.controllers:
-        for controller_conf in config.controllers:
-            # Check common fields first if any, then type-specific
-            if hasattr(controller_conf, 'sensor_point_uuid'):
-                uuids.add(controller_conf.sensor_point_uuid)
-            if hasattr(controller_conf, 'target_setpoint_point_uuid'):
-                uuids.add(controller_conf.target_setpoint_point_uuid)
-
-            # BangBang Specific
-            if hasattr(controller_conf, 'controller_type') and controller_conf.controller_type == 'bang_bang':
-                 if hasattr(controller_conf, 'hysteresis_point_uuid'):
-                    uuids.add(controller_conf.hysteresis_point_uuid)
-                 if hasattr(controller_conf, 'output_command_point_uuid'):
-                    uuids.add(controller_conf.output_command_point_uuid)
-            # PID Specific
-            elif hasattr(controller_conf, 'controller_type') and controller_conf.controller_type == 'pid':
-                if hasattr(controller_conf, 'output_pwm_setpoint_point_uuid'):
-                   uuids.add(controller_conf.output_pwm_setpoint_point_uuid)
-                if hasattr(controller_conf, 'output_on_duration_point_uuid'):
-                   uuids.add(controller_conf.output_on_duration_point_uuid)
-                if hasattr(controller_conf, 'output_off_duration_point_uuid'):
-                    uuids.add(controller_conf.output_off_duration_point_uuid)
-                if hasattr(controller_conf, 'mode_command_point_uuid'):
-                   uuids.add(controller_conf.mode_command_point_uuid)
-            # Add elif for other controller types here...
+    _extract_uuids_from_instance(config, uuids)
     return uuids
+
 # --- Cross-Validation Function ---
 def cross_validate_configs(system_config: SystemDefinition, validated_components: Dict[str, Any]) -> bool:
-    """Performs cross-validation checks between SSOT and component configs."""
+    """
+    Performs cross-validation checks primarily focused on SSOT integrity and
+    existence of referenced UUIDs. More detailed component-specific internal
+    consistency checks are now handled by Pydantic model validators.
+    """
     print("\n--- Performing Cross-Validation ---")
     all_checks_passed = True
-    # Store errors by category
-    cross_validation_errors = {
-        "point_uuid": [],
-        "component_id": [],
-        "hierarchy": [],
-        "internal": []
+    errors: Dict[str, List[str]] = {
+        "point_uuid_ref": [], "component_id_ref": [], "hierarchy_ref": [],
+        "uniqueness": [], "point_provision": [], "command_status_link": []
     }
 
-    # --- Pre-computation for checks ---
     master_point_uuids = {point.uuid for point in system_config.points}
-    master_component_details = {comp.id: comp.type for comp in system_config.components}
+    points_by_uuid_map = {point.uuid: point for point in system_config.points}
+    master_component_ids = {comp.id for comp in system_config.components}
     master_hierarchy_levels = set(system_config.command_hierarchy)
-    # --- End Pre-computation ---
 
-    # 1. Check Point UUID references (as before)
-    print("\nChecking Point UUID references in component configs...")
-    point_uuid_errors_found = False
+    # 1. Check Point UUID references in component configs (ensure they exist in SSOT)
+    print("\nChecking Point UUID references in component configs against SSOT master list...")
     for component_id, config_object in validated_components.items():
         component_def = next((comp for comp in system_config.components if comp.id == component_id), None)
         if not component_def: continue
-        component_type = component_def.type.value
+        component_type_val = component_def.type.value
         component_config_file = component_def.config_file
 
-        print(f"   Checking component '{component_id}' (type: {component_type})...") # Moved print here
-        referenced_uuids = set()
+        referenced_uuids_in_component = set()
         if isinstance(config_object, DriverConfig):
-            referenced_uuids = extract_driver_point_uuids(config_object)
-            
-        elif isinstance(config_object, MicrocontrollerConfig): # <<< ADDED Check
-            referenced_uuids = extract_microcontroller_point_uuids(config_object)
-        elif isinstance(config_object, GovernorConfig):      # <<< ADDED Check
-            referenced_uuids = extract_governor_point_uuids(config_object)
-        # print(f"      Referenced UUIDs found: {referenced_uuids}") # Optional debug
-        # Add elif for other component types here...
+            referenced_uuids_in_component = extract_driver_point_uuids(config_object)
+        elif isinstance(config_object, MicrocontrollerConfig):
+            referenced_uuids_in_component = extract_microcontroller_point_uuids(config_object)
+        elif isinstance(config_object, GovernorConfig):
+            referenced_uuids_in_component = extract_governor_point_uuids(config_object)
 
-        for uuid in referenced_uuids:
-            if uuid not in master_point_uuids:
-                error_msg = f"Component '{component_id}' (type: {component_type}, config: {component_config_file}): References undefined Point UUID '{uuid}'."
-                cross_validation_errors["point_uuid"].append(error_msg)
-                all_checks_passed = False; point_uuid_errors_found = True # Set flag
+        for uuid_ref in referenced_uuids_in_component:
+            if uuid_ref not in master_point_uuids:
+                msg = (f"Component '{component_id}' (type: {component_type_val}, config: {component_config_file}): "
+                       f"References undefined Point UUID '{uuid_ref}'.")
+                errors["point_uuid_ref"].append(msg)
+                all_checks_passed = False
+    if not errors["point_uuid_ref"]:
+         print("   ✅ Point UUID references in component configs exist in SSOT.")
 
-    if not point_uuid_errors_found:
-         print("   ✅ Point UUID references appear valid.")
-    # --- End Point UUID Check ---
+    # 2. Check Uniqueness of Point Names and Component IDs in SSOT
+    print("\nChecking uniqueness of names and IDs in SSOT...")
+    point_names = [p.name for p in system_config.points]
+    duplicate_point_names = {name for name in point_names if point_names.count(name) > 1}
+    if duplicate_point_names:
+        errors["uniqueness"].append(f"Duplicate PointDefinition names found in SSOT: {duplicate_point_names}")
+        all_checks_passed = False
+    component_ids = [c.id for c in system_config.components]
+    duplicate_component_ids = {cid for cid in component_ids if component_ids.count(cid) > 1}
+    if duplicate_component_ids:
+        errors["uniqueness"].append(f"Duplicate Component IDs found in SSOT: {duplicate_component_ids}")
+        all_checks_passed = False
+    if not errors["uniqueness"]:
+        print("   ✅ Point names and Component IDs in SSOT are unique.")
 
-
-    # 2. Check Component ID references (as before)
-    print("\nChecking component ID references (controls_*, writable_by)...")
-    component_id_errors_found_flag = False
-    # 2a. Relationships
-    for component in system_config.components:
-        component_id_making_ref = component.id # Component making the reference
-        if isinstance(component, DriverComponentDefinition):
-            referenced_id = component.controls_microcontroller
-            expected_type = ComponentType.MICROCONTROLLER
-            if referenced_id not in master_component_details:
-                error_msg = f"Component '{component_id_making_ref}': 'controls_microcontroller' references undefined component ID '{referenced_id}'."
-                cross_validation_errors["component_id"].append(error_msg)
-                all_checks_passed = False; component_id_errors_found_flag=True
-            elif master_component_details[referenced_id] != expected_type:
-                error_msg = f"Component '{component_id_making_ref}': 'controls_microcontroller' references component '{referenced_id}' which has wrong type ({master_component_details[referenced_id].value}), expected {expected_type.value}."
-                cross_validation_errors["component_id"].append(error_msg)
-                all_checks_passed = False; component_id_errors_found_flag=True
-        # Add elif for Governor etc.
-    # 2b. writable_by Component IDs
+    # 3. Check 'writable_by', 'controls_microcontroller', 'controls_drivers' in SSOT
+    print("\nChecking component/hierarchy references in SSOT ('writable_by', 'controls_')...")
     for point in system_config.points:
         if point.writable_by:
             for writer_id in point.writable_by:
-                is_hierarchy = writer_id in master_hierarchy_levels
-                is_component = writer_id in master_component_details
-                if not is_hierarchy and not is_component:
-                    error_msg = f"Point '{point.uuid}' ({point.name}): 'writable_by' list contains undefined component ID or hierarchy level '{writer_id}'."
-                    cross_validation_errors["component_id"].append(error_msg)
-                    all_checks_passed = False; component_id_errors_found_flag=True
-
-    if not component_id_errors_found_flag:
-         print("   ✅ Component ID references appear valid.")
-    # --- End Component ID Check ---
-
-
-    # 3. Check command hierarchy references (as before)
-    print("\nChecking command hierarchy references (writable_by)...")
-    hierarchy_errors_found_flag = False
-    for point in system_config.points:
-         if point.writable_by:
-             for writer_id in point.writable_by:
-                 is_hierarchy = writer_id in master_hierarchy_levels
-                 is_component = writer_id in master_component_details
-                 if not is_component and not is_hierarchy:
-                     hierarchy_errors_found_flag = True # Error already logged in step 2b
-
-    if not hierarchy_errors_found_flag:
-         print("   ✅ Command hierarchy references in 'writable_by' appear valid.")
-    # --- End Command Hierarchy Check ---
-
-
-    # --- NEW: Check internal component references ---
-    print("\nChecking internal component references (e.g., initial_state)...")
-    internal_errors_found_flag = False
-    for component_id, config_object in validated_components.items():
-        component_def = next((comp for comp in system_config.components if comp.id == component_id), None)
-        if not component_def: continue
-        component_config_file = component_def.config_file
-
-        # Check Driver Configs
-        if isinstance(config_object, DriverConfig):
-            # Check initial_state
-            initial_state_name = config_object.initial_state
-            defined_state_names = set(config_object.states.keys()) if config_object.states else set()
-            if initial_state_name not in defined_state_names:
-                error_msg = f"Component '{component_id}' (config: {component_config_file}): 'initial_state' ('{initial_state_name}') is not defined as a key in the 'states' dictionary {defined_state_names}."
-                cross_validation_errors["internal"].append(error_msg)
+                if writer_id not in master_component_ids and writer_id not in master_hierarchy_levels:
+                    msg = (f"Point '{point.uuid}' ({point.name}): 'writable_by' item '{writer_id}' "
+                           f"is not a defined component ID or command hierarchy level.")
+                    errors["hierarchy_ref"].append(msg)
+                    all_checks_passed = False
+    for comp in system_config.components:
+        if isinstance(comp, DriverComponentDefinition):
+            if comp.controls_microcontroller not in master_component_ids:
+                msg = (f"DriverComponent '{comp.id}' 'controls_microcontroller' references "
+                       f"undefined component ID '{comp.controls_microcontroller}'.")
+                errors["component_id_ref"].append(msg)
                 all_checks_passed = False
-                internal_errors_found_flag = True
-            
-            if config_object.transitions:
-                for from_state in config_object.transitions.keys():
-                    if from_state not in defined_state_names:
-                        error_msg = (
-                            f"Component '{component_id}' (config: {component_config_file}): "
-                            f"Transition defined FROM non-existent state '{from_state}'. "
-                            f"Defined states are: {defined_state_names or '{}'}."
-                        )
-                        cross_validation_errors["internal"].append(error_msg)
+            else:
+                controlled_comp_type = next((c.type for c in system_config.components if c.id == comp.controls_microcontroller), None)
+                if controlled_comp_type != ComponentType.MICROCONTROLLER:
+                    msg = (f"DriverComponent '{comp.id}' 'controls_microcontroller' references '{comp.controls_microcontroller}' "
+                           f"which is type '{controlled_comp_type.value if controlled_comp_type else 'Unknown'}' not '{ComponentType.MICROCONTROLLER.value}'.")
+                    errors["component_id_ref"].append(msg)
+                    all_checks_passed = False
+        elif isinstance(comp, GovernorComponentDefinition):
+            for driver_id in comp.controls_drivers:
+                if driver_id not in master_component_ids:
+                    msg = (f"GovernorComponent '{comp.id}' 'controls_drivers' references "
+                           f"undefined component ID '{driver_id}'.")
+                    errors["component_id_ref"].append(msg)
+                    all_checks_passed = False
+                else:
+                    controlled_comp_type = next((c.type for c in system_config.components if c.id == driver_id), None)
+                    if controlled_comp_type != ComponentType.DRIVER:
+                        msg = (f"GovernorComponent '{comp.id}' 'controls_drivers' references '{driver_id}' "
+                               f"which is type '{controlled_comp_type.value if controlled_comp_type else 'Unknown'}' not '{ComponentType.DRIVER.value}'.")
+                        errors["component_id_ref"].append(msg)
                         all_checks_passed = False
-                        internal_errors_found_flag = True
-            # <<< END NEW CHECK 'from_state' >>>
+    if not errors["hierarchy_ref"] and not errors["component_id_ref"]:
+        print("   ✅ 'writable_by' and 'controls_' references in SSOT appear valid.")
 
-            # <<< NEW CHECK: Validate 'to_state' keys in transitions >>>
-            if config_object.transitions:
-                for from_state, to_states_dict in config_object.transitions.items():
-                    # Optional: Check if from_state is valid before proceeding (already checked above)
-                    # if from_state not in defined_state_names: continue 
-                    
-                    if to_states_dict: # Check if there are transitions defined from this state
-                        for to_state in to_states_dict.keys():
-                            if to_state not in defined_state_names:
-                                error_msg = (
-                                    f"Component '{component_id}' (config: {component_config_file}): "
-                                    f"Transition defined FROM '{from_state}' TO non-existent state '{to_state}'. "
-                                    f"Defined states are: {defined_state_names or '{}'}."
-                                )
-                                cross_validation_errors["internal"].append(error_msg)
-                                all_checks_passed = False
-                                internal_errors_found_flag = True
-            # <<< END NEW CHECK 'to_state' >>>
+    # 4. Check Point Provisioning by components in SSOT
+    print("\nChecking point provisioning by components in SSOT...")
+    for comp in system_config.components:
+        provided_uuids: List[PointUUID] = []
+        provider_attr_name = ""
+        if isinstance(comp, MicrocontrollerComponentDefinition):
+            provided_uuids = comp.points_provided
+            provider_attr_name = "points_provided"
+        elif isinstance(comp, (DriverComponentDefinition, GovernorComponentDefinition)):
+            provided_uuids = comp.virtual_points_provided or []
+            provider_attr_name = "virtual_points_provided"
 
-        # Add elif for GovernorConfig internal checks later...
-        # elif isinstance(config_object, GovernorConfig):
-            # e.g., check if sensor UUIDs used in PID exist
-    if not internal_errors_found_flag:
-        print("   ✅ Internal component references appear valid (initial_state, transition states checked).") # Updated message
-    # --- End Internal Checks ---
+        for p_uuid in provided_uuids:
+            if p_uuid not in master_point_uuids:
+                msg = (f"Component '{comp.id}' (type: {comp.type.value}) '{provider_attr_name}' lists "
+                       f"PointUUID '{p_uuid}' which is not defined in the master points list.")
+                errors["point_provision"].append(msg)
+                all_checks_passed = False
+            else:
+                point_def = points_by_uuid_map.get(p_uuid)
+                if point_def and point_def.data_source_layer.value != comp.type.value:
+                    msg = (f"Component '{comp.id}' (type: {comp.type.value}) provides PointUUID '{p_uuid}', "
+                           f"but PointDefinition's 'data_source_layer' is '{point_def.data_source_layer.value}'.")
+                    errors["point_provision"].append(msg)
+                    all_checks_passed = False
+    if not errors["point_provision"]:
+        print("   ✅ Point provisioning by components in SSOT appears consistent.")
 
+    # 5. Check Command/Status Point Linkages in SSOT
+    print("\nChecking command/status point linkages in SSOT...")
+    for p_uuid, point_def in points_by_uuid_map.items():
+        if point_def.command_point_uuid:
+            if point_def.command_point_uuid == p_uuid:
+                msg = f"Point '{p_uuid}' ({point_def.name}): 'command_point_uuid' cannot be its own UUID."
+                errors["command_status_link"].append(msg)
+                all_checks_passed = False
+            elif point_def.command_point_uuid not in points_by_uuid_map:
+                msg = (f"Point '{p_uuid}' ({point_def.name}): 'command_point_uuid' references "
+                       f"non-existent PointUUID '{point_def.command_point_uuid}'.")
+                errors["command_status_link"].append(msg)
+                all_checks_passed = False
+            else:
+                target_cmd_point = points_by_uuid_map[point_def.command_point_uuid]
+                if target_cmd_point.status_point_uuid != p_uuid:
+                    msg = (f"Point '{p_uuid}' ({point_def.name}) has 'command_point_uuid' -> '{point_def.command_point_uuid}', "
+                           f"but target point '{target_cmd_point.name}' does not have 'status_point_uuid' pointing back (actual: {target_cmd_point.status_point_uuid}).")
+                    errors["command_status_link"].append(msg)
+                    all_checks_passed = False
+        if point_def.status_point_uuid:
+            if point_def.status_point_uuid == p_uuid:
+                msg = f"Point '{p_uuid}' ({point_def.name}): 'status_point_uuid' cannot be its own UUID."
+                errors["command_status_link"].append(msg)
+                all_checks_passed = False
+            elif point_def.status_point_uuid not in points_by_uuid_map:
+                msg = (f"Point '{p_uuid}' ({point_def.name}): 'status_point_uuid' references "
+                       f"non-existent PointUUID '{point_def.status_point_uuid}'.")
+                errors["command_status_link"].append(msg)
+                all_checks_passed = False
+            else:
+                target_status_point = points_by_uuid_map[point_def.status_point_uuid]
+                if target_status_point.command_point_uuid != p_uuid:
+                     msg = (f"Point '{p_uuid}' ({point_def.name}) has 'status_point_uuid' -> '{point_def.status_point_uuid}', "
+                           f"but target point '{target_status_point.name}' does not have 'command_point_uuid' pointing back (actual: {target_status_point.command_point_uuid}).")
+                     errors["command_status_link"].append(msg)
+                     all_checks_passed = False
+    if not errors["command_status_link"]:
+        print("   ✅ Command/status point linkages in SSOT appear consistent.")
+
+    # Checks for internal consistency of component configs (e.g., initial_state, PWM point properties,
+    # governor controller point properties) are now handled by Pydantic model validators
+    # when `validate_component_configs` is called with the appropriate context.
+    # If `validate_component_configs` passed, those checks are implicitly done.
 
     # --- Report Overall Results ---
     if not all_checks_passed:
         print("\n❌ Cross-Validation Failed!")
-        # Print collected errors by category
-        for category, errors in cross_validation_errors.items():
-            if errors:
-                print(f"   --- Errors found in {category} checks ---")
-                for error in errors:
+        for category, error_list in errors.items():
+            if error_list:
+                print(f"   --- Errors found in '{category}' checks ---")
+                for error in error_list:
                     print(f"      - {error}")
     else:
-        # Update final success message
-        print("\n✅ All Cross-Validation Checks Passed (Points, Component IDs, Hierarchy Refs, Internal Refs checked).")
-
+        print("\n✅ All Cross-Validation Checks Passed (SSOT integrity and component UUID existence).")
+        print("   (Detailed component-specific internal validations are handled by Pydantic models.)")
     return all_checks_passed
+
 # --- Main Execution ---
 def main():
     print(f"Running build script from CWD: {Path.cwd()}")
-
-    # Step 1: Validate the main SSOT file
-    print(f"Validating SSOT file: {SSOT_FILE_PATH}")
     system_config = validate_ssot(SSOT_FILE_PATH)
     if system_config is None:
         print("\nAborting build due to errors in SSOT file.")
         sys.exit(1)
 
-    # Step 2: Validate individual component config files
-    components_ok, validated_component_configs = validate_component_configs(system_config)
-    if not components_ok:
-        # Specific errors already printed in the function
-        print("\nAborting build due to errors in component configurations.")
-        sys.exit(1)
-    print(f"\nSuccessfully validated {len(validated_component_configs)} component configuration file(s).")
+    # Create points_by_uuid_map to pass as context for component config validation
+    points_by_uuid_map = {point.uuid: point for point in system_config.points}
 
-    # Step 3: Perform Cross-validation
+    components_ok, validated_component_configs = validate_component_configs(system_config, points_by_uuid_map)
+    if not components_ok:
+        print("\nAborting build due to errors in component configurations (see Pydantic errors above).")
+        sys.exit(1)
+    print(f"\nSuccessfully validated {len(validated_component_configs)} component configuration file(s) using Pydantic models.")
+
+    # Perform remaining cross-SSOT validation checks
     cross_validation_ok = cross_validate_configs(system_config, validated_component_configs)
     if not cross_validation_ok:
-        print("\nBuild process completed with cross-validation errors.")
+        print("\nBuild process completed with cross-validation errors (see details above).")
         sys.exit(1)
 
-    # Future steps: Generate runtime configs, Telegraf snippets etc.
     print("\n--- Generation Steps (Not Yet Implemented) ---")
-
     print("\nBuild process completed successfully!")
 
 

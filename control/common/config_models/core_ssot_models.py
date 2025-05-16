@@ -1,158 +1,128 @@
-# common/config_models/core_SSOT_models.py
+# common/config_models/core_ssot_models.py
 
 import enum
-# Make sure Literal and Union are imported from typing
-from typing import Any, Dict, List, Optional, Union, Literal 
-# from pydantic import BaseModel, Field, FilePath # If using FilePath
+from typing import Any, Dict, List, Optional, Union, Literal
 from pydantic import BaseModel, Field
+from pydantic_core import core_schema
+from pydantic.annotated_handlers import GetCoreSchemaHandler # For PointUUID
+# Import for __get_pydantic_json_schema__ if you decide to re-add it.
+# from pydantic.json_schema import JsonSchemaValue, GenerateJsonSchemaHandler
+
+
+# --- Custom Type for Point UUIDs ---
+class PointUUID(str):
+    """
+    Custom type for Point UUIDs. It's fundamentally a string,
+    but this distinct type allows for semantic clarity and easier
+    identification in model processing.
+    """
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,
+        handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        return core_schema.str_schema()
+
+    # If you want to customize JSON Schema output for PointUUID,
+    # you can re-add the __get_pydantic_json_schema__ method here.
+    # For example:
+    # @classmethod
+    # def __get_pydantic_json_schema__(
+    # cls, core_schema_obj: core_schema.CoreSchema, handler: GenerateJsonSchemaHandler
+    # ) -> JsonSchemaValue:
+    # json_schema = handler(core_schema_obj)
+    #     schema_updates = {
+    #         "format": "uuid",
+    #         "examples": ["00000000-0000-0000-0000-000000000000"],
+    #     }
+    # json_schema.update(schema_updates)
+    # return json_schema
+
 
 # --- Enums for controlled vocabulary ---
-
 class ValueType(str, enum.Enum):
-    """Defines the type of value a point represents."""
     CONTINUOUS = "CONTINUOUS"
     DISCRETE = "DISCRETE"
     BOOLEAN = "BOOLEAN"
 
 class DataSourceLayer(str, enum.Enum):
-    """Indicates the primary source layer of a point's data."""
     MICROCONTROLLER = "microcontroller"
     DRIVER = "driver"
     DATA_PROCESSOR = "data_processor"
     GOVERNOR = "governor"
     MANUAL_INPUT = "manual_input"
-    # Add others as needed
 
 class AccessMode(str, enum.Enum):
-    """Defines read/write access for a point."""
     READ_ONLY = "READ_ONLY"
     READ_WRITE = "READ_WRITE"
 
-
 class ComponentType(str, enum.Enum):
-    """Defines the types of components in the system."""
     MICROCONTROLLER = "microcontroller"
     DRIVER = "driver"
     GOVERNOR = "governor"
     DATA_PROCESSOR = "data_processor"
-    # Add others as needed
 
 # --- Core SSOT Models ---
-
 class MQTTBrokerConfig(BaseModel):
-    """Configuration for the MQTT Broker connection."""
     host: str = Field(..., description="Hostname or IP address of the MQTT broker.")
-    port: int = Field(1883, description="Port number for the MQTT broker.") # Default MQTT port
-
-    model_config = {
-        "extra": "forbid" # Disallow extra fields not defined in the model
-    }
-
+    port: int = Field(1883, description="Port number for the MQTT broker.")
+    model_config = {"extra": "forbid"}
 
 class PointValidationRules(BaseModel):
-    """Optional validation rules for a point's value."""
     min_value: Optional[float] = None
     max_value: Optional[float] = None
-    allowed_values: Optional[List[Any]] = None # Use for DISCRETE types
-
-    model_config = {
-        "extra": "forbid" 
-    }
-
-class PointPWMDetails(BaseModel):
-    """Optional details specific to PWM-controlled points (often setpoints)."""
-    # As per decision log, period seems to live in Driver config. 
-    # This might hold other conceptual PWM info if needed, or be removed.
-    # For now, let's keep it minimal or empty.
-    # Example: purpose: Optional[str] = None 
-    pass # Placeholder - refine based on Decision 10 usage. Perhaps not needed here.
-
-    model_config = {
-        "extra": "forbid" 
-    }
-
+    allowed_values: Optional[List[Any]] = None
+    model_config = {"extra": "forbid"}
 
 class PointDefinition(BaseModel):
-    """Defines a single logical data point within the system."""
-    uuid: str = Field(..., description="Persistent unique identifier for the point (e.g., UUID v4 string).")
-    name: str = Field(..., description="Human-readable identifier (e.g., FruitingChamber_Temp_Sensor). Should be unique.")
+    uuid: PointUUID = Field(..., description="Persistent unique identifier for the point.")
+    name: str = Field(..., description="Human-readable identifier. Should be unique.")
     description: Optional[str] = Field(None, description="Optional longer description of the point.")
-    value_type: ValueType = Field(..., description="The type of value the point holds (e.g., CONTINUOUS).")
-    # Consider making units an Enum later if vocabulary stabilizes
-    units: str = Field(..., description="Units of measurement or value state (e.g., degC, percent_RH, ON/OFF, PWM_DUTY_CYCLE).") 
+    value_type: ValueType = Field(..., description="The type of value the point holds.")
+    units: str = Field(..., description="Units of measurement or value state.")
     data_source_layer: DataSourceLayer = Field(..., description="The system layer primarily responsible for publishing this point's data.")
     access: AccessMode = Field(..., description="Read/write access control for the point.")
-    # List of Component IDs or Command Hierarchy levels allowed to write. Validation done later.
-    writable_by: Optional[List[str]] = Field(None, description="Components/levels allowed to write (for READ_WRITE points).") 
+    writable_by: Optional[List[str]] = Field(None, description="Components/levels allowed to write.")
     validation_rules: Optional[PointValidationRules] = Field(None, description="Optional rules to validate the point's value.")
     initial_value: Optional[Any] = Field(None, description="Optional default value on startup or reset.")
     persist_to_db: bool = Field(False, description="Flag indicating if this point's data should be persisted to the time-series database.")
-    
-    # pwm_details: Optional[PointPWMDetails] = Field(None, description="Optional details for PWM points.") # Revisit based on Decision 10 - likely not needed here.
-    # Optional fields for linking command/status pairs for actuators/control points
-    command_point_uuid: Optional[str] = Field(None, description="If this is a status point, the UUID of the corresponding command point.")
-    status_point_uuid: Optional[str] = Field(None, description="If this is a command point, the UUID of the corresponding status readback point.")
-    
-    input_point_uuids: Optional[List[str]] = Field(None, 
-        description="UUIDs of points used as input for calculating this point's value (for derived/calculated points).")
-# We'd also add validation later (likely in build.py or using Pydantic root_validators) 
-# to ensure that if one is provided, the other exists and they point back to each other,
-# and that they aren't the same UUID.
-    model_config = {
-        "extra": "forbid" # Prevent unexpected fields in the YAML
-    }
-
+    command_point_uuid: Optional[PointUUID] = Field(None, description="If this is a status point, the UUID of the corresponding command point.")
+    status_point_uuid: Optional[PointUUID] = Field(None, description="If this is a command point, the UUID of the corresponding status readback point.")
+    input_point_uuids: Optional[List[PointUUID]] = Field(None, description="UUIDs of points used as input for calculating this point's value.")
+    model_config = {"extra": "forbid"}
 
 # --- Component Definitions ---
-
 class ComponentDefinition(BaseModel):
-    """Base model for all component definitions."""
-    id: str = Field(..., description="Unique identifier for this component instance (e.g., temp_driver_fruiting).")
-    # 'type' field will be defined in subclasses using Literal for discrimination
-    config_file: str = Field(..., description="Path to the component's specific YAML configuration file (relative to project root or a known config dir).")
-    # Default MQTT client ID is None, consuming code should derive from 'id' if None ("auto" behavior)
-    mqtt_client_id: Optional[str] = Field(None, description="Optional MQTT client ID. If None, defaults to component 'id'. Must be unique.")
-
-    model_config = {
-        "extra": "forbid"
-    }
-    # Note: Pydantic v2 automatically uses the 'type' field defined with Literal in subclasses
-    # for discrimination when used in a Union. No explicit discriminator needed here usually.
+    id: str = Field(..., description="Unique identifier for this component instance.")
+    config_file: str = Field(..., description="Path to the component's specific YAML configuration file.")
+    mqtt_client_id: Optional[str] = Field(None, description="Optional MQTT client ID. If None, defaults to component 'id'.")
+    model_config = {"extra": "forbid"}
 
 class MicrocontrollerComponentDefinition(ComponentDefinition):
-    """Definition for a microcontroller interface component."""
     type: Literal[ComponentType.MICROCONTROLLER] = ComponentType.MICROCONTROLLER
-    points_provided: List[str] = Field(..., description="List of point UUIDs that this microcontroller directly provides.")
+    points_provided: List[PointUUID] = Field(..., description="List of point UUIDs that this microcontroller directly provides.")
 
 class DriverComponentDefinition(ComponentDefinition):
-    """Definition for a driver component."""
     type: Literal[ComponentType.DRIVER] = ComponentType.DRIVER
     controls_microcontroller: str = Field(..., description="The 'id' of the microcontroller component this driver controls.")
-    # Points synthesized or managed by the driver (e.g., PWM output state)
-    virtual_points_provided: List[str] = Field([], description="List of point UUIDs synthesized or managed by this driver.")
+    virtual_points_provided: List[PointUUID] = Field([], description="List of point UUIDs synthesized or managed by this driver.")
 
 class GovernorComponentDefinition(ComponentDefinition):
-    """Definition for a governor component."""
     type: Literal[ComponentType.GOVERNOR] = ComponentType.GOVERNOR
     controls_drivers: List[str] = Field(..., description="List of driver component 'id's that this governor controls.")
-    virtual_points_provided: Optional[List[str]] = Field([], description="List of point UUIDs synthesized or managed by this governor.")
-# --- Main System Definition ---
+    virtual_points_provided: Optional[List[PointUUID]] = Field([], description="List of point UUIDs synthesized or managed by this governor.")
 
-# Type alias for the union of all possible component types
+# --- Main System Definition ---
 AnyComponent = Union[
-    MicrocontrollerComponentDefinition, 
-    DriverComponentDefinition, 
+    MicrocontrollerComponentDefinition,
+    DriverComponentDefinition,
     GovernorComponentDefinition
-    # Add other component types here as they are defined
 ]
 
 class SystemDefinition(BaseModel):
-    """Root model for the entire system definition YAML."""
     mqtt_broker: MQTTBrokerConfig = Field(..., description="MQTT broker connection details.")
-    command_hierarchy: List[str] = Field(..., description="List defining command authority levels (e.g., Manual_HOA, Watchdog, Governor).")
+    command_hierarchy: List[str] = Field(..., description="List defining command authority levels.")
     points: List[PointDefinition] = Field(..., description="Master list of all logical points in the system.")
     components: List[AnyComponent] = Field(..., description="List of all running component instances.")
-
-    model_config = {
-        "extra": "forbid"
-    }
+    model_config = {"extra": "forbid"}
