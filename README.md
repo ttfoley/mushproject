@@ -9,7 +9,6 @@ To create a robust, configurable, and extensible system for automating the envir
 
 **2. Core Project Goals & Key Objectives**
 
-- **(Derived from GovLayerDoc 1.2 & other docs)**
 The primary goal is to transition from any fragmented V1 configurations and approaches to a validated Single Source of Truth (SSOT) for the entire Mushroom Automation System V2. This system should empower efficient and effective mushroom cultivation through precise environmental control.
     
     Key objectives to achieve this goal include:
