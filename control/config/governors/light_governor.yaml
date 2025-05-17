@@ -1,0 +1,15 @@
+# config/governors/light_governor.yaml
+# Configuration for the Light Governor
+
+update_interval_seconds: 10 # How often the governor logic runs
+
+controllers:
+  - controller_type: "time_schedule"
+    # Input points for scheduling parameters (ensure these UUIDs match system_definition.yaml)
+    on_interval_minutes_point_uuid: "2be2a778-d0f6-4d33-97a1-747107b952b3" # FruitingChamber_Light_Timer_OnIntervalMinutes
+    off_interval_minutes_point_uuid: "f9cc975a-89f2-4b93-8159-074edf2a6c88" # FruitingChamber_Light_Timer_OffIntervalMinutes
+    
+    # Output command point (ensure this UUID matches system_definition.yaml)
+    output_command_point_uuid: "7bbe9f99-a3b3-4e97-a10a-d3c4f92c838d" # FruitingChamber_Light_Governor_Mode_Command
+    
+    initial_phase: "off" # Start with lights off

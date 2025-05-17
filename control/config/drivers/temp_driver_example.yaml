@@ -1,0 +1,176 @@
+# Sample configuration for the Fruiting Chamber Temperature Driver FSM
+# REVISED with lowercase state names for consistency.
+
+initial_state: "off" # Start in the unambiguous 'off' state
+
+states:
+  # Use quotes for keys that YAML might interpret as boolean
+  "off": 
+    defining_conditions:
+      - point_uuid: "heater-status-uuid" 
+        expected_value: "off" # Value should match system_definition.yaml standard
+    entry_actions:
+      - action_type: "write_to_point"
+        point_uuid: "heater-actuator-cmd-uuid" # Target low-level command
+        value: "off" # Value should match system_definition.yaml standard
+    exit_actions: []
+
+  "on":  # Use quotes
+    defining_conditions:
+      - point_uuid: "heater-status-uuid"
+        expected_value: "on" # Value should match system_definition.yaml standard
+    entry_actions:
+      - action_type: "write_to_point"
+        point_uuid: "heater-actuator-cmd-uuid" # Target low-level command
+        value: "on" # Value should match system_definition.yaml standard
+    exit_actions: []
+
+  # No quotes needed for these keys as they aren't boolean-like
+  pwm_on: 
+    defining_conditions:
+      - point_uuid: "heater-status-uuid"
+        expected_value: "on" # Value should match system_definition.yaml standard
+      # Removed pwm-command-flag-uuid check, assuming mode command is sufficient
+      # - point_uuid: "pwm-command-flag-uuid" 
+      #   expected_value: "on" 
+    entry_actions:
+      - action_type: "write_to_point"
+        point_uuid: "heater-actuator-cmd-uuid"
+        value: "on" # Value should match system_definition.yaml standard
+    exit_actions: []
+
+  pwm_off:
+    defining_conditions:
+      - point_uuid: "heater-status-uuid"
+        expected_value: "off" # Value should match system_definition.yaml standard
+      # Removed pwm-command-flag-uuid check, assuming mode command is sufficient
+      # - point_uuid: "pwm-command-flag-uuid"
+      #   expected_value: "on"
+    entry_actions:
+      - action_type: "write_to_point"
+        point_uuid: "heater-actuator-cmd-uuid"
+        value: "off" # Value should match system_definition.yaml standard
+    exit_actions: []
+
+transitions:
+  # Use quotes for keys that YAML might interpret as boolean
+  "off": 
+    # Target state names within the next level also need quotes if they are on/off
+    "on": 
+      constraint_groups:
+        - priority: 0 # Manual commands take priority
+          description: "Manual command to turn on"
+          constraints:
+            - type: "discrete_value"
+              description: "Check manual command point"
+              definition:
+                type: "discrete_value"
+                value_A_point_uuid: "heater-manual-cmd-uuid"
+                comparator: "=="
+                comparand_B_static_value: "on" # Value matches system_definition.yaml standard
+        - priority: 1 # Governor bang-bang command
+          description: "Governor command to turn on"
+          constraints:
+            - type: "discrete_value"
+              description: "Check governor mode command point"
+              definition:
+                type: "discrete_value"
+                value_A_point_uuid: "heater-governor-cmd-uuid"
+                comparator: "=="
+                comparand_B_static_value: "on" # Value matches system_definition.yaml standard
+                
+    pwm_off: # Target state name - no quotes needed
+      constraint_groups:
+        - priority: 10 # Governor command lower priority than manual
+          description: "Governor command to enter pwm mode"
+          constraints:
+            - type: "discrete_value"
+              description: "Check governor mode command point"
+              definition:
+                type: "discrete_value"
+                value_A_point_uuid: "heater-governor-cmd-uuid"
+                comparator: "=="
+                comparand_B_static_value: "pwm" # Value matches system_definition.yaml standard
+
+  "on": # Use quotes
+    "off": # Use quotes
+      constraint_groups:
+        - priority: 0
+          description: "Manual command to turn off"
+          constraints:
+            - type: "discrete_value"
+              definition: { type: "discrete_value", value_A_point_uuid: "heater-manual-cmd-uuid", comparator: "==", comparand_B_static_value: "off" }
+        - priority: 1 
+          description: "Governor command to turn off"
+          constraints:
+            - type: "discrete_value"
+              definition: { type: "discrete_value", value_A_point_uuid: "heater-governor-cmd-uuid", comparator: "==", comparand_B_static_value: "off" }
+    pwm_off:
+      constraint_groups:
+        - priority: 10 
+          description: "Governor command to enter pwm mode (overrides Manual on)"
+          constraints:
+            - type: "discrete_value"
+              definition: { type: "discrete_value", value_A_point_uuid: "heater-governor-cmd-uuid", comparator: "==", comparand_B_static_value: "pwm" }
+
+  # No quotes needed for these keys
+  pwm_on: 
+    "off": # Use quotes
+      constraint_groups:
+        - priority: 0
+          description: "Manual command off during pwm"
+          constraints:
+            - type: "discrete_value"
+              definition: { type: "discrete_value", value_A_point_uuid: "heater-manual-cmd-uuid", comparator: "==", comparand_B_static_value: "off" }
+        - priority: 1
+          description: "Governor command off during pwm"
+          constraints:
+            - type: "discrete_value"
+              definition: { type: "discrete_value", value_A_point_uuid: "heater-governor-cmd-uuid", comparator: "==", comparand_B_static_value: "off" }
+    pwm_off:
+      constraint_groups:
+        - priority: 10 
+          description: "Switch from pwm_on phase to pwm_off phase based on duration"
+          constraints:
+            - type: "state_time"
+              description: "Check time in pwm_on state against ON duration setpoint"
+              definition:
+                type: "state_time"
+                value_A_point_uuid: "temp-driver-time-in-state-uuid" 
+                comparator: ">="
+                comparand_B_point_uuid: "heater-pwm-on-duration-setpoint-uuid"
+
+  pwm_off:
+    "off": # Use quotes
+      constraint_groups:
+        - priority: 0
+          description: "Manual command off during pwm"
+          constraints:
+            - type: "discrete_value"
+              definition: { type: "discrete_value", value_A_point_uuid: "heater-manual-cmd-uuid", comparator: "==", comparand_B_static_value: "off" }
+        - priority: 1
+          description: "Governor command off during pwm"
+          constraints:
+            - type: "discrete_value"
+              definition: { type: "discrete_value", value_A_point_uuid: "heater-governor-cmd-uuid", comparator: "==", comparand_B_static_value: "off" }
+    pwm_on: 
+      constraint_groups:
+        - priority: 10 
+          description: "Switch from pwm_off phase to pwm_on phase based on duration"
+          constraints:
+            - type: "state_time"
+              description: "Check time in pwm_off state against OFF duration setpoint"
+              definition:
+                type: "state_time"
+                value_A_point_uuid: "temp-driver-time-in-state-uuid" 
+                comparator: ">=" 
+                comparand_B_point_uuid: "heater-pwm-off-duration-setpoint-uuid"
+
+# Optional PWM Output mapping section
+# This section defines how the driver should interpret PWM setpoints if commanded into PWM mode.
+# It's only relevant if the Governor is configured to send 'pwm' commands and associated points.
+pwm_outputs:
+  - input_point_uuid: "heater-pwm-setpoint-uuid" # Driver reads this if in PWM mode (set by Gov/Manual)
+    output_actuator_uuid: "heater-actuator-cmd-uuid" # Driver controls this low-level command point
+    # This period MUST match the pwm_period_seconds defined in the Governor's PIDControllerConfig
+    pwm_period_seconds: 300.0 # Example: 5-minute cycle

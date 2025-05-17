@@ -1,0 +1,16 @@
+# Configuration for the Temperature Governor
+# File: control/config/governors/temperature_governor.yaml
+# Conforms to the GovernorConfig Pydantic model.
+
+update_interval_seconds: 10.0 # How often the governor runs its control logic (e.g., every 10 seconds)
+
+controllers:
+  - controller_type: "bang_bang" # Using BangBang for on/off control based on temperature
+    # Input Points Read by this Governor strategy:
+    sensor_point_uuid: "f47ac10b-58cc-4372-a567-0e02b2c3d479"    # C1_SHT0_Temperature
+    target_setpoint_point_uuid: "4a00f1a2-b3c4-4d5e-6f70-8192a3b4c5e5" # FruitingChamber_Temp_Target_Setpoint
+    hysteresis_point_uuid: "5b11f1a2-b3c4-4d5e-6f70-8192a3b4c5e6"     # FruitingChamber_Temp_Target_Deadband
+
+    # Output Point Written by this Governor strategy:
+    # This is the command point the temperature_driver_fruiting listens to.
+    output_command_point_uuid: "6c22f1a2-b3c4-4d5e-6f70-8192a3b4c5e7" # FruitingChamber_Heater_Governor_Mode_Command

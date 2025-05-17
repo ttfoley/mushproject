@@ -1,0 +1,53 @@
+# Configuration for Microcontroller c1
+# Path: control/config/microcontrollers/c1_config.yaml
+# Conforms to the MicrocontrollerConfig Pydantic model
+# Supports multiple OneWire pins by defining pin per device.
+
+# I2C Bus Configuration (for SHT0 and BME280_1)
+# PLEASE UPDATE sda_pin and scl_pin to your ESP32's actual I2C pins.
+i2c:
+  sda_pin: 21 # Example I2C SDA pin
+  scl_pin: 22 # Example I2C SCL pin
+  # clock_speed: 100000 # Optional, I2C default is usually 100kHz
+
+i2c_devices:
+  - sensor_model: "SHT85" # Adjust if your SHT0 is a different model (e.g., SHT31)
+    address: 0x44        # PLEASE VERIFY: Common default for SHT sensors
+    point_uuids:
+      temperature: "f47ac10b-58cc-4372-a567-0e02b2c3d479" # C1_SHT0_Temperature
+      humidity: "9c8b1da3-1b2a-4c8e-9d1f-6a7b8c9d0e1f"    # C1_SHT0_Humidity
+
+  - sensor_model: "BME280" # For BME280_1
+    address: 0x77        # PLEASE VERIFY: Common for BME280 (can also be 0x76)
+    point_uuids:
+      temperature: "c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f" # C1_BME280_1_Temperature
+      humidity: "d3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f70"    # C1_BME280_1_Humidity
+      pressure: "e4f5a6b7-c8d9-4e0f-1a2b-3c4d5e6f7081"    # C1_BME280_1_Pressure
+
+# DHT Sensor Configuration
+dht_sensors:
+  - sensor_model: "DHT22" # For DHT0. Adjust if it's a DHT11.
+    pin: 27              # PLEASE UPDATE to the actual GPIO pin for DHT0
+    point_uuids:
+      temperature: "2a3b4c5d-6e7f-4a1b-8c2d-3e4f5a6b7c8d" # C1_DHT0_Temperature
+      humidity: "b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e"    # C1_DHT0_Humidity
+
+# OneWire Devices - each device now specifies its own pin
+# This requires the OneWireDevice Pydantic model to include a 'pin' field,
+# and the top-level 'onewire' bus configuration to be removed from MicrocontrollerConfig.
+onewire_devices:
+  - sensor_model: "DS18B20"
+    pin: 32 # PLEASE CONFIRM: Pin for C1_DS18B20_0_Temperature
+    point_uuid: "f5a6b7c8-d9e0-4f1a-2b3c-4d5e6f708192" # C1_DS18B20_0_Temperature
+
+  - sensor_model: "DS18B20"
+    pin: 33 # PLEASE CONFIRM: Pin for C1_DS18B20_1_Temperature
+    point_uuid: "06b7c8d9-e0f1-4a2b-3c4d-5e6f708192a3" # C1_DS18B20_1_Temperature
+
+# Digital Outputs (C1 has no actuators listed in its points_provided in system_definition.yaml)
+# digital_outputs: []
+
+# Timing Parameters for C1
+publish_frequency_ms: 15000 # Example: publish sensor data every 15 seconds
+# output_republish_frequency_ms: 60000 # Not relevant as C1 has no digital_outputs defined
+

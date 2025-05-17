@@ -1,0 +1,59 @@
+# Simplified configuration for the Fruiting Chamber Temperature Driver FSM
+# States: off, on
+# UUIDs for actuator command, governor command, and status have been updated.
+
+initial_state: "off" # Start in a known safe state
+
+states:
+  "off":
+    defining_conditions:
+      - point_uuid: "7d32f1a2-b3c4-4d5e-6f70-8192a3b4c5d8" # UUID for C2_CP26_HeatingPad_Status
+        expected_value: "off"
+    entry_actions:
+      # Ensure the command to the heater is 'off' when in this state.
+      - action_type: "write_to_point"
+        point_uuid: "8e43f1a2-b3c4-4d5e-6f70-8192a3b4c5d9" # UUID for C2_CP26_HeatingPad_Command
+        value: "off"
+    exit_actions: []
+
+  "on":
+    defining_conditions:
+      - point_uuid: "7d32f1a2-b3c4-4d5e-6f70-8192a3b4c5d8" # UUID for C2_CP26_HeatingPad_Status
+        expected_value: "on"
+    entry_actions:
+      # Ensure the command to the heater is 'on' when in this state.
+      - action_type: "write_to_point"
+        point_uuid: "8e43f1a2-b3c4-4d5e-6f70-8192a3b4c5d9" # UUID for C2_CP26_HeatingPad_Command
+        value: "on"
+    exit_actions: []
+
+transitions:
+  "off":
+    "on":
+      constraint_groups:
+        - priority: 0 # Default priority for normal operation
+          description: "Governor commands heater on."
+          constraints:
+            - type: "discrete_value"
+              description: "Check governor command point for 'on'."
+              definition:
+                type: "discrete_value"
+                value_A_point_uuid: "6c22f1a2-b3c4-4d5e-6f70-8192a3b4c5e7" # UUID for FruitingChamber_Heater_Governor_Mode_Command
+                comparator: "=="
+                comparand_B_static_value: "on"
+  "on":
+    "off":
+      constraint_groups:
+        - priority: 0 # Default priority for normal operation
+          description: "Governor commands heater off."
+          constraints:
+            - type: "discrete_value"
+              description: "Check governor command point for 'off'."
+              definition:
+                type: "discrete_value"
+                value_A_point_uuid: "6c22f1a2-b3c4-4d5e-6f70-8192a3b4c5e7" # UUID for FruitingChamber_Heater_Governor_Mode_Command
+                comparator: "=="
+                comparand_B_static_value: "off"
+
+# pwm_outputs section is omitted as per the simplified request.
+# If PWM control is needed later, that section and pwm_on/pwm_off states can be added.

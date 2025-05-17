@@ -1,0 +1,62 @@
+# Configuration for the Fruiting Chamber Light Driver FSM
+# States: off, on
+# Transitions governed by FruitingChamber_Light_Governor_Mode_Command
+
+initial_state: "off" # Start in a known safe state
+
+states:
+  "off":
+    defining_conditions:
+      # This condition checks the actual status of the light.
+      - point_uuid: "9f54f1a2-b3c4-4d5e-6f70-8192a3b4c5da" # Light_Status_UUID (C2_CP32_Light_Status)
+        expected_value: "off"
+    entry_actions:
+      # Ensure the command to the light is 'off' when in this state.
+      - action_type: "write_to_point"
+        point_uuid: "a065f1a2-b3c4-4d5e-6f70-8192a3b4c5db" # Light_Command_UUID (C2_CP32_Light_Command)
+        value: "off"
+    exit_actions: []
+
+  "on":
+    defining_conditions:
+      # This condition checks the actual status of the light.
+      - point_uuid: "9f54f1a2-b3c4-4d5e-6f70-8192a3b4c5da" # Light_Status_UUID (C2_CP32_Light_Status)
+        expected_value: "on"
+    entry_actions:
+      # Ensure the command to the light is 'on' when in this state.
+      - action_type: "write_to_point"
+        point_uuid: "a065f1a2-b3c4-4d5e-6f70-8192a3b4c5db" # Light_Command_UUID (C2_CP32_Light_Command)
+        value: "on"
+    exit_actions: []
+
+transitions:
+  "off":
+    "on":
+      constraint_groups:
+        - priority: 0 # Default priority for normal operation
+          description: "Governor commands light on."
+          constraints:
+            - type: "discrete_value"
+              description: "Check light governor command point for 'on'."
+              definition:
+                type: "discrete_value"
+                value_A_point_uuid: "7bbe9f99-a3b3-4e97-a10a-d3c4f92c838d" # Light_Governor_Mode_Command_UUID
+                comparator: "=="
+                comparand_B_static_value: "on"
+  "on":
+    "off":
+      constraint_groups:
+        - priority: 0 # Default priority for normal operation
+          description: "Governor commands light off."
+          constraints:
+            - type: "discrete_value"
+              description: "Check light governor command point for 'off'."
+              definition:
+                type: "discrete_value"
+                value_A_point_uuid: "7bbe9f99-a3b3-4e97-a10a-d3c4f92c838d" # Light_Governor_Mode_Command_UUID
+                comparator: "=="
+                comparand_B_static_value: "off"
+
+# PWM, lockout, or other complex behaviors are not included in this simple version.
+# The LightDriver_TimeInState UUID ("b6879dfc-c2eb-42e1-a479-5cffd07da6c0")
+# would be used if time-based logic (e.g., timed cycles, minimum on/off times) is added later.

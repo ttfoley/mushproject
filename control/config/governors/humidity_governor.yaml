@@ -1,0 +1,16 @@
+# Configuration for the Humidity Governor
+# File: control/config/governors/humidity_governor.yaml
+# Conforms to the GovernorConfig Pydantic model.
+
+update_interval_seconds: 10.0 # How often the governor runs its control logic (e.g., every 10 seconds)
+
+controllers:
+  - controller_type: "bang_bang" # Using BangBang for simple on/off command output
+    # Input Points Read by this Governor strategy:
+    sensor_point_uuid: "9c8b1da3-1b2a-4c8e-9d1f-6a7b8c9d0e1f"    # C1_SHT0_Humidity
+    target_setpoint_point_uuid: "1ccbdc0e-30cd-4b02-964f-fd5208821bee" # FruitingChamber_Humidity_Target_Setpoint
+    hysteresis_point_uuid: "e13a213e-d936-44ab-9948-895c335026b0"      # FruitingChamber_Humidity_Target_Deadband
+
+    # Output Point Written by this Governor strategy:
+    # This is the command point the humidity_driver_fruiting listens to.
+    output_command_point_uuid: "16cc030a-27f6-4d46-83c2-e60ec5b84e02" # FruitingChamber_Humidity_Governor_Mode_Command
