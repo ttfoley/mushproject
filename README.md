@@ -27,7 +27,7 @@ The primary goal is to transition from any fragmented V1 configurations and appr
 
 **3. Overarching Design Principles**
 
-- **Simplicity and Clarity:** Strive for the simplest possible design that meets requirements. Code and configuration should be easy to understand and maintain, especially given the challenges of solo development and ADHD.
+- **Simplicity and Clarity:** Strive for the simplest possible design that meets requirements. Code and configuration should be easy to understand and maintain.
 - **Single Source of Truth (SSOT):** Configuration is paramount. `system_definition.yaml` and its associated validated configuration files are the definitive description of the system.
 - **Buildability:** The entire system, from microcontroller firmware (where possible) to Docker containers, should be buildable from the source code and configurations. The `build.py` script is central to validating and preparing configurations.
 - **Modularity:** Components should be well-encapsulated with clearly defined responsibilities and interfaces.
