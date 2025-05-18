@@ -1,0 +1,29 @@
+{
+    "name": "common_firmware_lib",
+    "version": "0.1.0",
+    "description": "Shared firmware library for mushroom project microcontrollers.",
+    "keywords": "mqtt, sensors, mushroom, esp32, ntp",
+    "authors": [
+        {
+            "name": "YourNameOrHandle",
+            "email": "your_email@example.com",
+            "maintainer": true
+        }
+    ],
+    "repository": {
+        "type": "git",
+        "url": "local"
+    },
+    "dependencies": [
+        {
+            "name": "NTPClient",
+            "owner": "arduino-libraries",
+            "version": "^3.2.1" 
+        }
+    ],
+    "frameworks": ["arduino"],
+    "platforms": ["espressif32"],
+    "build": {
+        "libArchive": false
+    }
+} 
