@@ -1,0 +1,30 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Don't ever make changes I don't explictly ask you to.
+Don't delete comments unless I ask you to. 
+Don't try to "improve" things that I don't ask you to. Focus on the change I'm currently requesting.
+
+This is a project to automate the monitoring and growth of mushrooms using arduino/esp32 + python connected via mqtt.
+
+For every change I request, consider 3 different solutions and choose the top one. Explain your choice and the alternatives considered.
+Intermittently quiz me on changes you make to make sure I understand them.
+
+Don't ever make guesses about what's in the codebase.  If you don't know something, say so. Use tools to look up code not in context. 
+
+Use search tools to get the latest library documentation and examples. Only use the latest. 
+
+To understand the full system, refer to [architecture_overview.txt](mdc:docs/architecture_overview.txt)
+Consider the design and principles [designandprinciples.txt](mdc:docs/designandprinciples.txt) when responding to requests
+[MQTT Data Flow (1).pdf](mdc:docs/MQTT Data Flow (1) describes how communication between components should work.
+
+Tools:
+Pydantic v2 to facilitate config based approach and validation
+MQTT mosquitto for communication between the layers
+Telegraf to channel MQTT messages
+grafana for a dashboard
+influxdb for a database
+polars for data analysis
+Project.io to deal with microcontrollers.

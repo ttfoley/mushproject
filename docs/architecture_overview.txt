@@ -1,0 +1,112 @@
+## Mushroom Automation System V2: Architecture and Component Overview
+
+**Document Version:** 1.1
+**Date:** May 17, 2025
+
+### 1. Introduction
+
+The Mushroom Automation System V2 is designed as a robust, configurable, and extensible platform for precise environmental control and monitoring in mushroom cultivation. It employs a layered architecture with clear separation of concerns, centered around a Single Source of Truth (SSOT) for configuration and utilizing MQTT for inter-component communication. This version represents a significant overhaul of previous approaches, introducing new components and refactoring existing ones for improved modularity and reliability.
+
+### 2. Core Architectural Principles
+
+- **Layered Architecture:** The system is divided into distinct layers, each with specific responsibilities, promoting modularity and progressive complexity.
+- **Single Source of Truth (SSOT):** `system_definition.yaml` is the master blueprint. It defines all system points, component instances, their configurations, and relationships. Component-specific configurations are stored in separate YAML files referenced by the SSOT and are validated by Pydantic models. This SSOT approach is a **new cornerstone of V2**.
+- **Configuration-Driven:** The behavior of the entire system is defined by these validated configuration files.
+- **`build.py` Script:** A **new** central script responsible for validating the entire configuration set (SSOT and component-specific files) against Pydantic schemas and performing cross-validation checks.
+- **MQTT Communication:** All runtime communication between software components occurs via an MQTT broker.
+    - **Standardized Payload (ADR 10):** All MQTT messages adhere to a JSON structure: `{"timestamp_utc": "YYYY-MM-DDTHH:MM:SS.sssZ", "value": <actual_value>}`. Timestamps are source-generated UTC. This is a **refactored** aspect from V1.
+- **UUID-Based Identification:** All addressable data points and key components are identified by unique UUIDs managed through the SSOT.
+- **Asymmetric Message Flow (ADR 11):**
+    - **Upward Data/Status Flow:** Components can subscribe to and consume data/status messages originating from any lower layer.
+    - **Downward Command/Intent Flow:** Components MUST NOT send commands directly to layers below their immediately adjacent lower layer. Commands follow the defined chain of command.
+- **Command Hierarchy:** A defined `command_hierarchy` (e.g., "Manual_HOA", "Watchdog", "Governor") dictates precedence when multiple sources attempt to control a component (primarily Drivers).
+
+### 3. Glossary of Terms
+
+- **ADR (Architecture Decision Record):** A document that captures an important architectural decision, including its context, decision, and consequences.
+- **Component:** A distinct software module or service within the system (e.g., a specific Driver, Governor, or Microcontroller interface).
+- **Data Processing Layer (L2.5):** A **new** layer in V2 responsible for consuming raw data, cleaning, validating, calibrating, and publishing processed or "synthetic" data points.
+- **Driver (Layer L2):** A **refactored** component that abstracts hardware specifics. It manages the state of physical devices based on commands and its FSM logic. The FSM implementation and configuration are significantly overhauled in V2.
+- **FSM (Finite State Machine):** A computational model used by Drivers to manage device states and transitions based on defined conditions and actions.
+- **Governor (Layer L3):** A **refactored and expanded** component responsible for high-level control strategy and setpoint management. V2 introduces more specific governor types (e.g., `TimeScheduleControllerConfig`).
+- **Manual_HOA (Hand-Off-Auto):** A concept representing points that allow for manual user intervention to set parameters or override automated control.
+- **Microcontroller (Layer L1):** Low-level hardware interface (e.g., ESP32) that reads sensors and controls actuators. Firmware is **refactored** in V2 to support new payload structures and configuration.
+- **MQTT (Message Queuing Telemetry Transport):** The primary publish-subscribe protocol used for inter-component communication.
+- **Physical Point:** A data point whose value originates directly from a hardware sensor (e.g., temperature reading from a BME280) or represents the direct status/command of a physical actuator (e.g., relay status). These are typically published by the Microcontroller Layer.
+- **Point:** A uniquely identifiable piece of data in the system (e.g., a sensor reading, a command, a status, a configuration parameter). Each point has a UUID and is defined in the SSOT.
+- **Pydantic:** A Python library used for data validation and settings management through Python type annotations. Central to V2's configuration validation.
+- **SSOT (Single Source of Truth):** The principle that all system configuration originates from a central, definitive location (`system_definition.yaml` and its referenced component configs). This is a **foundational new concept in V2**.
+- **UUID (Universally Unique Identifier):** A standard identifier used for all points and components.
+- **Virtual Point:** A data point whose value is generated, synthesized, or aggregated by a software component (Driver, Data Processing Layer, Governor) rather than directly measured from hardware. Examples include FSM state names, health statuses, calculated setpoints, or filtered sensor values.
+
+### 4. System Layers and Components
+
+The system is structured into the following layers:
+
+### L0: Physical Sensors and Actuators
+
+- **Role:** The physical hardware.
+- **Components:** Sensors (Temperature, Humidity, CO2, Pressure), Actuators (Humidifier, Heating Pad, Lights, Vent Fans).
+- **V2 Status:** Hardware itself is pre-existing; interaction is managed by refactored L1.
+
+### L1: Microcontroller Layer
+
+- **Role:** Low-level hardware interface.
+- **Components (ESP32-based):** `c1`, `c2`, `c3`.
+    - `c1`: Primarily a sensor node for environmental data (temperature, humidity). Its role is to provide **physical points** representing these measurements.
+    - `c2`: A mixed node. It controls actuators (humidifier, heating pad, light, vent fan) and thus provides **physical points** for their status readbacks (e.g., `C2_CP25_Humidifier_Status`). While it has hardware for these, it does not provide primary environmental sensor data for control loops in the way `c1` and `c3` do. Its other published points are device status (e.g., `C2_Status_WifiUptime`).
+    - `c3`: CO2 sensor node, providing a **physical point** for CO2 levels.
+- **Key Functionalities (V2 Refactor Focus):**
+    - Implementing NTP client for accurate timestamping (ADR 10).
+    - Formatting all published data into the standardized JSON MQTT payload (ADR 10).
+    - Loading hardware configuration from its specific YAML file (defined by `MicrocontrollerConfig`).
+- **Configuration:** Defined in `system_definition.yaml` (points provided) and specific microcontroller YAML files (e.g., `config/microcontrollers/c1_config.yaml`).
+- **V2 Status:** Firmware and interface code are **refactored**.
+
+### L2: Driver Layer (Python, Dockerized)
+
+- **Role:** Intermediate control, hardware abstraction, FSM execution.
+- **Components (Function-Specific):** `temperature_driver_fruiting`, `humidity_driver_fruiting`, `light_driver_fruiting`, `vent_driver_fruiting`.
+- **Key Functionalities (V2 Refactor Focus):**
+    - FSM logic is now entirely configuration-driven from its YAML file (`DriverConfig`).
+    - Publishes **virtual points** like internal FSM state, FSM health, last accepted command, and time in state.
+    - Consumes and produces data using the standardized JSON MQTT payload (ADR 10).
+- **Configuration:** Defined in `system_definition.yaml` and specific driver YAML files.
+- **V2 Status:** Significantly **refactored** from V1. The FSM approach and configuration are new.
+
+### L2.5: Data Processing Layer (Python, Dockerized)
+
+- **Role:** Data cleaning, validation, calibration, synthetic point generation.
+- **Components:** Typically a single service instance.
+- **Key Functionalities:**
+    - Publishes processed/filtered sensor values (which become **virtual points** if they differ from the raw physical points) and data quality indicators.
+- **Configuration:** Defined in `system_definition.yaml` and its component YAML file.
+- **V2 Status:** This is a **new layer/component** in V2.
+
+### L3: Governor Layer (Python, Dockerized)
+
+- **Role:** High-level control strategy, setpoint management.
+- **Components (Function-Specific):** `temperature_governor`, `humidity_governor`, `light_governor`, `vent_fan_governor`.
+- **Key Functionalities (V2 Refactor/New Focus):**
+    - Executes various control algorithms (Bang-Bang, PID, **new** Time-Schedule) based on its YAML configuration (`GovernorConfig`).
+    - Publishes "Mode Commands" (which are **virtual points**) to Drivers.
+    - Consumes and produces data using the standardized JSON MQTT payload (ADR 10).
+- **Configuration:** Defined in `system_definition.yaml` and specific governor YAML files.
+- **V2 Status:** **Refactored** from any V1 high-level logic. The specific, configurable controller types (like `TimeScheduleControllerConfig`) are **new**.
+
+### User / Interaction Layer
+
+- **Role:** Human interaction for monitoring, parameter setting, manual control.
+- **Components:** `Manual_HOA` concept (points with `data_source_layer: manual_input`), Grafana.
+- **V2 Status:** Interaction patterns are clarified by the SSOT and command hierarchy. Grafana/Telegraf setups will be **refactored** to use new payload structure (Task F).
+
+### Infrastructure Components
+
+- **Role:** Supporting services for communication, data storage, validation.
+- **Components:** MQTT Broker, Telegraf, InfluxDB, Grafana, `build.py`, Docker.
+- **V2 Status:**
+    - `build.py` is **new**.
+    - Telegraf configuration will be **refactored** for the new MQTT payload.
+    - Other components are existing infrastructure, but their interaction with the system is now governed by the V2 SSOT and data standards.
+
+This updated overview should provide a clearer picture of the system's structure, the roles of its components, what's new or refactored in V2, and the distinction between physical and virtual data points, including the specific role of `c2`.
