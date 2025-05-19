@@ -58,3 +58,4 @@ Thumbs.db
 pi_backup.img
 pi_backup_shrunk.img.gz
 pishrink.sh
+docs/microc_refactor_plan.txt
