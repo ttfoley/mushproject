@@ -4,10 +4,19 @@
 #include <WiFi.h>
 #include "secrets.h" // For WiFi credentials
 #include "JsonBuilder.h" // For testing ADR-10 JSON payload construction
+#include "MqttService.h" // For MQTT communication
 
+// MQTT Configuration (will later come from autogen_config.h)
+const char* MQTT_HUMIDIFIER_READBACK_TOPIC = "mush/controllers/C2/control_points/CP_25/readback/raw/value";
 
+// MQTT Connection Retry Logic for Setup
+const unsigned long MQTT_CONNECT_TIMEOUT_MS = 15000; // Total time to try connecting to MQTT in setup
+const unsigned long MQTT_CONNECT_RETRY_INTERVAL_MS = 2000; // How often to call connectBroker()
 
 NtpService ntpService;
+// Instantiate MqttService with credentials from secrets.h
+MqttService mqttService(SECRET_MQTT_CLIENT_ID_C2, SECRET_MQTT_SERVER, SECRET_MQTT_PORT, 
+                        SECRET_MQTT_USER, SECRET_MQTT_PASSWORD);
 
 // How often to attempt NTP update in the loop (milliseconds)
 const unsigned long NTP_LOOP_UPDATE_INTERVAL = 60000; // Every 60 seconds
@@ -53,8 +62,10 @@ void setupNtp() {
         ntpService.update(); 
         if (ntpService.isTimeSet()) {
             Serial.println("\nInitial NTP sync successful!");
-            Serial.print("Current UTC Time: ");
+            Serial.print("Current UTC Time (from getFormattedISO8601Time): ");
             Serial.println(ntpService.getFormattedISO8601Time());
+            Serial.print("Current Epoch Time (from getEpochTime -> gettimeofday): ");
+            Serial.println(ntpService.getEpochTime());
             initialSyncDone = true;
         } else {
             Serial.print("u"); // Update attempt
@@ -70,7 +81,8 @@ void setupNtp() {
         delay(1000); // Wait a bit between attempts
     }
 
-    // --- Test JsonBuilder --- 
+    // --- Test JsonBuilder --- (Commented out as we are now testing MQTT which uses JsonBuilder)
+    /*
     if (initialSyncDone) { // Only test if we have a valid timestamp
         Serial.println("\n--- Testing JsonBuilder --- ");
         String currentTimestamp = ntpService.getFormattedISO8601Time();
@@ -91,16 +103,61 @@ void setupNtp() {
         Serial.print("Test 5 (bool false): "); Serial.println(json_bool_false);
         Serial.println("--- End JsonBuilder Test ---");
     }
+    */
     // --- End Test JsonBuilder ---
 }
 
 void setup() {
     Serial.begin(115200);
     while (!Serial); // Wait for serial to connect (especially for some boards)
-    Serial.println("\n\n--- Controller C2 (Refactored) NTP Test ---");
+    Serial.println("\n\n--- Controller C2 (Refactored) MQTT Test ---");
 
     setupWifi();
     setupNtp();
+
+    Serial.println("Initializing MQTT Service...");
+    mqttService.begin(); // Sets server and callback, does not connect
+
+    Serial.println("Attempting to connect to MQTT broker...");
+    unsigned long mqttConnectStartMs = millis();
+    unsigned long lastMqttConnectAttemptMs = 0;
+
+    while (!mqttService.isConnected() && (millis() - mqttConnectStartMs < MQTT_CONNECT_TIMEOUT_MS)) {
+        unsigned long currentMs = millis();
+        // Try to connect at defined intervals
+        if (currentMs - lastMqttConnectAttemptMs >= MQTT_CONNECT_RETRY_INTERVAL_MS || lastMqttConnectAttemptMs == 0) {
+            if (mqttService.connectBroker()) { // connectBroker() attempts connection
+                Serial.println("MQTT connectBroker() successful.");
+                // No need to print "connected", connectBroker itself does upon success
+                break; // Exit while loop
+            } else {
+                Serial.print("m"); // Indication of a connection attempt by connectBroker()
+                // connectBroker already prints failure details
+            }
+            lastMqttConnectAttemptMs = currentMs;
+        }
+        mqttService.loop(); // IMPORTANT: Allow PubSubClient to process outgoing/incoming packets
+        delay(50); // Small delay to prevent busy-looping if not much else is happening
+    }
+
+    if (mqttService.isConnected()) {
+        Serial.println("\nMQTT connection established.");
+        // Test publishing humidifier status
+        if (ntpService.isTimeSet()) {
+            Serial.println("Testing Humidifier Status Publish via MQTT...");
+            String timestamp = ntpService.getFormattedISO8601Time();
+            bool published = mqttService.publishJson(MQTT_HUMIDIFIER_READBACK_TOPIC, timestamp, "on");
+            if (published) {
+                Serial.println("Test publish attempted successfully.");
+            } else {
+                Serial.println("Test publish attempt failed.");
+            }
+        } else {
+            Serial.println("NTP time not set, cannot test MQTT publish with timestamp.");
+        }
+    } else {
+        Serial.println("\nMQTT connection FAILED after timeout.");
+    }
 
     Serial.println("Setup complete. Entering loop...");
     lastNtpLoopUpdate = millis(); // Initialize for loop updates
@@ -109,6 +166,8 @@ void setup() {
 
 void loop() {
     unsigned long currentTime = millis();
+
+    mqttService.loop(); // Process MQTT messages and maintain connection
 
     // Periodically try to update NTP
     if (currentTime - lastNtpLoopUpdate >= NTP_LOOP_UPDATE_INTERVAL) {

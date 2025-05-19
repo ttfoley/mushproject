@@ -2,8 +2,8 @@
 #define NTPSERVICE_H
 
 #include <Arduino.h>
-#include <NTPClient.h>
-#include <WiFiUdp.h>
+// #include <NTPClient.h> // No longer using NTPClient directly
+// #include <WiFiUdp.h>   // No longer using WiFiUDP directly here
 
 // Forward declaration if RestartReasonLogger is in a different header and needed here
 // enum RestartReason : int; 
@@ -12,15 +12,15 @@
 class NtpService {
 public:
     NtpService();
-    void begin(); // Method to initialize NTP
-    bool update(); // Method to update time from NTP server
+    void begin(); // Method to initialize NTP (will call configTime)
+    bool update(); // Method to check system time sync status
     String getFormattedISO8601Time() const; // Method to get current UTC time as an ISO 8601 string
-    unsigned long getEpochTime()     const; // Method to get current epoch time
+    unsigned long getEpochTime()     const; // Method to get current epoch time from system
     bool isTimeSet() const; // Check if time has been successfully set at least once
 
 private:
-    WiFiUDP ntpUDP;
-    NTPClient timeClient;
+    // WiFiUDP ntpUDP; // Removed
+    // NTPClient timeClient; // Removed
     bool timeSuccessfullySet;
     // unsigned long lastSyncAttempt;
     // unsigned long syncInterval; // How often to try to sync if not set
