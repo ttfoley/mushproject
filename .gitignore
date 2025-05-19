@@ -72,3 +72,4 @@ control/config/microcontrollers/generated/autogen_config_c3.h
 .env
 .env.local
 config.local.*
+docs/microc_refactor_plan.txt

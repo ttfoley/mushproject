@@ -1,5 +1,6 @@
 #include "NtpService.h"
 #include <time.h> // Required for time_t, struct tm, gmtime, sprintf
+#include <sys/time.h>   // Required for gettimeofday, struct timeval
 
 // Default NTP server if not configured otherwise
 const char* NTP_SERVER = "pool.ntp.org"; 
@@ -40,20 +41,28 @@ unsigned long NtpService::getEpochTime() const {
 
 String NtpService::getFormattedISO8601Time() const {
     if (!timeSuccessfullySet) {
-        // Consider returning an empty string or an error indicator if time is not set
-        // For now, matches NTPClient behavior which might return 1970-01-01T00:00:00Z if not synced
-        // Updated to return a more explicit message or an empty string for un-set time:
         return String("Time not set"); 
     }
-    time_t epoch = timeClient.getEpochTime();
-    struct tm *ptm = gmtime(&epoch); // Convert to UTC time structure
 
-    char buffer[21]; // Buffer for "YYYY-MM-DDTHH:MM:SSZ" + null terminator (20 chars + 1)
-    // Format to YYYY-MM-DDTHH:MM:SSZ
+    struct timeval tv;
+    gettimeofday(&tv, NULL); // Get current time with microsecond precision
+
+    // tv.tv_sec contains seconds since epoch (like time_t)
+    // tv.tv_usec contains microseconds
+
+    struct tm *ptm = gmtime(&tv.tv_sec); // Convert seconds to UTC time structure
+
+    // Buffer for "YYYY-MM-DDTHH:MM:SS.sssZ" + null terminator (24 chars + 1 = 25)
+    char buffer[25]; 
+    
+    // Format to YYYY-MM-DDTHH:MM:SS.sssZ
     // Note: tm_year is years since 1900, tm_mon is 0-11
-    sprintf(buffer, "%04d-%02d-%02dT%02d:%02d:%02dZ",
+    // tv.tv_usec / 1000 gives milliseconds
+    sprintf(buffer, "%04d-%02d-%02dT%02d:%02d:%02d.%03ldZ",
             ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday,
-            ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
+            ptm->tm_hour, ptm->tm_min, ptm->tm_sec, 
+            tv.tv_usec / 1000); // Add milliseconds
+            
     return String(buffer);
 }
 
