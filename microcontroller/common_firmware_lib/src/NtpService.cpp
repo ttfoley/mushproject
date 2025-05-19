@@ -10,33 +10,54 @@ const long GMT_OFFSET_SEC = 0;
 // The FSM will control how often NtpService::update() is actually called.
 const unsigned int NTP_UPDATE_INTERVAL_MS = 60000;
 
+// A threshold to consider system time as valid (e.g., after Jan 1, 2000 UTC / 946684800 seconds since epoch)
+// Using a more recent threshold like Jan 1, 2020 UTC (1577836800) is also fine.
+// For simplicity, any time significantly past epoch (e.g. > 1000000000 which is in 2001) indicates sync.
+const unsigned long MIN_VALID_EPOCH_TIME_SEC = 1577836800UL; // Approx Jan 1, 2020 UTC
+
 NtpService::NtpService() 
-    : timeClient(ntpUDP, NTP_SERVER, GMT_OFFSET_SEC, NTP_UPDATE_INTERVAL_MS), 
-      timeSuccessfullySet(false) {
+    // : timeClient(ntpUDP, NTP_SERVER, GMT_OFFSET_SEC, NTP_UPDATE_INTERVAL_MS), // Removed NTPClient initialization
+      : timeSuccessfullySet(false) {
 }
 
 void NtpService::begin() {
-    timeClient.begin();
+    // Configure the system time settings.
+    // GMT_OFFSET_SEC is 0 for UTC.
+    // Daylight offset is 0 as we are dealing with UTC.
+    // NTP_SERVER is "pool.ntp.org".
+    configTime(GMT_OFFSET_SEC, 0, NTP_SERVER); 
+    
+    // timeClient.begin(); // Removed: No longer using NTPClient directly
 }
 
 bool NtpService::update() {
-    bool updated = timeClient.update();
-    if (updated) {
+    // This method now checks if the system time (presumably set by system NTP via configTime)
+    // is valid. It no longer actively polls with NTPClient.
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+
+    if (tv.tv_sec > MIN_VALID_EPOCH_TIME_SEC) { 
         if (!timeSuccessfullySet) {
             timeSuccessfullySet = true;
             // Optionally, log the first successful sync
-            // Serial.println("NTP time synchronized for the first time.");
+            // Serial.println("System time appears to be synchronized (post-epoch check).");
         }
+    } else {
+        // If time is not yet valid, ensure our flag reflects that.
+        // This could happen if NTP sync is lost or not yet achieved.
+        // timeSuccessfullySet = false; // Optional: decide if we want to reset the flag if sync is lost
+                                   // For now, once set, it stays set. The FSM should handle loss of sync.
     }
-    return updated;
+    return timeSuccessfullySet; 
 }
 
 unsigned long NtpService::getEpochTime() const {
-    if (!timeSuccessfullySet) {
-        // Return 0 or a specific error code if time is not set,
-        // or rely on NTPClient to return its default (often 0 if not set).
-    }
-    return timeClient.getEpochTime();
+    // if (!timeSuccessfullySet) { // Optional check, but gettimeofday will return epoch if not set
+    //     return 0; 
+    // }
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return tv.tv_sec; // Return system epoch time
 }
 
 String NtpService::getFormattedISO8601Time() const {
@@ -46,6 +67,11 @@ String NtpService::getFormattedISO8601Time() const {
 
     struct timeval tv;
     gettimeofday(&tv, NULL); // Get current time with microsecond precision
+
+    // --- TEMPORARY DIAGNOSTIC ---
+    // Serial.print("[getFormattedISO8601Time] tv.tv_sec before formatting: ");
+    // Serial.println(tv.tv_sec);
+    // --- END TEMPORARY DIAGNOSTIC ---
 
     // tv.tv_sec contains seconds since epoch (like time_t)
     // tv.tv_usec contains microseconds
