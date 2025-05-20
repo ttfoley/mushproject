@@ -83,13 +83,13 @@ class PointDefinition(BaseModel):
     units: str = Field(..., description="Units of measurement or value state.")
     data_source_layer: DataSourceLayer = Field(..., description="The system layer primarily responsible for publishing this point's data.")
     access: AccessMode = Field(..., description="Read/write access control for the point.")
-    writable_by: Optional[List[str]] = Field(None, description="Components/levels allowed to write.")
+    writable_by: Optional[List[str]] = Field(None, description="List of component IDs authorized to publish to this point's topic if access is READ_WRITE.")
     validation_rules: Optional[PointValidationRules] = Field(None, description="Optional rules to validate the point's value.")
-    initial_value: Optional[Any] = Field(None, description="Optional default value on startup or reset.")
-    persist_to_db: bool = Field(False, description="Flag indicating if this point's data should be persisted to the time-series database.")
-    command_point_uuid: Optional[PointUUID] = Field(None, description="If this is a status point, the UUID of the corresponding command point.")
-    status_point_uuid: Optional[PointUUID] = Field(None, description="If this is a command point, the UUID of the corresponding status readback point.")
-    input_point_uuids: Optional[List[PointUUID]] = Field(None, description="UUIDs of points used as input for calculating this point's value.")
+    initial_value: Optional[Any] = Field(None, description="Optional default/initial logical value for the point.")
+    persist_to_db: bool = Field(True, description="Flag indicating if this point's data should be persisted to the time-series database. Defaults to True.")
+    readback_point_uuid: Optional[PointUUID] = Field(None, description="For a command/write point, the UUID of the corresponding status/readback point.")
+    linked_points: Optional[Dict[str, PointUUID]] = Field(None, description="Optional dictionary linking this point to other related points by a descriptive key.")
+    input_point_uuids: Optional[List[PointUUID]] = Field(None, description="UUIDs of points used as direct input for calculating this point's value (e.g., for a synthetic point).")
     model_config = {"extra": "forbid"}
 
 # --- Component Definitions ---

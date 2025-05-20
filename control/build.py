@@ -228,7 +228,7 @@ def cross_validate_configs(system_config: SystemDefinition, validated_components
     all_checks_passed = True
     errors: Dict[str, List[str]] = {
         "point_uuid_ref": [], "component_id_ref": [], "hierarchy_ref": [],
-        "uniqueness": [], "point_provision": [], "command_status_link": []
+        "uniqueness": [], "point_provision": [], "command_readback_link": []
     }
 
     master_point_uuids = {point.uuid for point in system_config.points}
@@ -346,44 +346,54 @@ def cross_validate_configs(system_config: SystemDefinition, validated_components
         print("   ✅ Point provisioning by components in SSOT appears consistent.")
 
     # 5. Check Command/Status Point Linkages in SSOT
-    print("\nChecking command/status point linkages in SSOT...")
+    print("\nChecking command/readback point linkages in SSOT...")
     for p_uuid, point_def in points_by_uuid_map.items():
-        if point_def.command_point_uuid:
-            if point_def.command_point_uuid == p_uuid:
-                msg = f"Point '{p_uuid}' ({point_def.name}): 'command_point_uuid' cannot be its own UUID."
-                errors["command_status_link"].append(msg)
+        # Check 'readback_point_uuid' for command points
+        if point_def.readback_point_uuid:
+            rb_uuid = point_def.readback_point_uuid
+            if rb_uuid == p_uuid:
+                msg = f"Point '{p_uuid}' ({point_def.name}): 'readback_point_uuid' cannot be its own UUID."
+                errors["command_readback_link"].append(msg)
                 all_checks_passed = False
-            elif point_def.command_point_uuid not in points_by_uuid_map:
-                msg = (f"Point '{p_uuid}' ({point_def.name}): 'command_point_uuid' references "
-                       f"non-existent PointUUID '{point_def.command_point_uuid}'.")
-                errors["command_status_link"].append(msg)
+            elif rb_uuid not in points_by_uuid_map:
+                msg = (f"Point '{p_uuid}' ({point_def.name}): 'readback_point_uuid' references "
+                       f"non-existent PointUUID '{rb_uuid}'.")
+                errors["command_readback_link"].append(msg)
                 all_checks_passed = False
             else:
-                target_cmd_point = points_by_uuid_map[point_def.command_point_uuid]
-                if target_cmd_point.status_point_uuid != p_uuid:
-                    msg = (f"Point '{p_uuid}' ({point_def.name}) has 'command_point_uuid' -> '{point_def.command_point_uuid}', "
-                           f"but target point '{target_cmd_point.name}' does not have 'status_point_uuid' pointing back (actual: {target_cmd_point.status_point_uuid}).")
-                    errors["command_status_link"].append(msg)
+                # Optional: Further checks on the nature of the linked points
+                command_point = point_def
+                readback_target_point = points_by_uuid_map[rb_uuid]
+
+                if command_point.access != AccessMode.READ_WRITE:
+                    msg = (f"Point '{p_uuid}' ({command_point.name}) has 'readback_point_uuid' set, "
+                           f"but its access is '{command_point.access.value}', not '{AccessMode.READ_WRITE.value}'. "
+                           f"Typically, points with readbacks are command/write points.")
+                    # This might be a warning rather than a hard error depending on strictness
+                    errors["command_readback_link"].append(msg)
+                    # all_checks_passed = False # Decide if this is a fatal error
+
+                if readback_target_point.access != AccessMode.READ_ONLY:
+                    msg = (f"Point '{rb_uuid}' ({readback_target_point.name}), targeted by 'readback_point_uuid' from '{p_uuid}', "
+                           f"has access '{readback_target_point.access.value}', not '{AccessMode.READ_ONLY.value}'. "
+                           f"Readback points are typically read-only.")
+                    # This might be a warning
+                    errors["command_readback_link"].append(msg)
+                    # all_checks_passed = False # Decide if this is a fatal error
+                
+                if readback_target_point.readback_point_uuid is not None:
+                    msg = (f"Point '{rb_uuid}' ({readback_target_point.name}), targeted by 'readback_point_uuid' from '{p_uuid}', "
+                           f"also has a 'readback_point_uuid' defined ('{readback_target_point.readback_point_uuid}'). "
+                           f"A readback/status point should not itself point to another readback point.")
+                    errors["command_readback_link"].append(msg)
                     all_checks_passed = False
-        if point_def.status_point_uuid:
-            if point_def.status_point_uuid == p_uuid:
-                msg = f"Point '{p_uuid}' ({point_def.name}): 'status_point_uuid' cannot be its own UUID."
-                errors["command_status_link"].append(msg)
-                all_checks_passed = False
-            elif point_def.status_point_uuid not in points_by_uuid_map:
-                msg = (f"Point '{p_uuid}' ({point_def.name}): 'status_point_uuid' references "
-                       f"non-existent PointUUID '{point_def.status_point_uuid}'.")
-                errors["command_status_link"].append(msg)
-                all_checks_passed = False
-            else:
-                target_status_point = points_by_uuid_map[point_def.status_point_uuid]
-                if target_status_point.command_point_uuid != p_uuid:
-                     msg = (f"Point '{p_uuid}' ({point_def.name}) has 'status_point_uuid' -> '{point_def.status_point_uuid}', "
-                           f"but target point '{target_status_point.name}' does not have 'command_point_uuid' pointing back (actual: {target_status_point.command_point_uuid}).")
-                     errors["command_status_link"].append(msg)
-                     all_checks_passed = False
-    if not errors["command_status_link"]:
-        print("   ✅ Command/status point linkages in SSOT appear consistent.")
+        
+        # The old logic for command_point_uuid (on status points pointing back to command) is removed
+        # as PointDefinition no longer has command_point_uuid. The linkage is now one-way
+        # from command point to its readback via readback_point_uuid.
+
+    if not errors["command_readback_link"]:
+        print("   ✅ Command/readback point linkages in SSOT appear consistent with 'readback_point_uuid'.")
 
     # Checks for internal consistency of component configs (e.g., initial_state, PWM point properties,
     # governor controller point properties) are now handled by Pydantic model validators
