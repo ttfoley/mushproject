@@ -2,7 +2,7 @@
 
 import enum
 from typing import Any, Dict, List, Optional, Union, Literal
-from pydantic import BaseModel, Field, validator # validator might not be needed if reverting PointDefinition changes
+from pydantic import BaseModel, Field, validator, model_validator # validator might not be needed if reverting PointDefinition changes
 from pydantic_core import core_schema
 from pydantic.annotated_handlers import GetCoreSchemaHandler # For PointUUID
 
@@ -78,7 +78,17 @@ class PointValidationRules(BaseModel):
     allowed_values: Optional[List[Any]] = None
     model_config = {"extra": "forbid"}
 
-class PointDefinition(BaseModel): # Reverted to original structure (no ADR-20 topic fields)
+class FunctionGrouping(str, enum.Enum):
+    """
+    Classifies the primary function or purpose of a point in the system.
+    Used for MQTT topic generation and component organization.
+    """
+    ACTUATOR = "actuator"    # Physical device controlled by the system. For now purely the readback of physical actuator state.
+    SENSOR = "sensor"        # Input source providing measurements. Constrained to "physical" sensors for now.
+    STATUS = "status"        # System state information and feedback
+    COMMAND = "command"      # Control directive for system components
+
+class PointDefinition(BaseModel):
     uuid: PointUUID = Field(..., description="Persistent unique identifier for the point.")
     name: str = Field(..., description="Human-readable identifier. Should be unique.")
     description: Optional[str] = Field(None, description="Optional longer description of the point.")
@@ -86,6 +96,7 @@ class PointDefinition(BaseModel): # Reverted to original structure (no ADR-20 to
     units: str = Field(..., description="Units of measurement or value state.")
     data_source_layer: DataSourceLayer = Field(..., description="The system layer primarily responsible for publishing this point's data.")
     access: AccessMode = Field(..., description="Read/write access control for the point.")
+    function_grouping: FunctionGrouping = Field(..., description="Classifies the point's primary function (actuator, sensor, status, command). Determines topic structure.")
     writable_by: Optional[List[str]] = Field(None, description="List of component IDs authorized to publish to this point's topic if access is READ_WRITE.")
     validation_rules: Optional[PointValidationRules] = Field(None, description="Optional rules to validate the point's value.")
     initial_value: Optional[Any] = Field(None, description="Optional default/initial logical value for the point.")
@@ -93,7 +104,34 @@ class PointDefinition(BaseModel): # Reverted to original structure (no ADR-20 to
     readback_point_uuid: Optional[PointUUID] = Field(None, description="For a command/write point, the UUID of the corresponding status/readback point.")
     linked_points: Optional[Dict[str, PointUUID]] = Field(None, description="Optional dictionary linking this point to other related points by a descriptive key.")
     input_point_uuids: Optional[List[PointUUID]] = Field(None, description="UUIDs of points used as direct input for calculating this point's value (e.g., for a synthetic point).")
-    model_config = {"extra": "forbid"}
+    
+    # Optional conditional fields
+    topic_device_slug: Optional[str] = Field(None, description="Required when function_grouping is 'actuator'. Identifies the controlled device in topics.")
+    topic_originator_slug: Optional[str] = Field(None, description="Required when function_grouping is 'sensor'. Identifies the measurement source in topics.")
+    topic_directive_slug: Optional[str] = Field(None, description="Required when function_grouping is 'command'. Identifies the command action in topics.")
+    topic_status_slug: Optional[str] = Field(None, description="Required when function_grouping is 'status'. Identifies the status type in topics.")
+    
+    @model_validator(mode='after')
+    def validate_conditional_fields(cls, values):
+        """Validate that the appropriate conditional fields are present based on function_grouping."""
+        
+        if values.function_grouping == FunctionGrouping.ACTUATOR:
+            if not values.topic_device_slug:
+                raise ValueError("topic_device_slug is required when function_grouping is 'actuator'")
+        
+        elif values.function_grouping == FunctionGrouping.SENSOR:
+            if not values.topic_originator_slug:
+                raise ValueError("topic_originator_slug is required when function_grouping is 'sensor'")
+        
+        elif values.function_grouping == FunctionGrouping.COMMAND:
+            if not values.topic_directive_slug:
+                raise ValueError("topic_directive_slug is required when function_grouping is 'command'")
+        
+        elif values.function_grouping == FunctionGrouping.STATUS:
+            if not values.topic_status_slug:
+                raise ValueError("topic_status_slug is required when function_grouping is 'status'")
+        
+        return values
 
 class ComponentDefinition(BaseModel):
     id: str = Field(..., description="Unique identifier for this component instance.")
