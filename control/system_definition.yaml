@@ -4,9 +4,19 @@
 # Placeholders for non-temperature driver config files remain.
 
 # --- System Wide Configuration ---
-mqtt_broker:
-  host: "mqtt.local"
-  port: 1883
+
+global_settings:
+  mqtt_topic_prefix: "mush/"
+  mqtt_broker:
+    address: "192.168.1.100"
+    port: 1883
+    username: "your_mqtt_user" # Optional
+    password: "your_mqtt_password" # Optional
+  ntp_server:
+    address: "us.pool.ntp.org"
+    utc_offset_seconds: 0
+    update_interval_ms: 7200000 # 2 hours
+
 command_hierarchy:
   - "Manual_HOA"
   - "Watchdog" # Assuming Watchdog > Governor if present
