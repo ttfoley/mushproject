@@ -5,14 +5,16 @@ from pathlib import Path
 from pydantic import ValidationError, BaseModel # BaseModel for type hinting
 import sys
 from typing import Optional, Dict, Any, Set, Tuple, List, get_args, get_origin, Union
+import collections # Added for Counter
 
 # --- Model Imports ---
 try:
     # Assuming core_ssot_models now defines PointUUID
     from common.config_models.core_ssot_models import (
         SystemDefinition, ComponentType, PointDefinition, PointUUID,
-        ValueType, AccessMode, # Added ValueType, AccessMode
-        DriverComponentDefinition, GovernorComponentDefinition, MicrocontrollerComponentDefinition
+        ValueType, AccessMode, DataSourceLayer, # Added DataSourceLayer
+        DriverComponentDefinition, GovernorComponentDefinition, MicrocontrollerComponentDefinition,
+        ManualSourceComponentDefinition # Added ManualSourceComponentDefinition
     )
     from common.config_models.component_configs import (
         DriverConfig, # Removed unused WriteAction, StateCondition, etc. for this script
@@ -89,8 +91,29 @@ def validate_component_configs(
     validated_configs = {}
     for component in system_config.components:
         print(f"\nValidating component: id='{component.id}', type='{component.type.value}'")
-        component_config_path_str = component.config_file
-        component_config_path = CONFIG_BASE_DIR / component_config_path_str
+        
+        # Skip config file loading if component.config_file is None
+        if component.config_file is None:
+            if component.type == ComponentType.MANUAL: # Or any other type that legitimately has no config file
+                print(f"   Component type '{component.type.value}' with ID '{component.id}' does not have a config file. Skipping file validation.")
+                # We can still add the component instance itself to validated_configs if needed for other checks
+                # For now, let's assume components without config files don't need to be in validated_configs
+                # unless a specific config model (even an empty one) is defined and mapped.
+                # If we add a ManualSourceConfig to COMPONENT_MODEL_MAP and it's a simple BaseModel,
+                # we could potentially instantiate it here with default values if needed.
+                # For this iteration, skipping seems fine if no specific validation on its internal structure is needed here.
+                continue 
+            else:
+                # This case might indicate an issue if a component type that *should* have a config_file has it missing.
+                # However, ComponentDefinition now makes config_file optional globally.
+                # ADR/Design decision needed: Should certain component types *require* config_file?
+                # For now, we'll just note it if it's not a MANUAL type.
+                print(f"   Note: Component type '{component.type.value}' with ID '{component.id}' has no config_file specified. Skipping file validation.")
+                continue
+
+        component_config_path_str = component.config_file # At this point, component.config_file is not None
+        component_config_path = CONFIG_BASE_DIR / component_config_path_str # This should now be safe
+
         if not component_config_path.is_file():
             print(f"❌ Error: Config file not found at '{component_config_path}'")
             all_components_valid = False
@@ -228,7 +251,8 @@ def cross_validate_configs(system_config: SystemDefinition, validated_components
     all_checks_passed = True
     errors: Dict[str, List[str]] = {
         "point_uuid_ref": [], "component_id_ref": [], "hierarchy_ref": [],
-        "uniqueness": [], "point_provision": [], "command_readback_link": []
+        "uniqueness": [], "point_provision": [], "command_readback_link": [],
+        "orphaned_points": [], "multiply_provided_points": [] # New error categories
     }
 
     master_point_uuids = {point.uuid for point in system_config.points}
@@ -325,7 +349,7 @@ def cross_validate_configs(system_config: SystemDefinition, validated_components
         if isinstance(comp, MicrocontrollerComponentDefinition):
             provided_uuids = comp.points_provided
             provider_attr_name = "points_provided"
-        elif isinstance(comp, (DriverComponentDefinition, GovernorComponentDefinition)):
+        elif isinstance(comp, (DriverComponentDefinition, GovernorComponentDefinition, ManualSourceComponentDefinition)): # Added ManualSourceComponentDefinition
             provided_uuids = comp.virtual_points_provided or []
             provider_attr_name = "virtual_points_provided"
 
@@ -394,6 +418,54 @@ def cross_validate_configs(system_config: SystemDefinition, validated_components
 
     if not errors["command_readback_link"]:
         print("   ✅ Command/readback point linkages in SSOT appear consistent with 'readback_point_uuid'.")
+
+    # 6. Check for Orphaned and Multiply-Provided Points
+    print("\nChecking for orphaned and multiply-provided points in SSOT...")
+    # Now, all points in the master list are expected to be provided by some component.
+    # We no longer filter out MANUAL_INPUT here, as they should be provided by a ManualSourceComponent.
+    expected_system_provided_uuids: Set[PointUUID] = set(master_point_uuids)
+
+    all_claimed_provided_uuids_list: List[PointUUID] = []
+    for comp in system_config.components:
+        if isinstance(comp, MicrocontrollerComponentDefinition):
+            all_claimed_provided_uuids_list.extend(comp.points_provided)
+        elif isinstance(comp, (DriverComponentDefinition, GovernorComponentDefinition, ManualSourceComponentDefinition)): # Added ManualSourceComponentDefinition
+            if comp.virtual_points_provided: # Ensure it's not None
+                all_claimed_provided_uuids_list.extend(comp.virtual_points_provided)
+    
+    all_claimed_provided_uuids_set = set(all_claimed_provided_uuids_list)
+
+    # Check for orphaned points (defined, but not claimed by any component)
+    orphaned_uuids = expected_system_provided_uuids - all_claimed_provided_uuids_set
+    if orphaned_uuids:
+        for o_uuid in orphaned_uuids:
+            point_name = points_by_uuid_map[o_uuid].name if o_uuid in points_by_uuid_map else "N/A"
+            msg = (f"Point UUID '{o_uuid}' (Name: {point_name}) is defined with a system data_source_layer "
+                   f"but is not provided by any component in 'points_provided' or 'virtual_points_provided'.")
+            errors["orphaned_points"].append(msg)
+            all_checks_passed = False
+    
+    # Check for points claimed by more than one component
+    uuid_counts = collections.Counter(all_claimed_provided_uuids_list)
+    multiply_provided_uuids = {uuid for uuid, count in uuid_counts.items() if count > 1}
+    if multiply_provided_uuids:
+        for m_uuid in multiply_provided_uuids:
+            providers = [comp.id for comp in system_config.components 
+                         if (isinstance(comp, MicrocontrollerComponentDefinition) and m_uuid in comp.points_provided) or
+                            (isinstance(comp, (DriverComponentDefinition, GovernorComponentDefinition)) and comp.virtual_points_provided and m_uuid in comp.virtual_points_provided)]
+            point_name = points_by_uuid_map[m_uuid].name if m_uuid in points_by_uuid_map else "N/A"
+            msg = (f"Point UUID '{m_uuid}' (Name: {point_name}) is provided by multiple components: {providers}.")
+            errors["multiply_provided_points"].append(msg)
+            all_checks_passed = False
+
+    if not errors["orphaned_points"] and not errors["multiply_provided_points"]:
+        print("   ✅ All system-provided points are uniquely claimed by a component.")
+    elif not errors["orphaned_points"] and errors["multiply_provided_points"]: # Only multi-provided errors
+        print("   ❌ Some points are claimed by multiple components (see details below).")
+    elif errors["orphaned_points"] and not errors["multiply_provided_points"]: # Only orphaned errors
+        print("   ❌ Some system-provided points are not claimed by any component (see details below).")
+    else: # Both types of errors
+        print("   ❌ Issues found with point provisioning: orphaned and/or multiply-provided points (see details below).")
 
     # Checks for internal consistency of component configs (e.g., initial_state, PWM point properties,
     # governor controller point properties) are now handled by Pydantic model validators

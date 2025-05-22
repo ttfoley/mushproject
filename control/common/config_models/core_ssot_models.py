@@ -51,7 +51,7 @@ class DataSourceLayer(str, enum.Enum):
     DRIVER = "driver"
     DATA_PROCESSOR = "data_processor"
     GOVERNOR = "governor"
-    MANUAL_INPUT = "manual_input"
+    MANUAL= "manual"
 
 class AccessMode(str, enum.Enum):
     READ_ONLY = "READ_ONLY"
@@ -62,6 +62,7 @@ class ComponentType(str, enum.Enum):
     DRIVER = "driver"
     GOVERNOR = "governor"
     DATA_PROCESSOR = "data_processor"
+    MANUAL = "manual"
 
 # --- Core SSOT Models ---
 class MQTTBrokerConfig(BaseModel):
@@ -95,7 +96,7 @@ class PointDefinition(BaseModel):
 # --- Component Definitions ---
 class ComponentDefinition(BaseModel):
     id: str = Field(..., description="Unique identifier for this component instance.")
-    config_file: str = Field(..., description="Path to the component's specific YAML configuration file.")
+    config_file: Optional[str] = Field(None, description="Path to the component's specific YAML configuration file, if applicable.")
     mqtt_client_id: Optional[str] = Field(None, description="Optional MQTT client ID. If None, defaults to component 'id'.")
     model_config = {"extra": "forbid"}
 
@@ -113,11 +114,18 @@ class GovernorComponentDefinition(ComponentDefinition):
     controls_drivers: List[str] = Field(..., description="List of driver component 'id's that this governor controls.")
     virtual_points_provided: Optional[List[PointUUID]] = Field([], description="List of point UUIDs synthesized or managed by this governor.")
 
+class ManualSourceComponentDefinition(ComponentDefinition):
+    type: Literal[ComponentType.MANUAL] = ComponentType.MANUAL
+    virtual_points_provided: Optional[List[PointUUID]] = Field([], description="List of point UUIDs considered to be provided/sourced by manual input.")
+    # config_file is inherited as Optional[str] = None, which is appropriate.
+    # No other specific fields are needed for this conceptual component type itself,
+    # as the points it "provides" are fully defined in the master points list.
 # --- Main System Definition ---
 AnyComponent = Union[
     MicrocontrollerComponentDefinition,
     DriverComponentDefinition,
-    GovernorComponentDefinition
+    GovernorComponentDefinition,
+    ManualSourceComponentDefinition
 ]
 
 class SystemDefinition(BaseModel):

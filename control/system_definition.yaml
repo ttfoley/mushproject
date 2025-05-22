@@ -326,7 +326,7 @@ points:
     description: "Target temperature setpoint for the controller (e.g., Governor)."
     value_type: CONTINUOUS
     units: "degF" 
-    data_source_layer: manual_input 
+    data_source_layer: manual 
     access: READ_WRITE
     writable_by: ["Manual_HOA"] 
     persist_to_db: true
@@ -337,7 +337,7 @@ points:
     description: "Deadband (+/- value around setpoint) or total hysteresis width for bang-bang control."
     value_type: CONTINUOUS
     units: "delta_degF" 
-    data_source_layer: manual_input 
+    data_source_layer: manual 
     access: READ_WRITE
     writable_by: ["Manual_HOA"] 
     persist_to_db: true
@@ -359,7 +359,7 @@ points:
     description: "Desired operating mode from Manual/HOA input for the Heater Driver FSM (e.g., on, off)."
     value_type: DISCRETE
     units: "mode_command" 
-    data_source_layer: manual_input 
+    data_source_layer: manual 
     access: READ_WRITE
     writable_by: ["Manual_HOA"] 
     persist_to_db: true
@@ -417,7 +417,7 @@ points:
     description: "Target humidity setpoint for the controller (e.g., Humidity Governor)."
     value_type: CONTINUOUS
     units: "percent_rh" # Units for relative humidity
-    data_source_layer: manual_input # Or scheduler, UI etc.
+    data_source_layer: manual # Or scheduler, UI etc.
     access: READ_WRITE
     writable_by: ["Manual_HOA", "humidity_governor"] # Added humidity_governor as a potential writer
     persist_to_db: true
@@ -428,7 +428,7 @@ points:
     description: "Deadband (+/- value around setpoint) or total hysteresis width for humidity bang-bang control."
     value_type: CONTINUOUS
     units: "delta_percent_rh" # Represents a humidity difference
-    data_source_layer: manual_input # Or scheduler, UI etc.
+    data_source_layer: manual # Or scheduler, UI etc.
     access: READ_WRITE
     writable_by: ["Manual_HOA", "humidity_governor"] # Added humidity_governor as a potential writer
     persist_to_db: true
@@ -451,7 +451,7 @@ points:
     description: "ON duration in minutes for the fruiting vent fan timer. Set manually or by a future scheduler."
     value_type: CONTINUOUS
     units: "minutes" # Vent Fan Governor uses MINUTES
-    data_source_layer: manual_input
+    data_source_layer: manual
     access: READ_WRITE
     writable_by: ["Manual_HOA"] # Consistent with similar parameter points
     persist_to_db: true
@@ -462,7 +462,7 @@ points:
     description: "OFF duration in minutes for the fruiting vent fan timer. Set manually or by a future scheduler."
     value_type: CONTINUOUS
     units: "minutes" # Vent Fan Governor uses MINUTES
-    data_source_layer: manual_input
+    data_source_layer: manual
     access: READ_WRITE
     writable_by: ["Manual_HOA"] # Consistent with similar parameter points
     persist_to_db: true
@@ -486,7 +486,7 @@ points:
     description: "ON duration in minutes for the fruiting light timer. Set manually or by a future scheduler."
     value_type: CONTINUOUS
     units: "minutes" # Changed from "h" to "hours"
-    data_source_layer: manual_input
+    data_source_layer: manual
     access: READ_WRITE
     writable_by: ["Manual_HOA"] # Or other designated config/UI component
     persist_to_db: true
@@ -497,7 +497,7 @@ points:
     description: "OFF duration in minutes for the fruiting light timer. Set manually or by a future scheduler."
     value_type: CONTINUOUS
     units: "minutes" # Changed from "h" to "hours"
-    data_source_layer: manual_input
+    data_source_layer: manual
     access: READ_WRITE
     writable_by: ["Manual_HOA"] # Or other designated config/UI component
     persist_to_db: true
@@ -763,3 +763,16 @@ components:
     virtual_points_provided:
       - "c263c3fc-018d-4996-800a-5317465c7178" # FruitingChamber_VentFan_Governor_Mode_Command
 
+  - id: "manual_input"
+    type: manual
+    virtual_points_provided:
+      - "4a00f1a2-b3c4-4d5e-6f70-8192a3b4c5e5" # FruitingChamber_Temp_Target_Setpoint
+      - "5b11f1a2-b3c4-4d5e-6f70-8192a3b4c5e6" # FruitingChamber_Temp_Target_Deadband
+      - "7d33f1a2-b3c4-4d5e-6f70-8192a3b4c5e8" # FruitingChamber_Heater_Manual_Command
+      - "1ccbdc0e-30cd-4b02-964f-fd5208821bee" # FruitingChamber_Humidity_Target_Setpoint
+      - "e13a213e-d936-44ab-9948-895c335026b0" # FruitingChamber_Humidity_Target_Deadband
+      - "3039aac8-2816-4191-9f44-1d453e2e7924" # FruitingChamber_VentFan_Timer_OnIntervalMinutes
+      - "e0cf042f-5222-4be3-9fad-62ee28f3e3a8" # FruitingChamber_VentFan_Timer_OffIntervalMinutes
+      - "2be2a778-d0f6-4d33-97a1-747107b952b3" # FruitingChamber_Light_Timer_OnIntervalMinutes
+      - "f9cc975a-89f2-4b93-8159-074edf2a6c88" # FruitingChamber_Light_Timer_OffIntervalMinutes
+      
