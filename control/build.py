@@ -13,7 +13,7 @@ try:
     # Assuming core_ssot_models now defines PointUUID
     from common.config_models.core_ssot_models import (
         SystemDefinition, ComponentType, PointDefinition, PointUUID,
-        ValueType, AccessMode, DataSourceLayer, # Added DataSourceLayer
+        ValueType, AccessMode, DataSourceLayer, FunctionGrouping, # Added FunctionGrouping
         DriverComponentDefinition, GovernorComponentDefinition, MicrocontrollerComponentDefinition,
         ManualSourceComponentDefinition # Added ManualSourceComponentDefinition
     )
@@ -132,6 +132,136 @@ class UUIDUtils:
         uuids = set()
         UUIDUtils.extract_uuids_from_instance(config, uuids)
         return uuids
+
+
+class TopicGenerator:
+    """Generates MQTT topics based on ADR-20 specification."""
+    
+    def __init__(self, system_config: SystemDefinition):
+        self.system_config = system_config
+        self.global_prefix = system_config.global_settings.mqtt_topic_prefix
+        # Build component lookup maps
+        self.component_by_id = {comp.id: comp for comp in system_config.components}
+        # Build point provider lookup map
+        self.point_provider_map = self._build_point_provider_map()
+        
+    def _build_point_provider_map(self) -> Dict[PointUUID, str]:
+        """Build a map from point UUID to the component ID that provides it."""
+        provider_map = {}
+        for comp in self.system_config.components:
+            if isinstance(comp, MicrocontrollerComponentDefinition):
+                for point_uuid in comp.points_provided:
+                    provider_map[point_uuid] = comp.id
+            elif isinstance(comp, (DriverComponentDefinition, GovernorComponentDefinition, ManualSourceComponentDefinition)):
+                if comp.virtual_points_provided:
+                    for point_uuid in comp.virtual_points_provided:
+                        provider_map[point_uuid] = comp.id
+        return provider_map
+        
+    def generate_topic_for_point(self, point: PointDefinition) -> str:
+        """Generate full MQTT topic for a given point according to ADR-20."""
+        source_component_id = self._get_source_component_id(point)
+        
+        if point.function_grouping == FunctionGrouping.SENSOR:
+            # mush/c1/sensors/sht85_0_fc/degf
+            units_slug = self._slugify(point.units)
+            return f"{self.global_prefix}{source_component_id}/sensors/{point.topic_originator_slug}/{units_slug}"
+            
+        elif point.function_grouping == FunctionGrouping.ACTUATOR:
+            # mush/c2/actuators/humidifier/readback
+            return f"{self.global_prefix}{source_component_id}/actuators/{point.topic_device_slug}/readback"
+            
+        elif point.function_grouping == FunctionGrouping.STATUS:
+            # mush/c2/statuses/wifi_uptime
+            return f"{self.global_prefix}{source_component_id}/statuses/{point.topic_status_slug}"
+            
+        elif point.function_grouping == FunctionGrouping.COMMAND:
+            # mush/temperature_driver_fruiting/commands/c2/heatingpad/write
+            target_component_id = self._get_command_target_component_id(point)
+            return f"{self.global_prefix}{source_component_id}/commands/{target_component_id}/{point.topic_directive_slug}/write"
+        
+        else:
+            raise ValueError(f"Unknown function_grouping: {point.function_grouping}")
+            
+    def _get_source_component_id(self, point: PointDefinition) -> str:
+        """Find which component provides this point."""
+        component_id = self.point_provider_map.get(point.uuid)
+        if component_id is None:
+            raise ValueError(f"No component found that provides point UUID: {point.uuid}")
+        return component_id
+        
+    def _get_command_target_component_id(self, point: PointDefinition) -> str:
+        """For command points, find the target component from controls_ relationships."""
+        source_component_id = self._get_source_component_id(point)
+        source_component = self.component_by_id.get(source_component_id)
+        
+        if source_component is None:
+            raise ValueError(f"Source component not found: {source_component_id}")
+            
+        # Find the target component based on what this component controls
+        if isinstance(source_component, DriverComponentDefinition):
+            return source_component.controls_microcontroller
+        elif isinstance(source_component, GovernorComponentDefinition):
+            # For governors, we need to find which microcontroller the controlled driver controls
+            if len(source_component.controls_drivers) != 1:
+                raise ValueError(f"Governor {source_component_id} controls multiple drivers, cannot determine single target")
+            controlled_driver_id = source_component.controls_drivers[0]
+            controlled_driver = self.component_by_id.get(controlled_driver_id)
+            if isinstance(controlled_driver, DriverComponentDefinition):
+                return controlled_driver.controls_microcontroller
+            else:
+                raise ValueError(f"Governor {source_component_id} controls non-driver component: {controlled_driver_id}")
+        elif isinstance(source_component, ManualSourceComponentDefinition):
+            # For manual components, use the controls_governors relationship
+            # Find the target microcontroller through the governor->driver->microcontroller chain
+            if source_component.controls_governors:
+                # For now, use the first governor in the list to determine target
+                # In the future, we might need more sophisticated logic for multiple governors
+                governor_id = source_component.controls_governors[0]
+                governor_component = self.component_by_id.get(governor_id)
+                if isinstance(governor_component, GovernorComponentDefinition):
+                    if len(governor_component.controls_drivers) == 1:
+                        controlled_driver_id = governor_component.controls_drivers[0]
+                        controlled_driver = self.component_by_id.get(controlled_driver_id)
+                        if isinstance(controlled_driver, DriverComponentDefinition):
+                            return controlled_driver.controls_microcontroller
+                        else:
+                            raise ValueError(f"Governor {governor_id} controls non-driver component: {controlled_driver_id}")
+                    else:
+                        raise ValueError(f"Governor {governor_id} controls multiple drivers, cannot determine single target")
+                else:
+                    raise ValueError(f"Manual component {source_component_id} controls non-governor component: {governor_id}")
+            
+            # If no governors are controlled, fall back to finding any microcontroller
+            # This handles cases where manual points might not be governor-specific
+            for comp in self.system_config.components:
+                if isinstance(comp, MicrocontrollerComponentDefinition):
+                    return comp.id
+            
+            raise ValueError(f"Manual command point {point.uuid} ({point.name}) has no clear target component")
+        else:
+            raise ValueError(f"Command point {point.uuid} is sourced by component type that doesn't control other components: {type(source_component)}")
+            
+    def _slugify(self, text: str) -> str:
+        """Convert text to URL-safe slug."""
+        import re
+        # Convert to lowercase and replace non-alphanumeric characters with underscores
+        slug = re.sub(r'[^a-zA-Z0-9]+', '_', text.lower())
+        # Remove leading/trailing underscores
+        slug = slug.strip('_')
+        return slug
+        
+    def generate_all_topics(self) -> Dict[PointUUID, str]:
+        """Generate topics for all points in the system."""
+        topics = {}
+        for point in self.system_config.points:
+            try:
+                topic = self.generate_topic_for_point(point)
+                topics[point.uuid] = topic
+            except Exception as e:
+                print(f"❌ Error generating topic for point {point.uuid} ({point.name}): {e}")
+                raise
+        return topics
 
 
 class FileUtils:
@@ -566,11 +696,56 @@ class PointsRegistryGenerator:
         
     def generate(self) -> bool:
         """Generates the global points registry JSON file."""
-        print(f"\n--- Global Points Registry Generation (placeholder) ---")
-        print(f"   Registry would be generated at: {self.output_path}")
-        print(f"   This generator implementation will be completed in future updates.")
-        # Simple passthrough for now, will be implemented fully later
-        return True
+        print(f"\n--- Generating Global Points Registry ---")
+        
+        try:
+            # Generate topics for all points
+            topic_generator = TopicGenerator(self.system_config)
+            topics_by_uuid = topic_generator.generate_all_topics()
+            
+            # Build the registry structure
+            registry = {
+                "metadata": {
+                    "generated_at": "placeholder_timestamp",
+                    "total_points": len(self.system_config.points),
+                    "mqtt_topic_prefix": self.system_config.global_settings.mqtt_topic_prefix
+                },
+                "points": {}
+            }
+            
+            # Add each point to the registry
+            for point in self.system_config.points:
+                point_data = {
+                    "uuid": point.uuid,
+                    "name": point.name,
+                    "description": point.description,
+                    "function_grouping": point.function_grouping.value,
+                    "value_type": point.value_type.value,
+                    "units": point.units,
+                    "data_source_layer": point.data_source_layer.value,
+                    "access": point.access.value,
+                    "mqtt_topic": topics_by_uuid.get(point.uuid),
+                    "persist_to_db": point.persist_to_db
+                }
+                
+                # Add optional fields if they exist
+                if point.validation_rules:
+                    point_data["validation_rules"] = point.validation_rules.model_dump()
+                if point.initial_value is not None:
+                    point_data["initial_value"] = point.initial_value
+                if point.readback_point_uuid:
+                    point_data["readback_point_uuid"] = point.readback_point_uuid
+                if point.writable_by:
+                    point_data["writable_by"] = point.writable_by
+                    
+                registry["points"][point.uuid] = point_data
+            
+            # Write to file
+            return FileUtils.write_json(self.output_path, registry)
+            
+        except Exception as e:
+            print(f"❌ Error generating points registry: {e}")
+            return False
 
 
 class MicrocontrollerConfigGenerator:

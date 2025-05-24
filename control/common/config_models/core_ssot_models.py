@@ -156,6 +156,7 @@ class GovernorComponentDefinition(ComponentDefinition):
 
 class ManualSourceComponentDefinition(ComponentDefinition):
     type: Literal[ComponentType.MANUAL] = ComponentType.MANUAL
+    controls_governors: Optional[List[str]] = Field([], description="List of governor component 'id's that this manual component can control/configure.")
     virtual_points_provided: Optional[List[PointUUID]] = Field([], description="List of point UUIDs considered to be provided/sourced by manual input.")
 
 # --- Main System Definition ---

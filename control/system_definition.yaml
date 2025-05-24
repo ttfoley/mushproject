@@ -883,6 +883,11 @@ components:
 
   - id: "manual_input"
     type: manual
+    controls_governors:
+      - "temperature_governor"
+      - "humidity_governor"
+      - "light_governor"
+      - "vent_fan_governor"
     virtual_points_provided:
       - "4a00f1a2-b3c4-4d5e-6f70-8192a3b4c5e5" # FruitingChamber_Temp_Target_Setpoint
       - "5b11f1a2-b3c4-4d5e-6f70-8192a3b4c5e6" # FruitingChamber_Temp_Target_Deadband
