@@ -4,7 +4,7 @@ import yaml
 from pathlib import Path
 from pydantic import ValidationError, BaseModel # BaseModel for type hinting
 import sys
-from typing import Optional, Dict, Any, Set, Tuple, List, get_args, get_origin, Union
+from typing import Optional, Dict, Any, Set, Tuple, List, get_args, get_origin, Union, cast
 import collections # Added for Counter
 import json
 
@@ -198,6 +198,10 @@ class TopicGenerator:
         if source_component is None:
             raise ValueError(f"Source component not found: {source_component_id}")
             
+        # For manual command points, use the target_component field if available
+        if isinstance(source_component, ManualSourceComponentDefinition) and point.target_component:
+            return point.target_component
+            
         # Find the target component based on what this component controls
         if isinstance(source_component, DriverComponentDefinition):
             return source_component.controls_microcontroller
@@ -212,33 +216,12 @@ class TopicGenerator:
             else:
                 raise ValueError(f"Governor {source_component_id} controls non-driver component: {controlled_driver_id}")
         elif isinstance(source_component, ManualSourceComponentDefinition):
-            # For manual components, use the controls_governors relationship
-            # Find the target microcontroller through the governor->driver->microcontroller chain
-            if source_component.controls_governors:
-                # For now, use the first governor in the list to determine target
-                # In the future, we might need more sophisticated logic for multiple governors
-                governor_id = source_component.controls_governors[0]
-                governor_component = self.component_by_id.get(governor_id)
-                if isinstance(governor_component, GovernorComponentDefinition):
-                    if len(governor_component.controls_drivers) == 1:
-                        controlled_driver_id = governor_component.controls_drivers[0]
-                        controlled_driver = self.component_by_id.get(controlled_driver_id)
-                        if isinstance(controlled_driver, DriverComponentDefinition):
-                            return controlled_driver.controls_microcontroller
-                        else:
-                            raise ValueError(f"Governor {governor_id} controls non-driver component: {controlled_driver_id}")
-                    else:
-                        raise ValueError(f"Governor {governor_id} controls multiple drivers, cannot determine single target")
-                else:
-                    raise ValueError(f"Manual component {source_component_id} controls non-governor component: {governor_id}")
+            # Manual command points must have target_component specified
+            if not point.target_component:
+                raise ValueError(f"Manual command point {point.uuid} ({point.name}) is missing required 'target_component' field")
+            # This should never be reached since we check for target_component above, but keeping for safety
+            raise ValueError(f"Manual command point {point.uuid} ({point.name}) has no target_component specified")
             
-            # If no governors are controlled, fall back to finding any microcontroller
-            # This handles cases where manual points might not be governor-specific
-            for comp in self.system_config.components:
-                if isinstance(comp, MicrocontrollerComponentDefinition):
-                    return comp.id
-            
-            raise ValueError(f"Manual command point {point.uuid} ({point.name}) has no clear target component")
         else:
             raise ValueError(f"Command point {point.uuid} is sourced by component type that doesn't control other components: {type(source_component)}")
             

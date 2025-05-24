@@ -224,7 +224,7 @@ points:
     validation_rules: { allowed_values: ["on", "off"] } 
     initial_value: "off"
     function_grouping: command
-    topic_directive_slug: "set"
+    topic_directive_slug: "humidifier"
 
   # == Microcontroller C2 Control Points (HeatingPad - CP_26) ==
   - uuid: "7d32f1a2-b3c4-4d5e-6f70-8192a3b4c5d8" 
@@ -253,7 +253,7 @@ points:
     validation_rules: { allowed_values: ["on", "off"] }
     initial_value: "off"
     function_grouping: command
-    topic_directive_slug: "set"
+    topic_directive_slug: "heatingpad"
 
   # == Microcontroller C2 Control Points (Light - CP_32) ==
   - uuid: "9f54f1a2-b3c4-4d5e-6f70-8192a3b4c5da" 
@@ -282,7 +282,7 @@ points:
     validation_rules: { allowed_values: ["on", "off"] }
     initial_value: "off"
     function_grouping: command
-    topic_directive_slug: "set"
+    topic_directive_slug: "light"
 
   # == Microcontroller C2 Control Points (VentFan - CP_33) ==
   - uuid: "b176f1a2-b3c4-4d5e-6f70-8192a3b4c5dc" 
@@ -311,7 +311,7 @@ points:
     validation_rules: { allowed_values: ["on", "off"] }
     initial_value: "off"
     function_grouping: command
-    topic_directive_slug: "set"
+    topic_directive_slug: "ventfan"
 
 
 
@@ -395,7 +395,8 @@ points:
     validation_rules: { min_value: 0.0, max_value: 100.0 } 
     initial_value: 70.0
     function_grouping: command
-    topic_directive_slug: "setpoint"
+    topic_directive_slug: "temperature_target_setpoint"
+    target_component: "temperature_governor"
   - uuid: "5b11f1a2-b3c4-4d5e-6f70-8192a3b4c5e6" 
     name: "FruitingChamber_Temp_Target_Deadband"
     description: "Deadband (+/- value around setpoint) or total hysteresis width for bang-bang control."
@@ -408,7 +409,8 @@ points:
     validation_rules: { min_value: 0.0, max_value: 10.0 } 
     initial_value: 2.0
     function_grouping: command
-    topic_directive_slug: "deadband"
+    topic_directive_slug: "temperature_target_deadband"
+    target_component: "temperature_governor"
   - uuid: "6c22f1a2-b3c4-4d5e-6f70-8192a3b4c5e7" 
     name: "FruitingChamber_Heater_Governor_Mode_Command"
     description: "Desired operating mode from the Governor for the Heater Driver FSM (e.g., pwm, off, on)."
@@ -421,7 +423,7 @@ points:
     initial_value: "off" 
     validation_rules: { allowed_values: ["pwm", "off", "on"] }
     function_grouping: command
-    topic_directive_slug: "mode"
+    topic_directive_slug: "heater_mode"
   - uuid: "7d33f1a2-b3c4-4d5e-6f70-8192a3b4c5e8" 
     name: "FruitingChamber_Heater_Manual_Command"
     description: "Desired operating mode from Manual/HOA input for the Heater Driver FSM (e.g., on, off)."
@@ -434,7 +436,8 @@ points:
     initial_value: "off" 
     validation_rules: { allowed_values: ["on", "off"] }
     function_grouping: command
-    topic_directive_slug: "manual_mode"
+    topic_directive_slug: "heater_manual_override"
+    target_component: "temperature_governor"
   - uuid: "8e44f1a2-b3c4-4d5e-6f70-8192a3b4c5e9" 
     name: "FruitingChamber_Heater_PWM_Setpoint"
     description: "Target PWM duty cycle (0.0 to 1.0) set by Gov/Manual, read by Driver for PWM logic."
@@ -447,7 +450,7 @@ points:
     validation_rules: { min_value: 0.0, max_value: 1.0 }
     initial_value: 0.0
     function_grouping: command
-    topic_directive_slug: "pwm_setpoint"
+    topic_directive_slug: "heater_pwm_setpoint"
   - uuid: "9f55f1a2-b3c4-4d5e-6f70-8192a3b4c5ea" 
     name: "FruitingChamber_Heater_PWM_ON_Duration_Setpoint"
     description: "Target ON duration (seconds) for PWM cycle, published by Governor, read by Driver's FSM."
@@ -460,7 +463,7 @@ points:
     validation_rules: { min_value: 0.0 }
     initial_value: 0.0
     function_grouping: command
-    topic_directive_slug: "pwm_on_duration"
+    topic_directive_slug: "heater_pwm_on_duration"
   - uuid: "a066f1a2-b3c4-4d5e-6f70-8192a3b4c5eb" 
     name: "FruitingChamber_Heater_PWM_OFF_Duration_Setpoint"
     description: "Target OFF duration (seconds) for PWM cycle, published by Governor, read by Driver's FSM."
@@ -473,7 +476,7 @@ points:
     validation_rules: { min_value: 0.0 }
     initial_value: 60.0
     function_grouping: command
-    topic_directive_slug: "pwm_off_duration"
+    topic_directive_slug: "heater_pwm_off_duration"
 
   # == Humidity Governor Setpoints / Commands (Inputs to Humidity Governor or Driver) ==
   - uuid: "16cc030a-27f6-4d46-83c2-e60ec5b84e02"
@@ -488,7 +491,7 @@ points:
     initial_value: "off"
     validation_rules: { allowed_values: ["off", "on"] }
     function_grouping: command
-    topic_directive_slug: "mode"
+    topic_directive_slug: "humidifier_mode"
   # == Humidity Governor Setpoints / Commands (Inputs to Governor or Driver) ==
   - uuid: "1ccbdc0e-30cd-4b02-964f-fd5208821bee"
     name: "FruitingChamber_Humidity_Target_Setpoint"
@@ -502,7 +505,8 @@ points:
     validation_rules: { min_value: 0.0, max_value: 100.0 } # Standard RH range
     initial_value: 85.0 # Example initial humidity setpoint
     function_grouping: command
-    topic_directive_slug: "setpoint"
+    topic_directive_slug: "humidity_target_setpoint"
+    target_component: "humidity_governor"
   - uuid: "e13a213e-d936-44ab-9948-895c335026b0"
     name: "FruitingChamber_Humidity_Target_Deadband"
     description: "Deadband (+/- value around setpoint) or total hysteresis width for humidity bang-bang control."
@@ -515,7 +519,8 @@ points:
     validation_rules: { min_value: 0.0, max_value: 20.0 } # Example range for RH deadband, must be non-negative
     initial_value: 5.0 # Example initial humidity deadband
     function_grouping: command
-    topic_directive_slug: "deadband"
+    topic_directive_slug: "humidity_target_deadband"
+    target_component: "humidity_governor"
   # == Vent Fan Governor Mode Command Point ==
   - uuid: "c263c3fc-018d-4996-800a-5317465c7178"
     name: "FruitingChamber_VentFan_Governor_Mode_Command"
@@ -529,7 +534,7 @@ points:
     initial_value: "off"
     validation_rules: { allowed_values: ["off", "on"] } # Assuming simple on/off for now
     function_grouping: command
-    topic_directive_slug: "mode"
+    topic_directive_slug: "ventfan_mode"
   - uuid: "3039aac8-2816-4191-9f44-1d453e2e7924"
     name: "FruitingChamber_VentFan_Timer_OnIntervalMinutes" # Name reflects minutes
     description: "ON duration in minutes for the fruiting vent fan timer. Set manually or by a future scheduler."
@@ -542,7 +547,8 @@ points:
     validation_rules: { min_value: 0.0, max_value: 120.0 } # Example: max 120 minutes (2 hours) on
     initial_value: 5.0 # Value is now in minutes
     function_grouping: command
-    topic_directive_slug: "on_interval"
+    topic_directive_slug: "ventfan_timer_on_interval"
+    target_component: "vent_fan_governor"
   - uuid: "e0cf042f-5222-4be3-9fad-62ee28f3e3a8"
     name: "FruitingChamber_VentFan_Timer_OffIntervalMinutes" # Name reflects minutes
     description: "OFF duration in minutes for the fruiting vent fan timer. Set manually or by a future scheduler."
@@ -555,7 +561,8 @@ points:
     validation_rules: { min_value: 0.0, max_value: 1440.0 } # Example: max 1440 minutes (24 hours) off
     initial_value: 55.0 # Value is now in minutes
     function_grouping: command
-    topic_directive_slug: "off_interval"
+    topic_directive_slug: "ventfan_timer_off_interval"
+    target_component: "vent_fan_governor"
 
   # == Light Governor Mode Command Point ==
   - uuid: "7bbe9f99-a3b3-4e97-a10a-d3c4f92c838d"
@@ -570,33 +577,35 @@ points:
     initial_value: "off"
     validation_rules: { allowed_values: ["off", "on"] } # Assuming simple on/off for now
     function_grouping: command
-    topic_directive_slug: "mode"
+    topic_directive_slug: "light_mode"
   - uuid: "2be2a778-d0f6-4d33-97a1-747107b952b3"
     name: "FruitingChamber_Light_Timer_OnIntervalMinutes"
     description: "ON duration in minutes for the fruiting light timer. Set manually or by a future scheduler."
     value_type: CONTINUOUS
-    units: "minutes" # Changed from "h" to "hours"
+    units: "minutes"
     data_source_layer: manual
     access: READ_WRITE
-    writable_by: ["Manual_HOA"] # Or other designated config/UI component
+    writable_by: ["Manual_HOA"]
     persist_to_db: true
-    validation_rules: { min_value: 0.0, max_value: 1440.0 }
-    initial_value: 720.0
+    validation_rules: { min_value: 0.0, max_value: 1440.0 } # Example: max 1440 minutes (24 hours) on
+    initial_value: 720.0 # 12 hours on
     function_grouping: command
-    topic_directive_slug: "on_interval"
+    topic_directive_slug: "light_timer_on_interval"
+    target_component: "light_governor"
   - uuid: "f9cc975a-89f2-4b93-8159-074edf2a6c88"
     name: "FruitingChamber_Light_Timer_OffIntervalMinutes"
     description: "OFF duration in minutes for the fruiting light timer. Set manually or by a future scheduler."
     value_type: CONTINUOUS
-    units: "minutes" # Changed from "h" to "hours"
+    units: "minutes"
     data_source_layer: manual
     access: READ_WRITE
-    writable_by: ["Manual_HOA"] # Or other designated config/UI component
+    writable_by: ["Manual_HOA"]
     persist_to_db: true
-    validation_rules: { min_value: 0.0, max_value: 1440.0 }
-    initial_value: 720.0
+    validation_rules: { min_value: 0.0, max_value: 1440.0 } # Example: max 1440 minutes (24 hours) off
+    initial_value: 720.0 # 12 hours off
     function_grouping: command
-    topic_directive_slug: "off_interval"
+    topic_directive_slug: "light_timer_off_interval"
+    target_component: "light_governor"
     
   # == Driver Internal State Points ==
   #temperature driver

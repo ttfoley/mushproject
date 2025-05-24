@@ -104,6 +104,7 @@ class PointDefinition(BaseModel):
     readback_point_uuid: Optional[PointUUID] = Field(None, description="For a command/write point, the UUID of the corresponding status/readback point.")
     linked_points: Optional[Dict[str, PointUUID]] = Field(None, description="Optional dictionary linking this point to other related points by a descriptive key.")
     input_point_uuids: Optional[List[PointUUID]] = Field(None, description="UUIDs of points used as direct input for calculating this point's value (e.g., for a synthetic point).")
+    target_component: Optional[str] = Field(None, description="Required for manual command points. Specifies the target component ID that should receive this command.")
     
     # Optional conditional fields
     topic_device_slug: Optional[str] = Field(None, description="Required when function_grouping is 'actuator'. Identifies the controlled device in topics.")
@@ -126,6 +127,11 @@ class PointDefinition(BaseModel):
         elif values.function_grouping == FunctionGrouping.COMMAND:
             if not values.topic_directive_slug:
                 raise ValueError("topic_directive_slug is required when function_grouping is 'command'")
+            
+            # Require target_component for manual command points
+            if values.data_source_layer == DataSourceLayer.MANUAL:
+                if not values.target_component:
+                    raise ValueError("target_component is required for manual command points")
         
         elif values.function_grouping == FunctionGrouping.STATUS:
             if not values.topic_status_slug:
