@@ -62,3 +62,13 @@ control/global_points_registry.json
 control/config/microcontrollers/generated/autogen_config_c1.h
 control/config/microcontrollers/generated/autogen_config_c2.h
 control/config/microcontrollers/generated/autogen_config_c3.h
+
+
+#Secret folders
+**/secrets/
+# Common secret file patterns
+*.key
+*.pem
+.env
+.env.local
+config.local.*
