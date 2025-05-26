@@ -59,3 +59,6 @@ pi_backup.img
 pi_backup_shrunk.img.gz
 pishrink.sh
 control/global_points_registry.json
+control/config/microcontrollers/generated/autogen_config_c1.h
+control/config/microcontrollers/generated/autogen_config_c2.h
+control/config/microcontrollers/generated/autogen_config_c3.h

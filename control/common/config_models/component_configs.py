@@ -175,10 +175,75 @@ class DriverConfig(BaseModel):
 
 
 # ==============================================================================
-# === MICROCONTROLLER AND GOVERNOR MODELS (START) ==============================
+# === MICROCONTROLLER HARDWARE POINTS MODELS (NEW) ===========================
 # ==============================================================================
 
-# --- Microcontroller Supporting Sub-Models ---
+# --- Supporting Sub-Models for Microcontroller ---
+class WiFiConfig(BaseModel):
+    ssid: Optional[str] = Field(None, description="WiFi network SSID. If not provided, uses global setting.")
+    password: Optional[str] = Field(None, description="WiFi network password. If not provided, uses global setting.")
+    model_config = {"extra": "forbid"}
+
+class MQTTBrokerConfigOptional(BaseModel):
+    address: Optional[str] = Field(None, description="MQTT broker address. If not provided, uses global setting.")
+    port: Optional[int] = Field(None, description="MQTT broker port. If not provided, uses global setting.")
+    username: Optional[str] = Field(None, description="MQTT username. If not provided, uses global setting.")
+    password: Optional[str] = Field(None, description="MQTT password. If not provided, uses global setting.")
+    model_config = {"extra": "forbid"}
+
+class NTPServerConfigOptional(BaseModel):
+    address: Optional[str] = Field(None, description="NTP server address. If not provided, uses global setting.")
+    utc_offset_seconds: Optional[int] = Field(None, description="UTC offset in seconds. If not provided, uses global setting.")
+    update_interval_ms: Optional[int] = Field(None, description="NTP update interval in milliseconds. If not provided, uses global setting.")
+    model_config = {"extra": "forbid"}
+
+class TimingConstants(BaseModel):
+    publish_interval_ms: int = Field(..., gt=0, description="Sensor publish interval in milliseconds (e.g., 15000 for 15 seconds).")
+    wifi_connect_timeout_ms: Optional[int] = Field(30000, gt=0, description="WiFi connection timeout in milliseconds.")
+    mqtt_connect_timeout_ms: Optional[int] = Field(20000, gt=0, description="MQTT connection timeout in milliseconds.")
+    ntp_sync_timeout_ms: Optional[int] = Field(15000, gt=0, description="NTP synchronization timeout in milliseconds.")
+    model_config = {"extra": "forbid"}
+
+# --- Hardware Point Base Classes ---
+class HardwarePointBase_MicrocontrollerImpl(BaseModel):
+    name: str = Field(..., description="Logical name for this hardware point (used for C++ define prefixes).")
+    point_kind: str = Field(..., description="Type of hardware point (actuator, sensor_data, system_info).")
+    model_config = {"extra": "forbid"}
+
+class ActuatorHardwarePoint_MicrocontrollerImpl(HardwarePointBase_MicrocontrollerImpl):
+    point_kind: Literal["actuator"] = Field("actuator", description="Type indicator for actuator hardware points.")
+    write_point_uuid_ref: PointUUID = Field(..., description="UUID of the command point that this actuator listens to.")
+    readback_point_uuid_ref: PointUUID = Field(..., description="UUID of the readback/status point that this actuator reports.")
+    pin: int = Field(..., description="GPIO pin number for this actuator.")
+    pin_mode: Literal["OUTPUT"] = Field("OUTPUT", description="Pin mode (OUTPUT for actuators).")
+    initial_state: Literal["HIGH", "LOW"] = Field("LOW", description="Initial pin state on startup.")
+    model_config = {"extra": "forbid"}
+
+class SensorDataHardwarePoint_MicrocontrollerImpl(HardwarePointBase_MicrocontrollerImpl):
+    point_kind: Literal["sensor_data"] = Field("sensor_data", description="Type indicator for sensor data hardware points.")
+    data_point_uuid_ref: PointUUID = Field(..., description="UUID of the data point that this sensor provides.")
+    pin: Optional[int] = Field(None, description="GPIO pin number if applicable (e.g., for DHT sensors).")
+    pin_mode: Optional[Literal["INPUT", "INPUT_PULLUP"]] = Field(None, description="Pin mode if applicable.")
+    attributes: Optional[Dict[str, Any]] = Field(None, description="Additional sensor-specific attributes (e.g., I2C address, sensor model).")
+    model_config = {"extra": "forbid"}
+
+class SystemInfoHardwarePoint_MicrocontrollerImpl(HardwarePointBase_MicrocontrollerImpl):
+    point_kind: Literal["system_info"] = Field("system_info", description="Type indicator for system info hardware points.")
+    data_point_uuid_ref: PointUUID = Field(..., description="UUID of the system status point that this provides.")
+    model_config = {"extra": "forbid"}
+
+# Union type for all hardware points
+AnyHardwarePoint_MicrocontrollerImpl = Union[
+    ActuatorHardwarePoint_MicrocontrollerImpl,
+    SensorDataHardwarePoint_MicrocontrollerImpl,
+    SystemInfoHardwarePoint_MicrocontrollerImpl
+]
+
+# ==============================================================================
+# === MICROCONTROLLER AND GOVERNOR MODELS (UPDATED) ==========================
+# ==============================================================================
+
+# --- Microcontroller Supporting Sub-Models (Legacy) ---
 class I2CConfig(BaseModel):
     sda_pin: int = Field(..., description="GPIO pin number for I2C SDA.")
     scl_pin: int = Field(..., description="GPIO pin number for I2C SCL.")
@@ -219,6 +284,17 @@ class DigitalOutputConfig(BaseModel):
     model_config = {"extra": "forbid"}
 
 class MicrocontrollerConfig(BaseModel):
+    # New primary fields
+    device_id: Optional[str] = Field(None, description="Device identifier for this microcontroller.")
+    description: Optional[str] = Field(None, description="Human-readable description of this microcontroller's purpose.")
+    wifi: Optional[WiFiConfig] = Field(None, description="WiFi configuration (overrides global settings if provided).")
+    mqtt_broker: Optional[MQTTBrokerConfigOptional] = Field(None, description="MQTT broker configuration (overrides global settings if provided).")
+    ntp_server: Optional[NTPServerConfigOptional] = Field(None, description="NTP server configuration (overrides global settings if provided).")
+    timing_constants: Optional[TimingConstants] = Field(None, description="Timing configuration for this microcontroller.")
+    hardware_points: Optional[List[AnyHardwarePoint_MicrocontrollerImpl]] = Field(None, description="List of hardware points managed by this microcontroller (new approach).")
+    output_republish_frequency_ms: Optional[int] = Field(None, description="Output status republish interval in milliseconds.")
+    
+    # Legacy fields (for backward compatibility)
     i2c: Optional[I2CConfig] = Field(None, description="I2C bus configuration, required if i2c_devices are listed.")
     onewire: Optional[OneWireConfig] = Field(None, description="OneWire bus configuration, required if onewire_devices are listed.")
     i2c_devices: Optional[List[I2CDevice]] = Field(None, description="List of sensors/devices connected via I2C.")
@@ -227,8 +303,6 @@ class MicrocontrollerConfig(BaseModel):
     digital_outputs: Optional[List[DigitalOutputConfig]] = Field(None, description="List of configured digital output pins.")
     publish_frequency_ms: Optional[int] = Field(None,
         description="Sensor publish interval in milliseconds used by the microcontroller. (e.g., 15000 for 15 seconds). If not set, firmware default applies.")
-    output_republish_frequency_ms: Optional[int] = Field(None,
-        description="Output status republish interval in milliseconds used by the microcontroller. If not set, firmware default applies.")
 
     @model_validator(mode='after')
     def check_bus_configs(self) -> Self:

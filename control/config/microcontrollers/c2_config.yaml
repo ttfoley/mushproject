@@ -2,35 +2,61 @@
 # Path: control/config/microcontrollers/c2_config.yaml
 # Conforms to the MicrocontrollerConfig Pydantic model
 
-# C2 is primarily an actuator controller.
-# It does not have I2C, DHT, or OneWire sensors listed in its points_provided.
-# If it did, those sections (i2c, i2c_devices, dht_sensors, onewire_devices) would be included here.
+# Device identification
+device_id: "c2"
+description: "Actuator controller for fruiting chamber"
 
-# Digital Outputs for actuators controlled by C2
-digital_outputs:
-  - pin: 25 # 
-    name: "HumidifierRelay" # Optional logical name
-    # This is the COMMAND Point UUID that c2 listens to for this actuator
-    point_uuid: "6c21f1a2-b3c4-4d5e-6f70-8192a3b4c5d7" # C2_CP25_Humidifier_Command
-    initial_state: "off"
+# Timing configuration
+timing_constants:
+  publish_interval_ms: 15000  # 15 seconds for sensor data (like WifiUptime)
+  wifi_connect_timeout_ms: 30000  # 30 seconds
+  mqtt_connect_timeout_ms: 20000  # 20 seconds
+  ntp_sync_timeout_ms: 15000  # 15 seconds
 
-  - pin: 26 # 
-    name: "HeatingPadRelay" # Optional logical name
-    point_uuid: "8e43f1a2-b3c4-4d5e-6f70-8192a3b4c5d9" # C2_CP26_HeatingPad_Command
-    initial_state: "off"
+# Output republish frequency (kept at top level as per plan)
+output_republish_frequency_ms: 60000  # 60 seconds for actuator status republish
 
-  - pin: 32 # 
-    name: "LightRelay" # Optional logical name
-    point_uuid: "a065f1a2-b3c4-4d5e-6f70-8192a3b4c5db" # C2_CP32_Light_Command
-    initial_state: "off"
+# Hardware points using the new approach
+hardware_points:
+  # Actuator hardware points
+  - name: "C2_HumidifierRelay"
+    point_kind: "actuator"
+    write_point_uuid_ref: "6c21f1a2-b3c4-4d5e-6f70-8192a3b4c5d7"  # FruitingChamber_Humidifier_Write
+    readback_point_uuid_ref: "5b10f1a2-b3c4-4d5e-6f70-8192a3b4c5d6"  # FruitingChamber_Humidifier_Readback
+    pin: 25
+    pin_mode: "OUTPUT"
+    initial_state: "LOW"  # "off"
 
-  - pin: 33 # 
-    name: "VentFanRelay" # Optional logical name
-    point_uuid: "c287f1a2-b3c4-4d5e-6f70-8192a3b4c5dd" # C2_CP33_VentFan_Command
-    initial_state: "off"
+  - name: "C2_HeatingPadRelay"
+    point_kind: "actuator"
+    write_point_uuid_ref: "8e43f1a2-b3c4-4d5e-6f70-8192a3b4c5d9"  # FruitingChamber_HeatingPad_Write
+    readback_point_uuid_ref: "7d32f1a2-b3c4-4d5e-6f70-8192a3b4c5d8"  # FruitingChamber_HeatingPad_Readback
+    pin: 26
+    pin_mode: "OUTPUT"
+    initial_state: "LOW"  # "off"
 
+  - name: "C2_LightRelay"
+    point_kind: "actuator"
+    write_point_uuid_ref: "a065f1a2-b3c4-4d5e-6f70-8192a3b4c5db"  # FruitingChamber_Light_Write
+    readback_point_uuid_ref: "9f54f1a2-b3c4-4d5e-6f70-8192a3b4c5da"  # FruitingChamber_Light_Readback
+    pin: 32
+    pin_mode: "OUTPUT"
+    initial_state: "LOW"  # "off"
 
-# Timing Parameters for C2
-publish_frequency_ms: 15000 # Example: publish sensor data (like WifiUptime) every 15 seconds
-output_republish_frequency_ms: 60000 # Example: republish actuator statuses every 60 seconds
+  - name: "C2_VentFanRelay"
+    point_kind: "actuator"
+    write_point_uuid_ref: "c287f1a2-b3c4-4d5e-6f70-8192a3b4c5dd"  # FruitingChamber_VentFan_Write
+    readback_point_uuid_ref: "b176f1a2-b3c4-4d5e-6f70-8192a3b4c5dc"  # FruitingChamber_VentFan_Readback
+    pin: 33
+    pin_mode: "OUTPUT"
+    initial_state: "LOW"  # "off"
+
+  # System info hardware points
+  - name: "C2_WifiUptime"
+    point_kind: "system_info"
+    data_point_uuid_ref: "39e0f1a2-b3c4-4d5e-6f70-8192a3b4c5d6"  # C2_Status_WifiUptime
+
+  - name: "C2_LastRestartReason"
+    point_kind: "system_info"
+    data_point_uuid_ref: "4a0f1a2b-3c4d-4e6f-7081-92a3b4c5d6e7"  # C2_Status_LastRestartReason
 
