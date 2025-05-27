@@ -2,21 +2,64 @@
 #include "NtpService.h" // Assuming NtpService.h is in common_firmware_lib/include
                        // and common_firmware_lib is correctly linked.
 #include <WiFi.h>
-#include "secrets.h" // For WiFi credentials
+#include "autogen_config.h" // For WiFi credentials and MQTT configuration
 #include "JsonBuilder.h" // For testing ADR-10 JSON payload construction
 #include "MqttService.h" // For MQTT communication
+#include "ActuatorControlPoint.h" // For actuator management
+#include "PublishData.h" // For publish queue
+#include <map>
+#include <queue>
+#include <set>
+#include <vector>
+
+// =============================================================================
+// ACTUATOR CREATION MACRO (DRY Principle)
+// =============================================================================
+
+// Macro to automatically create ActuatorControlPoint instances from autogen_config.h naming pattern
+// Usage: CREATE_ACTUATOR(C2_HumidifierRelay) expands to full constructor call
+#define CREATE_ACTUATOR(name) \
+    new ActuatorControlPoint( \
+        PIN_##name, \
+        MODE_##name, \
+        INITIAL_STATE_##name, \
+        POINT_NAME_##name, \
+        TOPIC_##name##_WRITE, \
+        TOPIC_##name##_READBACK, \
+        UUID_##name##_READBACK, \
+        OUTPUT_REPUBLISH_FREQUENCY_MS, \
+        MAX_TIME_NO_PUBLISH_MS \
+    )
+
+// =============================================================================
+// GLOBAL COMMAND MANAGEMENT STRUCTURES (ADR-22 Section 2.3.1)
+// =============================================================================
+
+// Global vector to hold all actuator control points for this controller
+std::vector<ActuatorControlPoint*> g_actuatorPoints;
+
+// Command Management for "Latest Wins" Logic
+std::map<ActuatorControlPoint*, String> g_pendingActuatorCommands;
+std::queue<ActuatorControlPoint*> g_actuatorsToProcessQueue;
+std::set<ActuatorControlPoint*> g_actuatorsInProcessQueueSet;
+
+// Global publish queue for all outgoing MQTT messages
+std::queue<PublishData> g_publishQueue;
+
+// =============================================================================
+// EXISTING CONFIGURATION AND SERVICES
+// =============================================================================
 
 // MQTT Configuration (will later come from autogen_config.h)
 const char* MQTT_HUMIDIFIER_READBACK_TOPIC = "mush/controllers/C2/control_points/CP_25/readback/raw/value";
 
 // MQTT Connection Retry Logic for Setup
-const unsigned long MQTT_CONNECT_TIMEOUT_MS = 15000; // Total time to try connecting to MQTT in setup
 const unsigned long MQTT_CONNECT_RETRY_INTERVAL_MS = 2000; // How often to call connectBroker()
 
 NtpService ntpService;
-// Instantiate MqttService with credentials from secrets.h
-MqttService mqttService(SECRET_MQTT_CLIENT_ID_C2, SECRET_MQTT_SERVER, SECRET_MQTT_PORT, 
-                        SECRET_MQTT_USER, SECRET_MQTT_PASSWORD);
+// Instantiate MqttService with credentials from auto_gen_config.h
+MqttService mqttService(MQTT_CLIENT_ID, MQTT_BROKER_ADDRESS, MQTT_BROKER_PORT, 
+                        MQTT_USERNAME, MQTT_PASSWORD);
 
 // How often to attempt NTP update in the loop (milliseconds)
 const unsigned long NTP_LOOP_UPDATE_INTERVAL = 60000; // Every 60 seconds
@@ -26,10 +69,14 @@ unsigned long lastNtpLoopUpdate = 0;
 const unsigned long PRINT_TIME_INTERVAL = 5000; // Every 5 seconds
 unsigned long lastTimePrint = 0;
 
+// How often to print debug queue status (milliseconds)
+const unsigned long DEBUG_QUEUE_INTERVAL = 30000; // Every 30 seconds
+unsigned long lastDebugPrint = 0;
+
 void setupWifi() {
     Serial.print("Connecting to WiFi: ");
-    Serial.println(SECRET_WIFI_SSID);
-    WiFi.begin(SECRET_WIFI_SSID, SECRET_WIFI_PWD);
+    Serial.println(WIFI_SSID);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
     unsigned long startTime = millis();
     while (WiFi.status() != WL_CONNECTED) {
@@ -107,6 +154,89 @@ void setupNtp() {
     // --- End Test JsonBuilder ---
 }
 
+void setupActuators() {
+    Serial.println("Initializing Actuator Control Points...");
+    
+    // Create ActuatorControlPoint instances for all 4 actuators in Controller C2
+    // Based on autogen_config.h definitions
+    
+    // 1. Humidifier Relay
+    g_actuatorPoints.push_back(CREATE_ACTUATOR(C2_HumidifierRelay));
+    Serial.print("Created actuator: "); Serial.println(POINT_NAME_C2_HumidifierRelay);
+    
+    // 2. Heating Pad Relay
+    g_actuatorPoints.push_back(CREATE_ACTUATOR(C2_HeatingPadRelay));
+    Serial.print("Created actuator: "); Serial.println(POINT_NAME_C2_HeatingPadRelay);
+    
+    // 3. Light Relay
+    g_actuatorPoints.push_back(CREATE_ACTUATOR(C2_LightRelay));
+    Serial.print("Created actuator: "); Serial.println(POINT_NAME_C2_LightRelay);
+    
+    // 4. Vent Fan Relay
+    g_actuatorPoints.push_back(CREATE_ACTUATOR(C2_VentFanRelay));
+    Serial.print("Created actuator: "); Serial.println(POINT_NAME_C2_VentFanRelay);
+    
+    Serial.print("Total actuators created: "); Serial.println(g_actuatorPoints.size());
+    
+    // Initialize all actuators (calls pinMode and sets initial hardware state)
+    Serial.println("Initializing actuator hardware...");
+    for (ActuatorControlPoint* actuator : g_actuatorPoints) {
+        actuator->initialize();
+        Serial.print("Initialized hardware for: "); Serial.println(actuator->getPointName());
+    }
+    
+    // Setup initial commands for all actuators (ADR-22 Section 2.5 SETUP_HW state)
+    Serial.println("Setting up initial actuator commands...");
+    for (ActuatorControlPoint* actuator : g_actuatorPoints) {
+        // Set initial command payload to "off" for all actuators
+        String initialPayload = "off";
+        
+        // Populate command management structures
+        g_pendingActuatorCommands[actuator] = initialPayload;
+        g_actuatorsToProcessQueue.push(actuator);
+        g_actuatorsInProcessQueueSet.insert(actuator);
+        
+        Serial.print("Queued initial command '"); 
+        Serial.print(initialPayload);
+        Serial.print("' for: ");
+        Serial.println(actuator->getPointName());
+    }
+    
+    Serial.print("Total actuators queued for initial command processing: ");
+    Serial.println(g_actuatorsToProcessQueue.size());
+    
+    Serial.println("Actuator setup complete.");
+}
+
+// =============================================================================
+// DEBUG HELPER FUNCTIONS
+// =============================================================================
+
+void printCommandQueueStatus() {
+    Serial.println("\n--- Command Queue Status ---");
+    Serial.print("Pending commands: "); Serial.println(g_pendingActuatorCommands.size());
+    Serial.print("Actuators to process: "); Serial.println(g_actuatorsToProcessQueue.size());
+    Serial.print("Actuators in process set: "); Serial.println(g_actuatorsInProcessQueueSet.size());
+    
+    if (!g_pendingActuatorCommands.empty()) {
+        Serial.println("Pending commands details:");
+        for (const auto& pair : g_pendingActuatorCommands) {
+            Serial.print("  - ");
+            Serial.print(pair.first->getPointName());
+            Serial.print(": '");
+            Serial.print(pair.second);
+            Serial.println("'");
+        }
+    }
+    Serial.println("--- End Command Queue Status ---\n");
+}
+
+void printPublishQueueStatus() {
+    Serial.println("\n--- Publish Queue Status ---");
+    Serial.print("Items in publish queue: "); Serial.println(g_publishQueue.size());
+    Serial.println("--- End Publish Queue Status ---\n");
+}
+
 void setup() {
     Serial.begin(115200);
     while (!Serial); // Wait for serial to connect (especially for some boards)
@@ -114,6 +244,10 @@ void setup() {
 
     setupWifi();
     setupNtp();
+    setupActuators();
+    
+    // Debug: Print command queue status after setup
+    printCommandQueueStatus();
 
     Serial.println("Initializing MQTT Service...");
     mqttService.begin(); // Sets server and callback, does not connect
@@ -162,6 +296,7 @@ void setup() {
     Serial.println("Setup complete. Entering loop...");
     lastNtpLoopUpdate = millis(); // Initialize for loop updates
     lastTimePrint = millis();
+    lastDebugPrint = millis(); // Initialize debug timer
 }
 
 void loop() {
@@ -192,6 +327,13 @@ void loop() {
             Serial.println(" - NTP time not set.");
         }
         lastTimePrint = currentTime;
+    }
+
+    // Periodically print debug queue status
+    if (currentTime - lastDebugPrint >= DEBUG_QUEUE_INTERVAL) {
+        printCommandQueueStatus();
+        printPublishQueueStatus();
+        lastDebugPrint = currentTime;
     }
 
     // Placeholder for future FSM logic
