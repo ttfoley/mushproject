@@ -31,12 +31,6 @@ private:
     unsigned long _lastPublishTimeMillis;        // Set by FSM after confirmed publish of readback
     unsigned long _lastRepublishCheckTimeMillis; // Set by FSM after FSM checks for republish necessity
     
-    // Read-only state for readback publishing
-    // WARNING: This should ONLY be modified by executeDeviceCommand()
-    // It is NOT control state - it's purely for readback data publishing
-    // FSM should treat this as read-only via getLastExecutedCommand()
-    String _lastExecutedCommand;                 // "on" or "off" - last successfully executed command
-
 public:
     /**
      * Constructor
@@ -63,12 +57,11 @@ public:
     /**
      * Called by FSM from PROCESS_COMMANDS state
      * Parses commandPayload ("on" -> HIGH, "off" -> LOW)
-     * Performs digitalWrite(_pin, newState)
-     * Updates _lastExecutedCommand for readback publishing
-     * FSM handles state tracking and readback publishing
-     * THIS IS THE ONLY METHOD THAT SHOULD CONTROL HARDWARE
+     * Performs digitalWrite(_pin, newState) if valid
+     * Returns true if command was valid and executed, false otherwise
+     * FSM handles readback publishing using the commandPayload that succeeded
      */
-    void executeDeviceCommand(const String& commandPayload);
+    bool executeDeviceCommand(const String& commandPayload);
 
     // Configuration getters
     const char* getReadbackTopic() const;
@@ -78,12 +71,17 @@ public:
     int getInitialState() const;
     
     /**
-     * Read-only getter for readback publishing
-     * Returns the last successfully executed command ("on" or "off")
-     * This is purely for FSM to use when publishing readback data
-     * DO NOT use this for control logic - FSM manages all control flow
+     * Static utility methods for centralized HIGH/LOW <-> "on"/"off" conversion
+     * These ensure DRY principle by having one source of truth for the mapping
      */
-    String getLastExecutedCommand() const;
+    static String hardwareStateToPayload(int hwState);
+    static int payloadToHardwareState(const String& payload);
+    
+    /**
+     * Helper method to get the initial command payload based on initial hardware state
+     * Uses the centralized conversion utility
+     */
+    String getInitialCommandPayload() const;
     
     // Timing configuration getters
     unsigned long getOutputRepublishFrequencyMillis() const;

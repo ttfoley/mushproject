@@ -1,5 +1,6 @@
 #include "MqttService.h"
 #include <Arduino.h> // For Serial, millis(), etc.
+#include "ActuatorControlPoint.h"
 
 // Initialize static member pointer. This is crucial for the static callback.
 MqttService* MqttService::_instance = nullptr;
@@ -12,14 +13,31 @@ MqttService::MqttService(const char* client_id,
       _server(server),
       _port(port),
       _user(user),
-      _password(password) {
-    _instance = this; // Set the static instance pointer to this object
+      _password(password),
+      _topicToActuatorMap(nullptr),
+      _pendingCommands(nullptr),
+      _processQueue(nullptr),
+      _processSet(nullptr) {
+    _instance = this;
 }
 
 void MqttService::begin() {
     mqttClient.setServer(_server.c_str(), _port);
-    mqttClient.setCallback(MqttService::staticMqttCallback); // Use the static callback
-    // Note: Actual connection attempt will be handled by loop() and reconnect()
+    mqttClient.setCallback(MqttService::staticMqttCallback);
+}
+
+void MqttService::setCommandManagement(
+    std::map<String, ActuatorControlPoint*>* topicToActuatorMap,
+    std::map<ActuatorControlPoint*, String>* pendingCommands,
+    std::queue<ActuatorControlPoint*>* processQueue,
+    std::set<ActuatorControlPoint*>* processSet) {
+    
+    _topicToActuatorMap = topicToActuatorMap;
+    _pendingCommands = pendingCommands;
+    _processQueue = processQueue;
+    _processSet = processSet;
+    
+    Serial.println("Command management structures set for MqttService");
 }
 
 bool MqttService::loop() {
@@ -71,6 +89,24 @@ bool MqttService::connectBroker() {
     return result; // Return the connection attempt status
 }
 
+bool MqttService::subscribe(const char* topic) {
+    if (!isConnected()) {
+        Serial.print("MQTT not connected. Cannot subscribe to: ");
+        Serial.println(topic);
+        return false;
+    }
+    
+    bool result = mqttClient.subscribe(topic);
+    if (result) {
+        Serial.print("Successfully subscribed to: ");
+        Serial.println(topic);
+    } else {
+        Serial.print("Failed to subscribe to: ");
+        Serial.println(topic);
+    }
+    return result;
+}
+
 // Static callback function
 void MqttService::staticMqttCallback(char* topic, byte* payload, unsigned int length) {
     if (_instance) {
@@ -83,14 +119,82 @@ void MqttService::instanceMqttCallback(char* topic, byte* payload, unsigned int 
     Serial.print("Message arrived [");
     Serial.print(topic);
     Serial.print("] ");
-    // Create a temporary buffer for the payload
+    
+    // Create null-terminated string from payload
     char msg[length + 1];
     memcpy(msg, payload, length);
     msg[length] = '\0'; // Null-terminate the string
     Serial.println(msg);
 
-    // TODO: P1.C2.4 - Enqueue MqttCommand into CommandQueue here.
-    // For now, just printing the message.
+    // Check if command management is set up
+    if (!_topicToActuatorMap || !_pendingCommands || !_processQueue || !_processSet) {
+        Serial.println("Command management not initialized - ignoring message");
+        return;
+    }
+
+    String topicStr = String(topic);
+    String payloadStr = String(msg);
+    
+    // Look up actuator for this topic
+    auto it = _topicToActuatorMap->find(topicStr);
+    if (it == _topicToActuatorMap->end()) {
+        Serial.print("No actuator found for topic: ");
+        Serial.println(topicStr);
+        return;
+    }
+    
+    ActuatorControlPoint* targetActuator = it->second;
+    Serial.print("Found actuator: ");
+    Serial.println(targetActuator->getPointName());
+    
+    // Parse ADR-10 JSON payload
+    if (!payloadStr.startsWith("{") || !payloadStr.endsWith("}")) {
+        Serial.println("Invalid payload - expected ADR-10 JSON format");
+        return;
+    }
+    
+    // Extract value field from JSON
+    int valueStart = payloadStr.indexOf("\"value\":\"");
+    if (valueStart == -1) {
+        Serial.println("Invalid payload - missing 'value' field");
+        return;
+    }
+    
+    valueStart += 9; // Move past "value":"
+    int valueEnd = payloadStr.indexOf("\"", valueStart);
+    if (valueEnd == -1) {
+        Serial.println("Invalid payload - malformed 'value' field");
+        return;
+    }
+    
+    String commandValue = payloadStr.substring(valueStart, valueEnd);
+    Serial.print("Parsed command: ");
+    Serial.println(commandValue);
+    
+    // Validate command
+    if (commandValue != "on" && commandValue != "off") {
+        Serial.print("Invalid command value: ");
+        Serial.println(commandValue);
+        return;
+    }
+    
+    // Update command management structures (latest wins logic)
+    (*_pendingCommands)[targetActuator] = commandValue;
+    
+    // Add to processing queue if not already queued
+    if (_processSet->find(targetActuator) == _processSet->end()) {
+        _processQueue->push(targetActuator);
+        _processSet->insert(targetActuator);
+        Serial.print("Queued command '");
+        Serial.print(commandValue);
+        Serial.print("' for: ");
+        Serial.println(targetActuator->getPointName());
+    } else {
+        Serial.print("Updated existing command to '");
+        Serial.print(commandValue);
+        Serial.print("' for: ");
+        Serial.println(targetActuator->getPointName());
+    }
 }
 
 // --- publishJson Implementations ---

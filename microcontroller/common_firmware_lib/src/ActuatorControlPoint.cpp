@@ -19,8 +19,7 @@ ActuatorControlPoint::ActuatorControlPoint(int pin,
       _outputRepublishFrequencyMillis(outputRepublishFrequencyMillis),
       _maxTimeNoPublishMillis(maxTimeNoPublishMillis),
       _lastPublishTimeMillis(0),                  // Initialize to 0
-      _lastRepublishCheckTimeMillis(0),           // Initialize to 0
-      _lastExecutedCommand("")                    // Initialize to empty - will be set by executeDeviceCommand()
+      _lastRepublishCheckTimeMillis(0)            // Initialize to 0
 {
     // Constructor initialization complete via member initializer list
 }
@@ -35,27 +34,25 @@ void ActuatorControlPoint::initialize() {
     // FSM should queue the initial state command and process it normally
 }
 
-void ActuatorControlPoint::executeDeviceCommand(const String& commandPayload) {
+bool ActuatorControlPoint::executeDeviceCommand(const String& commandPayload) {
     // Called by FSM from PROCESS_COMMANDS state
-    // Parses commandPayload ("on" -> HIGH, "off" -> LOW)
-    // Performs digitalWrite(_pin, newState)
-    // Updates _lastExecutedCommand for readback publishing
-    // FSM handles state tracking and readback publishing
+    // Parses commandPayload using centralized conversion utility
+    // Performs digitalWrite(_pin, newState) if valid
+    // Returns true if successful, false if invalid command
+    // FSM handles readback publishing using the commandPayload that succeeded
     
-    int newState;
-    if (commandPayload.equalsIgnoreCase("on")) {
-        newState = HIGH;
-    } else if (commandPayload.equalsIgnoreCase("off")) {
-        newState = LOW;
+    int newState = payloadToHardwareState(commandPayload);
+    
+    // Check if payload was valid (payloadToHardwareState returns LOW for invalid)
+    // We need to distinguish between valid "off" and invalid payload
+    if (commandPayload.equalsIgnoreCase("on") || commandPayload.equalsIgnoreCase("off")) {
+        // Valid command - control hardware and return success
+        digitalWrite(_pin, newState);
+        return true;
     } else {
-        // Invalid command payload - could log error here in future
-        // For now, ignore invalid commands and don't update _lastExecutedCommand
-        return;
+        // Invalid command payload - return failure
+        return false;
     }
-    
-    // Control hardware and update readback state
-    digitalWrite(_pin, newState);
-    _lastExecutedCommand = commandPayload;  // Store for readback publishing only
 }
 
 // Configuration getters
@@ -79,11 +76,29 @@ int ActuatorControlPoint::getInitialState() const {
     return _initialState;
 }
 
-String ActuatorControlPoint::getLastExecutedCommand() const {
-    // Read-only getter for readback publishing
-    // Returns the last successfully executed command ("on" or "off")
-    // This is purely for FSM to use when publishing readback data
-    return _lastExecutedCommand;
+// Static utility methods for centralized conversion
+String ActuatorControlPoint::hardwareStateToPayload(int hwState) {
+    // Centralized HIGH/LOW -> "on"/"off" conversion
+    // This is the single source of truth for this mapping
+    return (hwState == HIGH) ? "on" : "off";
+}
+
+int ActuatorControlPoint::payloadToHardwareState(const String& payload) {
+    // Centralized "on"/"off" -> HIGH/LOW conversion
+    // This is the single source of truth for this mapping
+    if (payload.equalsIgnoreCase("on")) {
+        return HIGH;
+    } else if (payload.equalsIgnoreCase("off")) {
+        return LOW;
+    } else {
+        // Invalid payload - return a safe default
+        return LOW;
+    }
+}
+
+String ActuatorControlPoint::getInitialCommandPayload() const {
+    // Helper method using centralized conversion utility
+    return hardwareStateToPayload(_initialState);
 }
 
 // Timing configuration getters

@@ -31,12 +31,37 @@
         MAX_TIME_NO_PUBLISH_MS \
     )
 
+// Combined macro that creates actuator, adds to vector, and maps topic in one call
+// Usage: CREATE_AND_MAP_ACTUATOR(C2_HumidifierRelay) does everything
+#define CREATE_AND_MAP_ACTUATOR(name) \
+    do { \
+        g_actuatorPoints.push_back(CREATE_ACTUATOR(name)); \
+        Serial.print("Created actuator: "); Serial.println(POINT_NAME_##name); \
+        g_topicToActuatorMap[String(TOPIC_##name##_WRITE)] = g_actuatorPoints.back(); \
+        Serial.print("Mapped topic "); Serial.print(TOPIC_##name##_WRITE); \
+        Serial.print(" to actuator: "); Serial.println(g_actuatorPoints.back()->getPointName()); \
+    } while(0)
+
+// Macro to automatically subscribe to actuator WRITE topics from autogen_config.h naming pattern
+// Usage: SUBSCRIBE_TO_ACTUATOR(C2_HumidifierRelay) expands to subscription call
+#define SUBSCRIBE_TO_ACTUATOR(name) \
+    do { \
+        if (mqttService.subscribe(TOPIC_##name##_WRITE)) { \
+            Serial.print("Subscribed to: "); Serial.println(TOPIC_##name##_WRITE); \
+        } else { \
+            Serial.print("Failed to subscribe to: "); Serial.println(TOPIC_##name##_WRITE); \
+        } \
+    } while(0)
+
 // =============================================================================
 // GLOBAL COMMAND MANAGEMENT STRUCTURES (ADR-22 Section 2.3.1)
 // =============================================================================
 
 // Global vector to hold all actuator control points for this controller
 std::vector<ActuatorControlPoint*> g_actuatorPoints;
+
+// Topic-to-Actuator mapping for efficient MQTT command processing
+std::map<String, ActuatorControlPoint*> g_topicToActuatorMap;
 
 // Command Management for "Latest Wins" Logic
 std::map<ActuatorControlPoint*, String> g_pendingActuatorCommands;
@@ -45,6 +70,26 @@ std::set<ActuatorControlPoint*> g_actuatorsInProcessQueueSet;
 
 // Global publish queue for all outgoing MQTT messages
 std::queue<PublishData> g_publishQueue;
+
+// =============================================================================
+// FSM STATE MANAGEMENT (ADR-17, ADR-22)
+// =============================================================================
+
+// FSM States based on ADR-17 and microcontroller plan
+enum State {
+    SETUP_HW,           // Hardware initialization (done in setup())
+    CONNECT_WIFI,       // WiFi connection (done in setup())  
+    SYNC_NTP,           // NTP synchronization (done in setup())
+    CONNECT_MQTT,       // MQTT broker connection
+    PROCESS_COMMANDS,   // Process queued actuator commands
+    PUBLISH_DATA,       // Publish data from publish queue
+    OPERATIONAL_PERIODIC_CHECKS, // Periodic maintenance tasks
+    WAIT,               // Idle state, check what needs to be done
+    RESTART             // Restart the controller
+};
+
+State currentState = CONNECT_MQTT; // Start with MQTT connection since setup() handles initial states
+unsigned long stateStartTime = 0;  // For state timeouts
 
 // =============================================================================
 // EXISTING CONFIGURATION AND SERVICES
@@ -64,10 +109,6 @@ MqttService mqttService(MQTT_CLIENT_ID, MQTT_BROKER_ADDRESS, MQTT_BROKER_PORT,
 // How often to attempt NTP update in the loop (milliseconds)
 const unsigned long NTP_LOOP_UPDATE_INTERVAL = 60000; // Every 60 seconds
 unsigned long lastNtpLoopUpdate = 0;
-
-// How often to print the time in the loop (milliseconds)
-const unsigned long PRINT_TIME_INTERVAL = 5000; // Every 5 seconds
-unsigned long lastTimePrint = 0;
 
 // How often to print debug queue status (milliseconds)
 const unsigned long DEBUG_QUEUE_INTERVAL = 30000; // Every 30 seconds
@@ -127,56 +168,20 @@ void setupNtp() {
         }
         delay(1000); // Wait a bit between attempts
     }
-
-    // --- Test JsonBuilder --- (Commented out as we are now testing MQTT which uses JsonBuilder)
-    /*
-    if (initialSyncDone) { // Only test if we have a valid timestamp
-        Serial.println("\n--- Testing JsonBuilder --- ");
-        String currentTimestamp = ntpService.getFormattedISO8601Time();
-
-        String json_string = JsonBuilder::buildPayload(currentTimestamp, "hello world");
-        Serial.print("Test 1 (const char*): "); Serial.println(json_string);
-
-        String json_int = JsonBuilder::buildPayload(currentTimestamp, 12345);
-        Serial.print("Test 2 (int): "); Serial.println(json_int);
-
-        String json_float = JsonBuilder::buildPayload(currentTimestamp, 3.14159f, 3); // 3 decimal places
-        Serial.print("Test 3 (float): "); Serial.println(json_float);
-
-        String json_bool_true = JsonBuilder::buildPayload(currentTimestamp, true);
-        Serial.print("Test 4 (bool true): "); Serial.println(json_bool_true);
-
-        String json_bool_false = JsonBuilder::buildPayload(currentTimestamp, false);
-        Serial.print("Test 5 (bool false): "); Serial.println(json_bool_false);
-        Serial.println("--- End JsonBuilder Test ---");
-    }
-    */
-    // --- End Test JsonBuilder ---
 }
 
 void setupActuators() {
     Serial.println("Initializing Actuator Control Points...");
     
-    // Create ActuatorControlPoint instances for all 4 actuators in Controller C2
-    // Based on autogen_config.h definitions
+    // Create ActuatorControlPoint instances for all actuators using X-Macro pattern
+    // Based on ACTUATOR_LIST from autogen_config.h
     
-    // 1. Humidifier Relay
-    g_actuatorPoints.push_back(CREATE_ACTUATOR(C2_HumidifierRelay));
-    Serial.print("Created actuator: "); Serial.println(POINT_NAME_C2_HumidifierRelay);
-    
-    // 2. Heating Pad Relay
-    g_actuatorPoints.push_back(CREATE_ACTUATOR(C2_HeatingPadRelay));
-    Serial.print("Created actuator: "); Serial.println(POINT_NAME_C2_HeatingPadRelay);
-    
-    // 3. Light Relay
-    g_actuatorPoints.push_back(CREATE_ACTUATOR(C2_LightRelay));
-    Serial.print("Created actuator: "); Serial.println(POINT_NAME_C2_LightRelay);
-    
-    // 4. Vent Fan Relay
-    g_actuatorPoints.push_back(CREATE_ACTUATOR(C2_VentFanRelay));
-    Serial.print("Created actuator: "); Serial.println(POINT_NAME_C2_VentFanRelay);
+    #define X(name) CREATE_AND_MAP_ACTUATOR(name);
+    ACTUATOR_LIST
+    #undef X
     
     Serial.print("Total actuators created: "); Serial.println(g_actuatorPoints.size());
+    Serial.print("Topic mappings created: "); Serial.println(g_topicToActuatorMap.size());
     
     // Initialize all actuators (calls pinMode and sets initial hardware state)
     Serial.println("Initializing actuator hardware...");
@@ -188,8 +193,17 @@ void setupActuators() {
     // Setup initial commands for all actuators (ADR-22 Section 2.5 SETUP_HW state)
     Serial.println("Setting up initial actuator commands...");
     for (ActuatorControlPoint* actuator : g_actuatorPoints) {
-        // Set initial command payload to "off" for all actuators
-        String initialPayload = "off";
+        // Use helper method to get the initial command payload
+        // This respects the INITIAL_STATE_##name values from autogen_config.h
+        String initialPayload = actuator->getInitialCommandPayload();
+        
+        Serial.print("Initial state for ");
+        Serial.print(actuator->getPointName());
+        Serial.print(": ");
+        Serial.print(actuator->getInitialState() == HIGH ? "HIGH" : "LOW");
+        Serial.print(" -> command: '");
+        Serial.print(initialPayload);
+        Serial.println("'");
         
         // Populate command management structures
         g_pendingActuatorCommands[actuator] = initialPayload;
@@ -206,6 +220,17 @@ void setupActuators() {
     Serial.println(g_actuatorsToProcessQueue.size());
     
     Serial.println("Actuator setup complete.");
+}
+
+void setupSubscriptions() {
+    Serial.println("Setting up MQTT subscriptions...");
+    
+    // Subscribe to all actuator WRITE topics using X-Macro pattern
+    #define X(name) SUBSCRIBE_TO_ACTUATOR(name);
+    ACTUATOR_LIST
+    #undef X
+    
+    Serial.println("MQTT subscriptions complete.");
 }
 
 // =============================================================================
@@ -240,7 +265,7 @@ void printPublishQueueStatus() {
 void setup() {
     Serial.begin(115200);
     while (!Serial); // Wait for serial to connect (especially for some boards)
-    Serial.println("\n\n--- Controller C2 (Refactored) MQTT Test ---");
+    Serial.println("\n\n--- Controller C2 (Refactored) Starting ---");
 
     setupWifi();
     setupNtp();
@@ -250,52 +275,18 @@ void setup() {
     printCommandQueueStatus();
 
     Serial.println("Initializing MQTT Service...");
-    mqttService.begin(); // Sets server and callback, does not connect
+    mqttService.begin();// Sets server and callback, does not connect
+    
+    // Set up command management for MQTT service
+    mqttService.setCommandManagement(
+        &g_topicToActuatorMap,
+        &g_pendingActuatorCommands,
+        &g_actuatorsToProcessQueue,
+        &g_actuatorsInProcessQueueSet
+    );
 
-    Serial.println("Attempting to connect to MQTT broker...");
-    unsigned long mqttConnectStartMs = millis();
-    unsigned long lastMqttConnectAttemptMs = 0;
-
-    while (!mqttService.isConnected() && (millis() - mqttConnectStartMs < MQTT_CONNECT_TIMEOUT_MS)) {
-        unsigned long currentMs = millis();
-        // Try to connect at defined intervals
-        if (currentMs - lastMqttConnectAttemptMs >= MQTT_CONNECT_RETRY_INTERVAL_MS || lastMqttConnectAttemptMs == 0) {
-            if (mqttService.connectBroker()) { // connectBroker() attempts connection
-                Serial.println("MQTT connectBroker() successful.");
-                // No need to print "connected", connectBroker itself does upon success
-                break; // Exit while loop
-            } else {
-                Serial.print("m"); // Indication of a connection attempt by connectBroker()
-                // connectBroker already prints failure details
-            }
-            lastMqttConnectAttemptMs = currentMs;
-        }
-        mqttService.loop(); // IMPORTANT: Allow PubSubClient to process outgoing/incoming packets
-        delay(50); // Small delay to prevent busy-looping if not much else is happening
-    }
-
-    if (mqttService.isConnected()) {
-        Serial.println("\nMQTT connection established.");
-        // Test publishing humidifier status
-        if (ntpService.isTimeSet()) {
-            Serial.println("Testing Humidifier Status Publish via MQTT...");
-            String timestamp = ntpService.getFormattedISO8601Time();
-            bool published = mqttService.publishJson(MQTT_HUMIDIFIER_READBACK_TOPIC, timestamp, "on");
-            if (published) {
-                Serial.println("Test publish attempted successfully.");
-            } else {
-                Serial.println("Test publish attempt failed.");
-            }
-        } else {
-            Serial.println("NTP time not set, cannot test MQTT publish with timestamp.");
-        }
-    } else {
-        Serial.println("\nMQTT connection FAILED after timeout.");
-    }
-
-    Serial.println("Setup complete. Entering loop...");
+    Serial.println("Setup complete. Entering main FSM loop...");
     lastNtpLoopUpdate = millis(); // Initialize for loop updates
-    lastTimePrint = millis();
     lastDebugPrint = millis(); // Initialize debug timer
 }
 
@@ -304,29 +295,143 @@ void loop() {
 
     mqttService.loop(); // Process MQTT messages and maintain connection
 
-    // Periodically try to update NTP
-    if (currentTime - lastNtpLoopUpdate >= NTP_LOOP_UPDATE_INTERVAL) {
-        Serial.println("Attempting periodic NTP update...");
-        if (ntpService.update()) {
-            Serial.println("Periodic NTP update successful.");
-            // Optional: Log if it *re*-established sync after being lost
-        } else {
-            Serial.println("Periodic NTP update attempt made (may not have changed time if already set).");
-        }
-        lastNtpLoopUpdate = currentTime;
+    // Main FSM Logic
+    switch (currentState) {
+        case CONNECT_MQTT:
+            Serial.println("State: CONNECT_MQTT");
+            if (mqttService.connectBroker()) {
+                Serial.println("MQTT connected successfully!");
+                setupSubscriptions(); // Subscribe to all actuator WRITE topics
+                currentState = PROCESS_COMMANDS;
+                stateStartTime = currentTime;
+            } else {
+                Serial.println("MQTT connection failed, retrying...");
+                currentState = CONNECT_MQTT; // Explicit: stay in this state
+                delay(2000); // Simple retry delay for now
+            }
+            break;
+
+        case PROCESS_COMMANDS:
+            Serial.println("State: PROCESS_COMMANDS");
+            if (!g_actuatorsToProcessQueue.empty()) {
+                // Process one command from the queue
+                ActuatorControlPoint* actuatorToProcess = g_actuatorsToProcessQueue.front();
+                g_actuatorsToProcessQueue.pop();
+                g_actuatorsInProcessQueueSet.erase(actuatorToProcess);
+                
+                // Get the latest command for this actuator
+                String latestPayload = g_pendingActuatorCommands[actuatorToProcess];
+                
+                Serial.print("Processing command '");
+                Serial.print(latestPayload);
+                Serial.print("' for: ");
+                Serial.println(actuatorToProcess->getPointName());
+                
+                // Execute the command on the actuator
+                if (actuatorToProcess->executeDeviceCommand(latestPayload)) {
+                    // Command executed successfully - create readback using the payload we know succeeded
+                    String timestamp = ntpService.getFormattedISO8601Time();
+                    
+                    PublishData readback(
+                        actuatorToProcess->getReadbackTopic(),
+                        actuatorToProcess->getReadbackUUID(),
+                        latestPayload,  // Use the payload we know succeeded
+                        timestamp,
+                        actuatorToProcess
+                    );
+                    
+                    g_publishQueue.push(readback);
+                    
+                    Serial.print("Queued readback: ");
+                    Serial.print(latestPayload);
+                    Serial.print(" for topic: ");
+                    Serial.println(actuatorToProcess->getReadbackTopic());
+                } else {
+                    // Command execution failed, Note that bad payloads are simply ignored instead trying to be interpreted as something "safe" like "off"
+                    Serial.print("Command execution failed for payload: ");
+                    Serial.println(latestPayload);
+                    // Could add error handling/logging here in future
+                }
+                
+                // Remove the processed command (whether successful or not)
+                g_pendingActuatorCommands.erase(actuatorToProcess);
+                
+                // Transition to publish the readback (if any was created)
+                currentState = PUBLISH_DATA;
+            } else {
+                // No commands to process, go to wait state
+
+                currentState = WAIT;
+            }
+            break;
+
+        case PUBLISH_DATA:
+            Serial.println("State: PUBLISH_DATA");
+            if (!g_publishQueue.empty()) {
+                PublishData item = g_publishQueue.front();
+                g_publishQueue.pop();
+                
+                Serial.print("Publishing to ");
+                Serial.print(item.topic);
+                Serial.print(": ");
+                Serial.print(item.serializedValue);
+                Serial.print(" at ");
+                Serial.println(item.timestampIsoUtc);
+                
+                // Publish via MQTT using publishJson with the raw value
+                if (mqttService.publishJson(item.topic, item.timestampIsoUtc, item.serializedValue)) {
+                    Serial.println("Publish successful!");
+                    
+                    // Update the source actuator's last publish time
+                    if (item.sourceActuator != nullptr) {
+                        item.sourceActuator->setLastPublishTimeMillis(currentTime);
+                    }
+                } else {
+                    Serial.println("Publish failed!");
+                    // For now, just continue - could implement retry logic later
+                }
+                
+                // Check if there are more items to publish
+                if (!g_publishQueue.empty()) {
+                    currentState = PUBLISH_DATA; // Stay in this state
+                } else {
+                    currentState = WAIT; // Go to wait state
+                }
+            } else {
+                currentState = WAIT;
+            }
+            break;
+
+        case WAIT:
+            // Check if there are commands to process
+            if (!g_actuatorsToProcessQueue.empty()) {
+                currentState = PROCESS_COMMANDS;
+            } else if (!g_publishQueue.empty()) {
+                currentState = PUBLISH_DATA;
+            } else {
+                currentState = WAIT; // Explicit: stay in WAIT state
+            }
+            // Otherwise stay in WAIT state
+            break;
+
+        case RESTART:
+            Serial.println("State: RESTART - Restarting controller...");
+            delay(1000);
+            ESP.restart();
+            break;
+
+        default:
+            Serial.println("Unknown state! Going to RESTART");
+            currentState = RESTART;
+            break;
     }
 
-    // Periodically print the current time
-    if (currentTime - lastTimePrint >= PRINT_TIME_INTERVAL) {
-        if (ntpService.isTimeSet()) {
-            Serial.print(millis());
-            Serial.print(" - Current UTC Time: ");
-            Serial.println(ntpService.getFormattedISO8601Time());
-        } else {
-            Serial.print(millis());
-            Serial.println(" - NTP time not set.");
+    // Periodically try to update NTP
+    if (currentTime - lastNtpLoopUpdate >= NTP_LOOP_UPDATE_INTERVAL) {
+        if (ntpService.update()) {
+            Serial.println("NTP update successful.");
         }
-        lastTimePrint = currentTime;
+        lastNtpLoopUpdate = currentTime;
     }
 
     // Periodically print debug queue status
@@ -336,6 +441,5 @@ void loop() {
         lastDebugPrint = currentTime;
     }
 
-    // Placeholder for future FSM logic
     delay(10); 
 } 

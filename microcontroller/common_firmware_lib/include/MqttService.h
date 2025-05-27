@@ -6,7 +6,13 @@
 #include <PubSubClient.h>    // The MQTT client library
 #include "NtpService.h"      // To get timestamps for MQTT payloads
 #include "JsonBuilder.h"     // To build the JSON part of the payload
+#include <map>               // For topic-to-actuator mapping
+#include <queue>             // For command processing queue
+#include <set>               // For actuator tracking set
 // #include "CommandQueue.h" // Will be needed later for P1.C2.4
+
+// Forward declaration to avoid circular includes
+class ActuatorControlPoint;
 
 // Default MQTT configuration (will later come from autogen_config.h)
 #define MQTT_RECONNECT_INTERVAL 5000 // Milliseconds
@@ -14,19 +20,22 @@
 class MqttService {
 public:
     // Constructor: Takes MQTT broker details and client credentials.
-    // NtpService is no longer directly passed or stored here for publishJson timestamping,
-    // as timestamps will be provided by the caller to publishJson.
     MqttService(const char* client_id, 
                 const char* server, int port, 
                 const char* user = "", const char* password = "");
 
     // Initializes the MQTT client and sets the callback.
-    // Call after WiFi is connected.
     void begin();
 
+    // Set references to command management structures (called from main.cpp setup)
+    void setCommandManagement(
+        std::map<String, ActuatorControlPoint*>* topicToActuatorMap,
+        std::map<ActuatorControlPoint*, String>* pendingCommands,
+        std::queue<ActuatorControlPoint*>* processQueue,
+        std::set<ActuatorControlPoint*>* processSet
+    );
+
     // Main loop function for the MQTT client. Call this regularly.
-    // Primarily processes incoming/outgoing MQTT messages and keepalives via mqttClient.loop().
-    // Does NOT automatically attempt to reconnect; FSM should call connectBroker() for that.
     bool loop();
 
     // Attempts to connect to the MQTT broker. Performs a single connection attempt.
@@ -48,12 +57,14 @@ public:
     bool publishJson(const char* topic, const String& timestamp_utc, double value, int decimalPlaces = 2);
     bool publishJson(const char* topic, const String& timestamp_utc, bool value);
 
-    // TODO: Add subscribe and more sophisticated callback mechanisms later based on P1.C2.4
+    // Subscribe to a topic for receiving commands
+    // Returns true if subscription was successful, false otherwise
+    bool subscribe(const char* topic);
 
 private:
     WiFiClient wifiClient;      // Underlying TCP client for MQTT
     PubSubClient mqttClient;    // The actual MQTT client
-    // NtpService* _ntpService; // No longer needed here for publishJson timestamping
+
 
     // MQTT Connection Parameters
     String _clientId;
@@ -62,11 +73,16 @@ private:
     String _user;
     String _password;
 
+    // References to command management structures (set by main.cpp)
+    std::map<String, ActuatorControlPoint*>* _topicToActuatorMap;
+    std::map<ActuatorControlPoint*, String>* _pendingCommands;
+    std::queue<ActuatorControlPoint*>* _processQueue;
+    std::set<ActuatorControlPoint*>* _processSet;
+
     // Static callback function required by PubSubClient library.
-    // This will call the instance-specific callback.
     static void staticMqttCallback(char* topic, byte* payload, unsigned int length);
     
-    // Instance-specific callback to handle incoming messages.
+    // Instance-specific callback - handles command processing internally
     void instanceMqttCallback(char* topic, byte* payload, unsigned int length);
 
     // Static pointer to the current instance, for the static callback to use.
