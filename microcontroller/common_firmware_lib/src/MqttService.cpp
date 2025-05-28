@@ -199,12 +199,12 @@ void MqttService::instanceMqttCallback(char* topic, byte* payload, unsigned int 
 
 // --- publishJson Implementations ---
 
-bool MqttService::publishJson(const char* topic, const String& timestamp_utc, const char* value) {
+bool MqttService::publishJson(const char* topic, const String& timestamp_utc, const String& uuid, const char* value) {
     if (!isConnected()) {
         Serial.println("MQTT not connected. Cannot publish.");
         return false;
     }
-    String payload = JsonBuilder::buildPayload(timestamp_utc, value);
+    String payload = JsonBuilder::buildPayload(timestamp_utc, uuid, value);
     if (payload.indexOf("error") != -1 && payload.startsWith("{")) { // Basic check for error JSON
         Serial.print("JsonBuilder error: "); Serial.println(payload);
         return false;
@@ -213,28 +213,62 @@ bool MqttService::publishJson(const char* topic, const String& timestamp_utc, co
     return mqttClient.publish(topic, payload.c_str());
 }
 
-bool MqttService::publishJson(const char* topic, const String& timestamp_utc, String value) {
-    return publishJson(topic, timestamp_utc, value.c_str());
+bool MqttService::publishJson(const char* topic, const String& timestamp_utc, const String& uuid, String value) {
+    return publishJson(topic, timestamp_utc, uuid, value.c_str());
 }
 
-bool MqttService::publishJson(const char* topic, const String& timestamp_utc, int value) {
-    // Convert int to string for JsonBuilder
-    char buffer[12];
-    sprintf(buffer, "%d", value);
-    return publishJson(topic, timestamp_utc, buffer);
+bool MqttService::publishJson(const char* topic, const String& timestamp_utc, const String& uuid, int value) {
+    // Use JsonBuilder directly instead of converting to string first
+    if (!isConnected()) {
+        Serial.println("MQTT not connected. Cannot publish.");
+        return false;
+    }
+    String payload = JsonBuilder::buildPayload(timestamp_utc, uuid, value);
+    if (payload.indexOf("error") != -1 && payload.startsWith("{")) { // Basic check for error JSON
+        Serial.print("JsonBuilder error: "); Serial.println(payload);
+        return false;
+    }
+    return mqttClient.publish(topic, payload.c_str());
 }
 
-bool MqttService::publishJson(const char* topic, const String& timestamp_utc, float value, int decimalPlaces) {
-    // Convert float to string for JsonBuilder
-    char buffer[32];
-    dtostrf(value, 0, decimalPlaces, buffer);
-    return publishJson(topic, timestamp_utc, buffer);
+bool MqttService::publishJson(const char* topic, const String& timestamp_utc, const String& uuid, float value, int decimalPlaces) {
+    // Use JsonBuilder directly instead of converting to string first
+    if (!isConnected()) {
+        Serial.println("MQTT not connected. Cannot publish.");
+        return false;
+    }
+    String payload = JsonBuilder::buildPayload(timestamp_utc, uuid, value, decimalPlaces);
+    if (payload.indexOf("error") != -1 && payload.startsWith("{")) { // Basic check for error JSON
+        Serial.print("JsonBuilder error: "); Serial.println(payload);
+        return false;
+    }
+    return mqttClient.publish(topic, payload.c_str());
 }
 
-bool MqttService::publishJson(const char* topic, const String& timestamp_utc, double value, int decimalPlaces) {
-    return publishJson(topic, timestamp_utc, static_cast<float>(value), decimalPlaces);
+bool MqttService::publishJson(const char* topic, const String& timestamp_utc, const String& uuid, double value, int decimalPlaces) {
+    // Use JsonBuilder directly instead of converting to string first
+    if (!isConnected()) {
+        Serial.println("MQTT not connected. Cannot publish.");
+        return false;
+    }
+    String payload = JsonBuilder::buildPayload(timestamp_utc, uuid, value, decimalPlaces);
+    if (payload.indexOf("error") != -1 && payload.startsWith("{")) { // Basic check for error JSON
+        Serial.print("JsonBuilder error: "); Serial.println(payload);
+        return false;
+    }
+    return mqttClient.publish(topic, payload.c_str());
 }
 
-bool MqttService::publishJson(const char* topic, const String& timestamp_utc, bool value) {
-    return publishJson(topic, timestamp_utc, value ? "true" : "false");
-} 
+bool MqttService::publishJson(const char* topic, const String& timestamp_utc, const String& uuid, bool value) {
+    // Use JsonBuilder directly instead of converting to string first
+    if (!isConnected()) {
+        Serial.println("MQTT not connected. Cannot publish.");
+        return false;
+    }
+    String payload = JsonBuilder::buildPayload(timestamp_utc, uuid, value);
+    if (payload.indexOf("error") != -1 && payload.startsWith("{")) { // Basic check for error JSON
+        Serial.print("JsonBuilder error: "); Serial.println(payload);
+        return false;
+    }
+    return mqttClient.publish(topic, payload.c_str());
+}

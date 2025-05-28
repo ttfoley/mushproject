@@ -412,7 +412,7 @@ void loop() {
                 Serial.println(item.timestampIsoUtc);
                 
                 // Publish via MQTT using publishJson with the raw value
-                if (mqttService.publishJson(item.topic, item.timestampIsoUtc, item.serializedValue)) {
+                if (mqttService.publishJson(item.topic, item.timestampIsoUtc, item.uuid, item.serializedValue)) {
                     Serial.println("Publish successful!");
                     
                     // Update the source actuator's last publish time

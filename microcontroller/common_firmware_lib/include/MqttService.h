@@ -47,15 +47,15 @@ public:
     bool isConnected();
 
     // Publishes a JSON payload to the specified topic.
-    // The caller is responsible for providing the correct timestamp_utc.
+    // The caller is responsible for providing the correct timestamp_utc and UUID.
     // These methods will use JsonBuilder to construct the ADR-10 payload and then publish it.
     // Returns true if publishing was successful (or at least attempted without immediate error).
-    bool publishJson(const char* topic, const String& timestamp_utc, const char* value);
-    bool publishJson(const char* topic, const String& timestamp_utc, String value);
-    bool publishJson(const char* topic, const String& timestamp_utc, int value);
-    bool publishJson(const char* topic, const String& timestamp_utc, float value, int decimalPlaces = 2);
-    bool publishJson(const char* topic, const String& timestamp_utc, double value, int decimalPlaces = 2);
-    bool publishJson(const char* topic, const String& timestamp_utc, bool value);
+    bool publishJson(const char* topic, const String& timestamp_utc, const String& uuid, const char* value);
+    bool publishJson(const char* topic, const String& timestamp_utc, const String& uuid, String value);
+    bool publishJson(const char* topic, const String& timestamp_utc, const String& uuid, int value);
+    bool publishJson(const char* topic, const String& timestamp_utc, const String& uuid, float value, int decimalPlaces = 2);
+    bool publishJson(const char* topic, const String& timestamp_utc, const String& uuid, double value, int decimalPlaces = 2);
+    bool publishJson(const char* topic, const String& timestamp_utc, const String& uuid, bool value);
 
     // Subscribe to a topic for receiving commands
     // Returns true if subscription was successful, false otherwise

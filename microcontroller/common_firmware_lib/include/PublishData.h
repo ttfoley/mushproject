@@ -17,7 +17,7 @@ class SensorPoint;
  */
 struct PublishData {
     const char* topic;              // MQTT topic to publish to
-    const char* uuid;               // Point UUID for ADR-10 payload
+    const char* uuid;               // Futurepoofing
     String serializedValue;         // "on", "off", "23.5", etc.
     String timestampIsoUtc;         // YYYY-MM-DDTHH:MM:SS.sssZ
     ActuatorControlPoint* sourceActuator;  // nullptr if not from actuator
