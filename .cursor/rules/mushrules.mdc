@@ -6,6 +6,7 @@ alwaysApply: true
 Don't ever make changes I don't explictly ask you to.
 Don't delete comments unless I ask you to. 
 Don't try to "improve" things that I don't ask you to. Focus on the change I'm currently requesting.
+Don't making changes deeper than one 2 levels from the code presently being considered without first laying out your plan and asking for approval. 
 
 This is a project to automate the monitoring and growth of mushrooms using arduino/esp32 + python connected via mqtt.
 

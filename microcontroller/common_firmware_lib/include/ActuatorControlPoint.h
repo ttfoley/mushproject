@@ -29,7 +29,9 @@ private:
     
     // FSM-managed timestamps (no hardware state stored here)
     unsigned long _lastPublishTimeMillis;        // Set by FSM after confirmed publish of readback
-    unsigned long _lastRepublishCheckTimeMillis; // Set by FSM after FSM checks for republish necessity
+    
+    // Last successful payload for periodic republishing (logging only, not control logic)
+    String _lastSuccessfulPayload;              // Set only in executeDeviceCommand() on success
     
 public:
     /**
@@ -90,12 +92,11 @@ public:
     // FSM-managed timestamp methods
     void setLastPublishTimeMillis(unsigned long time);
     unsigned long getLastPublishTimeMillis() const;
-    void setLastRepublishCheckTimeMillis(unsigned long time);
-    unsigned long getLastRepublishCheckTimeMillis() const;
     
     /**
      * Simple method for FSM to check if it's time to republish this actuator's readback.
-     * Returns true if (millis() - _lastRepublishCheckTimeMillis >= _outputRepublishFrequencyMillis)
+     * Returns true if (millis() - _lastPublishTimeMillis >= _outputRepublishFrequencyMillis)
+     * doesn't distinguish between what "caused" the last publish, only that it's time to republish
      */
     bool isTimeToRepublish() const;
     
@@ -104,6 +105,11 @@ public:
      * if _maxTimeNoPublishMillis > 0. Called by FSM.
      */
     bool hasNoPublishTimeoutOccurred() const;
+    
+    // Last successful payload methods (for periodic republishing logging)
+    bool isLastStateSet() const;                 // Returns true if _lastSuccessfulPayload is not empty
+    String getLastSuccessfulPayload() const;     // Returns the last successful payload ("on" or "off")
+    void setLastSuccessfulPayload(const String& payload);  // Sets the last successful payload
 };
 
 #endif // ACTUATOR_CONTROL_POINT_H 

@@ -95,8 +95,6 @@ unsigned long stateStartTime = 0;  // For state timeouts
 // EXISTING CONFIGURATION AND SERVICES
 // =============================================================================
 
-// MQTT Configuration (will later come from autogen_config.h)
-const char* MQTT_HUMIDIFIER_READBACK_TOPIC = "mush/controllers/C2/control_points/CP_25/readback/raw/value";
 
 // MQTT Connection Retry Logic for Setup
 const unsigned long MQTT_CONNECT_RETRY_INTERVAL_MS = 2000; // How often to call connectBroker()
@@ -262,6 +260,34 @@ void printPublishQueueStatus() {
     Serial.println("--- End Publish Queue Status ---\n");
 }
 
+// =============================================================================
+// CONNECTIVITY AND PERIODIC FUNCTIONS
+// =============================================================================
+
+bool isWiFiConnected() {
+    return true; // Skeleton - just return true for now
+}
+
+bool isMqttConnected() {
+    return true; // Skeleton - just return true for now  
+}
+
+void checkPeriodicRepublishing() {
+    for (ActuatorControlPoint* actuator : g_actuatorPoints) {
+        if (actuator->isTimeToRepublish() && actuator->isLastStateSet()) {
+            String timestamp = ntpService.getFormattedISO8601Time();
+            PublishData periodicReadback(
+                actuator->getReadbackTopic(),
+                actuator->getReadbackUUID(),
+                actuator->getLastSuccessfulPayload(),
+                timestamp,
+                actuator
+            );
+            g_publishQueue.push(periodicReadback);
+        }
+    }
+}
+
 void setup() {
     Serial.begin(115200);
     while (!Serial); // Wait for serial to connect (especially for some boards)
@@ -297,6 +323,11 @@ void loop() {
 
     // Main FSM Logic
     switch (currentState) {
+        case CONNECT_WIFI:
+            // Skeleton - just transition back to WAIT for now
+            currentState = WAIT;
+            break;
+
         case CONNECT_MQTT:
             Serial.println("State: CONNECT_MQTT");
             if (mqttService.connectBroker()) {
@@ -329,7 +360,9 @@ void loop() {
                 
                 // Execute the command on the actuator
                 if (actuatorToProcess->executeDeviceCommand(latestPayload)) {
-                    // Command executed successfully - create readback using the payload we know succeeded
+                    // Command executed successfully - store the successful payload and create readback
+                    actuatorToProcess->setLastSuccessfulPayload(latestPayload);
+                    
                     String timestamp = ntpService.getFormattedISO8601Time();
                     
                     PublishData readback(
@@ -403,15 +436,22 @@ void loop() {
             break;
 
         case WAIT:
-            // Check if there are commands to process
-            if (!g_actuatorsToProcessQueue.empty()) {
+            // Check connectivity first (highest priority)
+            if (!isWiFiConnected()) {
+                currentState = CONNECT_WIFI;
+            } else if (!isMqttConnected()) {
+                currentState = CONNECT_MQTT;
+            }
+            // Check for work to do
+            else if (!g_actuatorsToProcessQueue.empty()) {
                 currentState = PROCESS_COMMANDS;
             } else if (!g_publishQueue.empty()) {
                 currentState = PUBLISH_DATA;
             } else {
-                currentState = WAIT; // Explicit: stay in WAIT state
+                // Check for periodic republishing (lowest priority)
+                checkPeriodicRepublishing();
+                currentState = WAIT;
             }
-            // Otherwise stay in WAIT state
             break;
 
         case RESTART:

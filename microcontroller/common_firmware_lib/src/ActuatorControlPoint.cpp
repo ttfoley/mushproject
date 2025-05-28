@@ -19,7 +19,7 @@ ActuatorControlPoint::ActuatorControlPoint(int pin,
       _outputRepublishFrequencyMillis(outputRepublishFrequencyMillis),
       _maxTimeNoPublishMillis(maxTimeNoPublishMillis),
       _lastPublishTimeMillis(0),                  // Initialize to 0
-      _lastRepublishCheckTimeMillis(0)            // Initialize to 0
+      _lastSuccessfulPayload("")                  // Initialize to empty string
 {
     // Constructor initialization complete via member initializer list
 }
@@ -119,22 +119,14 @@ unsigned long ActuatorControlPoint::getLastPublishTimeMillis() const {
     return _lastPublishTimeMillis;
 }
 
-void ActuatorControlPoint::setLastRepublishCheckTimeMillis(unsigned long time) {
-    _lastRepublishCheckTimeMillis = time;
-}
-
-unsigned long ActuatorControlPoint::getLastRepublishCheckTimeMillis() const {
-    return _lastRepublishCheckTimeMillis;
-}
-
 bool ActuatorControlPoint::isTimeToRepublish() const {
     // Simple method for FSM to check if it's time to republish this actuator's readback
-    // Returns true if (millis() - _lastRepublishCheckTimeMillis >= _outputRepublishFrequencyMillis)
+    // Returns true if (millis() - _lastPublishTimeMillis >= _outputRepublishFrequencyMillis)
     
     unsigned long currentTime = millis();
-    unsigned long timeSinceLastCheck = currentTime - _lastRepublishCheckTimeMillis;
+    unsigned long timeSinceLastPublish = currentTime - _lastPublishTimeMillis;
     
-    return timeSinceLastCheck >= _outputRepublishFrequencyMillis;
+    return timeSinceLastPublish >= _outputRepublishFrequencyMillis;
 }
 
 bool ActuatorControlPoint::hasNoPublishTimeoutOccurred() const {
@@ -150,4 +142,16 @@ bool ActuatorControlPoint::hasNoPublishTimeoutOccurred() const {
     unsigned long timeSinceLastPublish = currentTime - _lastPublishTimeMillis;
     
     return timeSinceLastPublish > _maxTimeNoPublishMillis;
+}
+
+bool ActuatorControlPoint::isLastStateSet() const {
+    return !_lastSuccessfulPayload.isEmpty();
+}
+
+String ActuatorControlPoint::getLastSuccessfulPayload() const {
+    return _lastSuccessfulPayload;
+}
+
+void ActuatorControlPoint::setLastSuccessfulPayload(const String& payload) {
+    _lastSuccessfulPayload = payload;
 } 
