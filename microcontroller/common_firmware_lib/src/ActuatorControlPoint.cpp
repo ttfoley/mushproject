@@ -28,6 +28,11 @@ void ActuatorControlPoint::initialize() {
     // Called by FSM in SETUP_HW state
     // ONLY sets up pin mode - does NOT control hardware directly
     // FSM will queue initial command and process it through normal command flow
+    Serial.print("Initializing pin ");
+    Serial.print(_pin);
+    Serial.print(" for actuator: ");
+    Serial.println(_pointName);
+    
     pinMode(_pin, _pinMode);
     
     // DO NOT call digitalWrite() here - that's the FSM's job through executeDeviceCommand()
@@ -51,6 +56,8 @@ bool ActuatorControlPoint::executeDeviceCommand(const String& commandPayload) {
         return true;
     } else {
         // Invalid command payload - return failure
+        Serial.print("Invalid command payload: ");
+        Serial.println(commandPayload);
         return false;
     }
 }

@@ -7,6 +7,7 @@
 #include "MqttService.h" // For MQTT communication
 #include "ActuatorControlPoint.h" // For actuator management
 #include "PublishData.h" // For publish queue
+#include "RestartReasonLogger.h" // For persistent restart reason logging
 #include <map>
 #include <queue>
 #include <set>
@@ -81,6 +82,7 @@ enum State {
     CONNECT_WIFI,       // WiFi connection (done in setup())  
     SYNC_NTP,           // NTP synchronization (done in setup())
     CONNECT_MQTT,       // MQTT broker connection
+    PUBLISH_BOOT_STATUS, // Publish boot status (restart reason) - runs once after MQTT connection
     PROCESS_COMMANDS,   // Process queued actuator commands
     PUBLISH_DATA,       // Publish data from publish queue
     OPERATIONAL_PERIODIC_CHECKS, // Periodic maintenance tasks
@@ -88,8 +90,22 @@ enum State {
     RESTART             // Restart the controller
 };
 
-State currentState = CONNECT_MQTT; // Start with MQTT connection since setup() handles initial states
+State currentState = CONNECT_WIFI; // Start with WiFi connection - consistent startup sequence
 unsigned long stateStartTime = 0;  // For state timeouts
+
+// =============================================================================
+// FSM STATE ATTEMPT COUNTERS
+// =============================================================================
+
+// WiFi connection attempts
+static unsigned int wifiAttempts = 0;
+static const unsigned int MAX_WIFI_ATTEMPTS = 10; // Finite attempts before restart
+static const unsigned long WIFI_ATTEMPT_TIMEOUT_MS = 20000; // 20 seconds per attempt
+
+// NTP sync attempts  
+static unsigned int ntpAttempts = 0;
+static const unsigned int MAX_NTP_ATTEMPTS = 5; // Finite attempts before restart
+static const unsigned long NTP_ATTEMPT_TIMEOUT_MS = 30000; // 30 seconds per attempt
 
 // =============================================================================
 // EXISTING CONFIGURATION AND SERVICES
@@ -104,6 +120,9 @@ NtpService ntpService;
 MqttService mqttService(MQTT_CLIENT_ID, MQTT_BROKER_ADDRESS, MQTT_BROKER_PORT, 
                         MQTT_USERNAME, MQTT_PASSWORD);
 
+// Restart reason logger for persistent error logging (ADR-14, ADR-17)
+RestartReasonLogger restartLogger;
+
 // How often to attempt NTP update in the loop (milliseconds)
 const unsigned long NTP_LOOP_UPDATE_INTERVAL = 60000; // Every 60 seconds
 unsigned long lastNtpLoopUpdate = 0;
@@ -111,62 +130,6 @@ unsigned long lastNtpLoopUpdate = 0;
 // How often to print debug queue status (milliseconds)
 const unsigned long DEBUG_QUEUE_INTERVAL = 30000; // Every 30 seconds
 unsigned long lastDebugPrint = 0;
-
-void setupWifi() {
-    Serial.print("Connecting to WiFi: ");
-    Serial.println(WIFI_SSID);
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-    unsigned long startTime = millis();
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-        if (millis() - startTime > 20000) { // 20 second timeout
-            Serial.println("\nWiFi connection FAILED. Restarting...");
-            // In a real FSM, this would trigger RestartReasonLogger.storeRestartReason(WIFI_TIMEOUT);
-            // and then ESP.restart();
-            delay(1000);
-            ESP.restart(); 
-        }
-    }
-    Serial.println("\nWiFi connected!");
-    Serial.print("IP Address: ");
-    Serial.println(WiFi.localIP());
-}
-
-void setupNtp() {
-    Serial.println("Initializing NTP Service...");
-    ntpService.begin();
-
-    Serial.println("Attempting initial NTP synchronization...");
-    unsigned long startTime = millis();
-    bool initialSyncDone = false;
-    while(!initialSyncDone) {
-        // NtpService.update() internally calls timeClient.update()
-        // It's non-blocking in the sense that timeClient.update() is.
-        // We need to call it until isTimeSet() is true or we timeout.
-        ntpService.update(); 
-        if (ntpService.isTimeSet()) {
-            Serial.println("\nInitial NTP sync successful!");
-            Serial.print("Current UTC Time (from getFormattedISO8601Time): ");
-            Serial.println(ntpService.getFormattedISO8601Time());
-            Serial.print("Current Epoch Time (from getEpochTime -> gettimeofday): ");
-            Serial.println(ntpService.getEpochTime());
-            initialSyncDone = true;
-        } else {
-            Serial.print("u"); // Update attempt
-        }
-        
-        if (millis() - startTime > 30000 && !initialSyncDone) { // 30 second timeout for initial sync
-            Serial.println("\nInitial NTP sync FAILED after timeout.");
-            // In a real FSM, this would trigger RestartReasonLogger.storeRestartReason(NTP_TIMEOUT);
-            // and potentially lead to a restart or other error handling.
-            // For now, we proceed, but time will be unsynchronized.
-            break; 
-        }
-        delay(1000); // Wait a bit between attempts
-    }
-}
 
 void setupActuators() {
     Serial.println("Initializing Actuator Control Points...");
@@ -265,15 +228,26 @@ void printPublishQueueStatus() {
 // =============================================================================
 
 bool isWiFiConnected() {
-    return true; // Skeleton - just return true for now
+    return WiFi.status() == WL_CONNECTED;
 }
 
 bool isMqttConnected() {
-    return true; // Skeleton - just return true for now  
+    return mqttService.isConnected();
 }
 
 void checkPeriodicRepublishing() {
     for (ActuatorControlPoint* actuator : g_actuatorPoints) {
+        // Check for no-publish timeout first (ADR-18, P1.C2.7)
+        if (actuator->hasNoPublishTimeoutOccurred()) {
+            Serial.print("No-publish timeout occurred for actuator: ");
+            Serial.println(actuator->getPointName());
+            Serial.println("Storing restart reason and transitioning to RESTART...");
+            restartLogger.storeRestartReason(NOPUBLISH_TIMEOUT, ntpService);
+            currentState = RESTART;
+            return; // Exit immediately - don't continue checking other actuators
+        }
+        
+        // Check for periodic republishing
         if (actuator->isTimeToRepublish() && actuator->isLastStateSet()) {
             String timestamp = ntpService.getFormattedISO8601Time();
             PublishData periodicReadback(
@@ -293,8 +267,7 @@ void setup() {
     while (!Serial); // Wait for serial to connect (especially for some boards)
     Serial.println("\n\n--- Controller C2 (Refactored) Starting ---");
 
-    setupWifi();
-    setupNtp();
+    // Hardware initialization only - connectivity handled by FSM
     setupActuators();
     
     // Debug: Print command queue status after setup
@@ -312,8 +285,10 @@ void setup() {
     );
 
     Serial.println("Setup complete. Entering main FSM loop...");
+    Serial.println("FSM will handle: WiFi -> NTP -> MQTT -> Boot Status -> Normal Operation");
     lastNtpLoopUpdate = millis(); // Initialize for loop updates
     lastDebugPrint = millis(); // Initialize debug timer
+    stateStartTime = millis(); // Initialize state timing for first FSM state
 }
 
 void loop() {
@@ -324,23 +299,154 @@ void loop() {
     // Main FSM Logic
     switch (currentState) {
         case CONNECT_WIFI:
-            // Skeleton - just transition back to WAIT for now
-            currentState = WAIT;
+            Serial.println("State: CONNECT_WIFI");
+            
+            // Check if WiFi is already connected
+            if (WiFi.status() == WL_CONNECTED) {
+                Serial.println("WiFi connected successfully!");
+                Serial.print("IP Address: ");
+                Serial.println(WiFi.localIP());
+                wifiAttempts = 0; // Reset for next time
+                currentState = SYNC_NTP;
+                stateStartTime = currentTime;
+                break;
+            }
+            
+            // Check if this is a new attempt or timeout
+            if (wifiAttempts == 0 || (currentTime - stateStartTime > WIFI_ATTEMPT_TIMEOUT_MS)) {
+                if (wifiAttempts >= MAX_WIFI_ATTEMPTS) {
+                    Serial.print("WiFi connection failed after ");
+                    Serial.print(MAX_WIFI_ATTEMPTS);
+                    Serial.println(" attempts. Storing restart reason and restarting...");
+                    restartLogger.storeRestartReason(WIFI_TIMEOUT, ntpService);
+                    currentState = RESTART;
+                    break;
+                }
+                
+                // Start new WiFi attempt
+                wifiAttempts++;
+                Serial.print("WiFi connection attempt ");
+                Serial.print(wifiAttempts);
+                Serial.print(" of ");
+                Serial.print(MAX_WIFI_ATTEMPTS);
+                Serial.print(" - Connecting to: ");
+                Serial.println(WIFI_SSID);
+                
+                WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+                stateStartTime = currentTime; // Reset timer for this attempt
+            } else {
+                // Still waiting for current attempt
+                Serial.print(".");
+            }
+            break;
+
+        case SYNC_NTP:
+            Serial.println("State: SYNC_NTP");
+            
+            // Initialize NTP service if this is the first attempt
+            if (ntpAttempts == 0) {
+                Serial.println("Initializing NTP Service...");
+                ntpService.begin();
+                ntpAttempts = 1;
+                stateStartTime = currentTime;
+            }
+            
+            // Try to update/sync NTP
+            ntpService.update();
+            
+            // Check if NTP is now synchronized
+            if (ntpService.isTimeSet()) {
+                Serial.println("NTP sync successful!");
+                Serial.print("Current UTC Time: ");
+                Serial.println(ntpService.getFormattedISO8601Time());
+                Serial.print("Current Epoch Time: ");
+                Serial.println(ntpService.getEpochTime());
+                ntpAttempts = 0; // Reset for next time
+                currentState = CONNECT_MQTT;
+                stateStartTime = currentTime;
+                break;
+            }
+            
+            // Check for timeout on current attempt
+            if (currentTime - stateStartTime > NTP_ATTEMPT_TIMEOUT_MS) {
+                if (ntpAttempts >= MAX_NTP_ATTEMPTS) {
+                    Serial.print("NTP sync failed after ");
+                    Serial.print(MAX_NTP_ATTEMPTS);
+                    Serial.println(" attempts. Storing restart reason and restarting...");
+                    restartLogger.storeRestartReason(NTP_TIMEOUT, ntpService);
+                    currentState = RESTART;
+                    break;
+                }
+                
+                // Start new NTP attempt
+                ntpAttempts++;
+                Serial.print("NTP sync attempt ");
+                Serial.print(ntpAttempts);
+                Serial.print(" of ");
+                Serial.print(MAX_NTP_ATTEMPTS);
+                Serial.println(" - Retrying...");
+                stateStartTime = currentTime; // Reset timer for this attempt
+            } else {
+                // Still waiting for current attempt
+                Serial.print("n"); // NTP attempt indicator
+            }
             break;
 
         case CONNECT_MQTT:
             Serial.println("State: CONNECT_MQTT");
+            
             if (mqttService.connectBroker()) {
                 Serial.println("MQTT connected successfully!");
                 setupSubscriptions(); // Subscribe to all actuator WRITE topics
-                currentState = PROCESS_COMMANDS;
+                currentState = PUBLISH_BOOT_STATUS; // Publish boot status first
                 stateStartTime = currentTime;
             } else {
                 Serial.println("MQTT connection failed, retrying...");
-                currentState = CONNECT_MQTT; // Explicit: stay in this state
-                delay(2000); // Simple retry delay for now
+                
+                // Check for MQTT timeout (using constant from autogen_config.h)
+                if (currentTime - stateStartTime > MQTT_CONNECT_TIMEOUT_MS) {
+                    Serial.println("MQTT connection timeout exceeded. Storing restart reason and restarting...");
+                    restartLogger.storeRestartReason(MQTT_TIMEOUT, ntpService);
+                    currentState = RESTART;
+                } else {
+                    currentState = CONNECT_MQTT; // Explicit: stay in this state
+                    delay(2000); // Simple retry delay for now
+                }
             }
             break;
+
+        case PUBLISH_BOOT_STATUS: {
+            Serial.println("State: PUBLISH_BOOT_STATUS");
+            
+            // Always publish a restart reason - default to unknown if none stored
+            PublishData bootStatus;
+            if (restartLogger.hasStoredRestartReason()) {
+                Serial.println("Found stored restart reason, creating publish data...");
+                bootStatus = restartLogger.createPublishData(
+                    ntpService,
+                    TOPIC_C2_LastRestartReason_DATA,
+                    UUID_C2_LastRestartReason_DATA
+                );
+            } else {
+                Serial.println("No stored restart reason found, defaulting to unknown_reset");
+                // Create PublishData for unknown restart reason
+                String timestamp = ntpService.getFormattedISO8601Time();
+                String reasonString = RestartReasonLogger::restartReasonToString(UNKNOWN_RESET);
+                bootStatus = PublishData(
+                    TOPIC_C2_LastRestartReason_DATA,
+                    UUID_C2_LastRestartReason_DATA,
+                    reasonString,
+                    timestamp
+                );
+            }
+            
+            g_publishQueue.push(bootStatus);
+            Serial.println("Restart reason queued for publishing");
+            
+            // Transition to normal operation
+            currentState = PROCESS_COMMANDS;
+            break;
+        }
 
         case PROCESS_COMMANDS:
             Serial.println("State: PROCESS_COMMANDS");
@@ -400,6 +506,15 @@ void loop() {
 
         case PUBLISH_DATA:
             Serial.println("State: PUBLISH_DATA");
+            
+            // Check MQTT connection first - if not connected, transition to reconnect
+            if (!mqttService.isConnected()) {
+                Serial.println("MQTT not connected in PUBLISH_DATA state - transitioning to CONNECT_MQTT");
+                currentState = CONNECT_MQTT;
+                stateStartTime = currentTime;
+                break;
+            }
+            
             if (!g_publishQueue.empty()) {
                 PublishData item = g_publishQueue.front();
                 g_publishQueue.pop();
