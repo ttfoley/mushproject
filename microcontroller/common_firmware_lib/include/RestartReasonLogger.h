@@ -21,6 +21,7 @@ enum RestartReason {
     NOPUBLISH_TIMEOUT,      // No successful publish for too long (ADR-18)
     COMMAND_ERROR,          // Critical command processing error
     SENSOR_ERROR,           // Critical sensor error (for sensor controllers)
+    SENSOR_INIT_FAILED,     // Sensor initialization failed during setup
     USER_REQUESTED,         // Manual restart requested
     FIRMWARE_UPDATE         // Restart for firmware update
 };
