@@ -1,5 +1,5 @@
-#include "RestartReasonLogger.h"
-#include "NtpService.h"
+#include "services/RestartReasonLogger.h"
+#include "services/NtpService.h"
 #include <Preferences.h>
 
 // Static member definitions
@@ -124,6 +124,7 @@ String RestartReasonLogger::restartReasonToString(RestartReason reason) {
         case SENSOR_ERROR:      return "sensor_error";
         case USER_REQUESTED:    return "user_requested";
         case FIRMWARE_UPDATE:   return "firmware_update";
+        case MAINTENANCE_RESTART: return "maintenance_restart";
         case UNKNOWN_RESET:
         default:                return "unknown_reset";
     }

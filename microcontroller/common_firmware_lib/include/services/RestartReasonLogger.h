@@ -2,7 +2,7 @@
 #define RESTART_REASON_LOGGER_H
 
 #include <Arduino.h>
-#include "PublishData.h"
+#include "../PublishData.h"
 
 // Forward declarations
 class NtpService;
@@ -23,7 +23,8 @@ enum RestartReason {
     SENSOR_ERROR,           // Critical sensor error (for sensor controllers)
     SENSOR_INIT_FAILED,     // Sensor initialization failed during setup
     USER_REQUESTED,         // Manual restart requested
-    FIRMWARE_UPDATE         // Restart for firmware update
+    FIRMWARE_UPDATE,        // Restart for firmware update
+    MAINTENANCE_RESTART     // Scheduled maintenance restart (millis() overflow prevention)
 };
 
 /**

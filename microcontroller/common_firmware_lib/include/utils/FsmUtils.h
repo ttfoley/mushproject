@@ -7,8 +7,8 @@
 
 #include <Arduino.h>
 #include "autogen_config.h" // For FsmState enum
-#include "RestartReasonLogger.h" 
-#include "NtpService.h"
+#include "../services/RestartReasonLogger.h"
+#include "../services/NtpService.h"
 
 namespace FsmUtils {
 
@@ -26,6 +26,7 @@ namespace FsmUtils {
             case CONNECT_MQTT: return "CONNECT_MQTT";
             case PUBLISH_BOOT_STATUS: return "PUBLISH_BOOT_STATUS";
             case PROCESS_COMMANDS: return "PROCESS_COMMANDS";
+            case READ_SENSORS: return "READ_SENSORS";
             case PUBLISH_DATA: return "PUBLISH_DATA";
             case OPERATIONAL_PERIODIC_CHECKS: return "OPERATIONAL_PERIODIC_CHECKS";
             case WAIT: return "WAIT";
@@ -37,6 +38,7 @@ namespace FsmUtils {
     /**
      * Transition to a new FSM state with debug logging and optional timer reset
      * Ensures state changes are always logged, timer reset only when explicitly requested
+     * Only logs when there's an actual state change to prevent spam
      * 
      * @param currentState Reference to current state variable
      * @param newState The state to transition to
@@ -45,10 +47,13 @@ namespace FsmUtils {
      */
     inline void transitionToState(FsmState &currentState, FsmState newState, 
                                  unsigned long &stateStartTime, bool resetTimer = false) {
-        Serial.print("FSM: ");
-        Serial.print(stateToString(currentState));
-        Serial.print(" -> ");
-        Serial.println(stateToString(newState));
+        // Only log if there's an actual state change
+        if (currentState != newState) {
+            Serial.print("FSM: ");
+            Serial.print(stateToString(currentState));
+            Serial.print(" -> ");
+            Serial.println(stateToString(newState));
+        }
         
         currentState = newState;
         if (resetTimer) {

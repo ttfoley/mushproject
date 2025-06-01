@@ -44,6 +44,11 @@ The primary goal is to transition from any fragmented V1 configurations and appr
 - **Predictable Loop-Based Execution:** For core control logic, favor predictable timer-based/loop-based execution cycles, with specific decisions on event-driven aspects to be documented (e.g., in ADRs).
 - **State and Data Integrity through Verification:** Implement mechanisms at appropriate layers (e.g., Driver, Governor) to verify that system states and critical data points align with intended values or expected conditions. This includes 'readback' validation where actual outputs are compared against setpoints or desired states.
 - **Data Timeliness and Freshness:** Strive to ensure data used for control and monitoring is timely and fresh. Implement mechanisms to detect stale or unavailable data. While comprehensive automated handling of all stale data scenarios may be an enhancement for future versions, basic detection and reporting of data staleness are important for V2.
+- **Centralized State Management:** Within individual components, favor centralized state management patterns (e.g., Finite State Machines) over distributed state across multiple objects. Hidden or implicit state outside the main control flow should be minimized.
+- **Fail-Fast Design:** Components should be designed to fail quickly and predictably at startup rather than during operation. Initialize critical dependencies in order of importance and provide clear diagnostic information for failures.
+- **Single Path to Execution:** For any given operation (error handling, data publishing, hardware control), provide one and only one standardized mechanism. Avoid multiple pathways that could lead to inconsistent behavior or hidden state changes.
+- **Configuration-Driven Complexity:** Push complex logic into configuration generation and validation tools rather than embedding it in runtime components. Favor code generation over runtime interpretation where feasible.
+- **Queue-Based Decoupling:** Use well-defined queues and message passing to decouple data generation from data consumption, ensuring robust operation under varying timing conditions and preventing blocking operations.
 
 **4. Scope Boundaries (Initial V2 Focus)**
 

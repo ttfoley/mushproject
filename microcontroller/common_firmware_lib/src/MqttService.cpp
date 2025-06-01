@@ -1,6 +1,6 @@
-#include "MqttService.h"
+#include "services/MqttService.h"
 #include <Arduino.h> // For Serial, millis(), etc.
-#include "ActuatorControlPoint.h"
+#include "actuators/ActuatorControlPoint.h"
 
 // Initialize static member pointer. This is crucial for the static callback.
 MqttService* MqttService::_instance = nullptr;

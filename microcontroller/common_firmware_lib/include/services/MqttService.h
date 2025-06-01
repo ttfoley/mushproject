@@ -5,7 +5,7 @@
 #include <WiFiClient.h>      // For PubSubClient
 #include <PubSubClient.h>    // The MQTT client library
 #include "NtpService.h"      // To get timestamps for MQTT payloads
-#include "JsonBuilder.h"     // To build the JSON part of the payload
+#include "../utils/JsonBuilder.h"     // To build the JSON part of the payload
 #include <map>               // For topic-to-actuator mapping
 #include <queue>             // For command processing queue
 #include <set>               // For actuator tracking set

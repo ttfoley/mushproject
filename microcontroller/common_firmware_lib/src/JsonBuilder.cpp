@@ -1,4 +1,4 @@
-#include "JsonBuilder.h"
+#include "utils/JsonBuilder.h"
 // ArduinoJson.h is already included via JsonBuilder.h
 
 namespace JsonBuilder {

@@ -3,6 +3,7 @@
 
 #include "SensorPoint.h"
 #include "SensorReadTimes.h"
+#include "../SensorConfigs.h"  // For SHT85Config struct (up one level)
 #include <Adafruit_SHT31.h>  // Using SHT31 library for SHT85 (compatible)
 
 class SHT85SensorPoint : public SensorPoint {
@@ -25,21 +26,14 @@ private:
     bool _hasValidReading;
     
 public:
-    SHT85SensorPoint(uint8_t i2cAddress, 
-                     bool convertToFahrenheit,
-                     const char* temperatureTopic,
-                     const char* temperatureUUID,
-                     const char* humidityTopic,
-                     const char* humidityUUID,
-                     unsigned long publishIntervalMs,
-                     unsigned long mainLoopDelayMs)
-        : SensorPoint(SHT85_READ_TIME_MS, publishIntervalMs, mainLoopDelayMs)
-        , _i2cAddress(i2cAddress)
-        , _convertToFahrenheit(convertToFahrenheit)
-        , _temperatureTopic(temperatureTopic)
-        , _temperatureUUID(temperatureUUID)
-        , _humidityTopic(humidityTopic)
-        , _humidityUUID(humidityUUID)
+    SHT85SensorPoint(const SHT85Config& config)
+        : SensorPoint(SHT85_READ_TIME_MS, config.publish_interval_ms, config.main_loop_delay_ms)
+        , _i2cAddress(config.address)
+        , _convertToFahrenheit(config.c_to_f)
+        , _temperatureTopic(config.temp_topic)
+        , _temperatureUUID(config.temp_uuid)
+        , _humidityTopic(config.humidity_topic)
+        , _humidityUUID(config.humidity_uuid)
         , _lastTemperatureC(0.0)
         , _lastHumidity(0.0)
         , _hasValidReading(false) {}

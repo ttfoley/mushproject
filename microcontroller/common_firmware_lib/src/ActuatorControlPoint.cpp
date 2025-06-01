@@ -1,4 +1,4 @@
-#include "ActuatorControlPoint.h"
+#include "actuators/ActuatorControlPoint.h"
 
 ActuatorControlPoint::ActuatorControlPoint(int pin, 
                                          int pinMode, 

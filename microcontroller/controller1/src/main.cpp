@@ -1,16 +1,19 @@
 #include <Arduino.h>
-#include "NtpService.h" // Assuming NtpService.h is in common_firmware_lib/include
-                       // and common_firmware_lib is correctly linked.
+#include "services/NtpService.h" // NTP service for timestamping
 #include <WiFi.h>
 #include "autogen_config.h" // For WiFi credentials and MQTT configuration
-#include "JsonBuilder.h" // For testing ADR-10 JSON payload construction
-#include "MqttService.h" // For MQTT communication
+#include "SensorConfigs.h" // Sensor configuration structs
+#include "utils/JsonBuilder.h" // For testing ADR-10 JSON payload construction
+#include "services/MqttService.h" // For MQTT communication
 #include "PublishData.h" // For publish queue
-#include "RestartReasonLogger.h" // For persistent restart reason logging
-#include "FsmUtils.h" // For FSM utility functions
-#include "SensorPoint.h" // Base sensor class
-#include "SHT85SensorPoint.h" // SHT85 sensor implementation
-#include "SensorMacros.h" // Sensor creation macros
+#include "services/RestartReasonLogger.h" // For persistent restart reason logging
+#include "utils/FsmUtils.h" // For FSM utility functions
+#include "sensors/SensorPoint.h" // Base sensor class
+#include "sensors/SHT85SensorPoint.h" // SHT85 sensor implementation
+#include "sensors/BME280SensorPoint.h" // BME280 sensor implementation
+#include "sensors/DHT22SensorPoint.h" // DHT22 sensor implementation
+#include "sensors/DS18B20SensorPoint.h" // DS18B20 sensor implementation
+#include "utils/UniqueQueue.h" // For duplicate-free queue management
 #include <Wire.h> // For I2C
 #include <map>
 #include <queue>
@@ -27,8 +30,8 @@ using namespace FsmUtils;
 // Global vector to hold all sensor control points for this controller
 std::vector<SensorPoint*> g_sensorPoints;
 
-// Queue of sensors that need to be read
-std::queue<SensorPoint*> g_sensorsToReadQueue;
+// Queue of sensors that need to be read (prevents duplicates)
+UniqueQueue<SensorPoint*> g_sensorsToReadQueue;
 
 // Global publish queue for all outgoing MQTT messages
 std::queue<PublishData> g_publishQueue;
@@ -71,21 +74,36 @@ unsigned long lastNtpLoopUpdate = 0;
 // How often to print debug queue status (milliseconds)
 unsigned long lastDebugPrint = 0;
 
+// How often to run periodic maintenance checks (milliseconds)
+unsigned long lastPeriodicCheck = 0;
+
 void setupSensors() {
-    Serial.println("Creating Sensor Point instances...");
+    Serial.println("Creating sensor instances...");
     
-    // Create I2C sensor instances using X-Macro pattern
-    // Based on I2C_SENSOR_LIST from autogen_config.h
-    #define X(name) CREATE_AND_ADD_I2C_SENSOR(name);
-    I2C_SENSOR_LIST
-    #undef X
+    // === I2C Sensors ===
+    // SHT85 Temperature/Humidity Sensor (I2C address 0x44)
+    g_sensorPoints.push_back(new SHT85SensorPoint(SHT85_0_CONFIG));
+    Serial.println("Created SHT85 sensor (FruitingChamber)");
     
-    // TODO: Create DHT sensors using DHT_SENSOR_LIST
-    // TODO: Create OneWire sensors using ONEWIRE_SENSOR_LIST
+    // BME280 Temperature/Humidity/Pressure Sensor (I2C address 0x77)
+    g_sensorPoints.push_back(new BME280SensorPoint(BME280_1_CONFIG));
+    Serial.println("Created BME280 sensor (FruitingChamber)");
+    
+    // === DHT Sensors ===
+    // DHT22 Temperature/Humidity Sensor (Digital pin 27)
+    g_sensorPoints.push_back(new DHT22SensorPoint(DHT22_0_CONFIG));
+    Serial.println("Created DHT22 sensor (Outside)");
+    
+    // === OneWire Sensors ===
+    // DS18B20 Temperature Sensors (Digital pins 32 and 33)
+    g_sensorPoints.push_back(new DS18B20SensorPoint(DS18B20_0_CONFIG));
+    Serial.println("Created DS18B20_0 sensor (FruitingChamber)");
+    
+    g_sensorPoints.push_back(new DS18B20SensorPoint(DS18B20_1_CONFIG));
+    Serial.println("Created DS18B20_1 sensor (FruitingChamber)");
     
     Serial.print("Total sensors created: ");
     Serial.println(g_sensorPoints.size());
-    Serial.println("Sensor creation complete. Hardware initialization will happen in SETUP_HW state.");
 }
 
 void checkSensorsNeedingRead() {
@@ -93,8 +111,10 @@ void checkSensorsNeedingRead() {
     
     for (SensorPoint* sensor : g_sensorPoints) {
         if (sensor->needToRead(currentTime)) {
-            g_sensorsToReadQueue.push(sensor);
-            Serial.println("Sensor queued for reading");
+            if (g_sensorsToReadQueue.tryEnqueue(sensor)) {
+                Serial.println("Sensor queued for reading");
+            }
+            // If tryEnqueue returns false, sensor was already queued - no action needed
         }
     }
 }
@@ -175,7 +195,6 @@ void loop() {
             break;
 
         case CONNECT_WIFI:
-            Serial.println("State: CONNECT_WIFI");
             
             // Check if WiFi is already connected
             if (WiFi.status() == WL_CONNECTED) {
@@ -207,8 +226,6 @@ void loop() {
             break;
 
         case SYNC_NTP:
-            Serial.println("State: SYNC_NTP");
-            
             // Initialize NTP service if this is the first attempt
             if (ntpAttempts == 0) {
                 Serial.println("Initializing NTP Service...");
@@ -249,8 +266,6 @@ void loop() {
             break;
 
         case CONNECT_MQTT:
-            Serial.println("State: CONNECT_MQTT");
-            
             if (mqttService.connectBroker()) {
                 Serial.println("MQTT connected successfully!");
                 // Note: C1 doesn't need to subscribe to any topics since it's sensor-only
@@ -275,8 +290,6 @@ void loop() {
             break;
 
         case PUBLISH_BOOT_STATUS: {
-            Serial.println("State: PUBLISH_BOOT_STATUS");
-            
             // Always publish a restart reason - default to unknown if none stored
             PublishData bootStatus;
             if (restartLogger.hasStoredRestartReason()) {
@@ -309,11 +322,8 @@ void loop() {
         }
 
         case READ_SENSORS:
-            Serial.println("State: READ_SENSORS");
-            
             if (!g_sensorsToReadQueue.empty()) {
-                SensorPoint* sensor = g_sensorsToReadQueue.front();
-                g_sensorsToReadQueue.pop();
+                SensorPoint* sensor = g_sensorsToReadQueue.dequeue();
                 
                 Serial.println("Reading sensor...");
                 sensor->updateLastReadAttempt(currentTime);
@@ -339,21 +349,15 @@ void loop() {
                     Serial.println("Sensor read failed - will retry next cycle");
                 }
                 
-                // Check if there are more sensors to read
-                if (!g_sensorsToReadQueue.empty()) {
-                    currentState = READ_SENSORS; // Stay in this state
-                } else {
-                    currentState = PUBLISH_DATA; // Move to publish
-                }
+                // Always transition to WAIT to let FSM decide what's next
+                transitionToState(currentState, WAIT, stateStartTime);
             } else {
-                // No sensors to read, go to publish what we have (if any)
-                currentState = PUBLISH_DATA;
+                // No sensors to read, go to publish what we have (if any) or wait
+                transitionToState(currentState, WAIT, stateStartTime);
             }
             break;
 
         case PUBLISH_DATA:
-            Serial.println("State: PUBLISH_DATA");
-            
             // Check MQTT connection first - if not connected, transition to reconnect
             if (!mqttService.isConnected()) {
                 Serial.println("MQTT not connected in PUBLISH_DATA state - transitioning to CONNECT_MQTT");
@@ -382,35 +386,57 @@ void loop() {
                     // For now, just continue - could implement retry logic later
                 }
                 
-                // Check if there are more items to publish
-                if (!g_publishQueue.empty()) {
-                    currentState = PUBLISH_DATA; // Stay in this state
-                } else {
-                    currentState = WAIT; // Go to wait state
-                }
+                // Always transition to WAIT to let FSM decide what's next
+                transitionToState(currentState, WAIT, stateStartTime);
             } else {
-                currentState = WAIT;
+                // Nothing to publish, go to wait
+                transitionToState(currentState, WAIT, stateStartTime);
             }
+            break;
+
+        case OPERATIONAL_PERIODIC_CHECKS:
+            // Check for maintenance restart interval (millis() overflow prevention)
+            if (currentTime >= MAINTENANCE_RESTART_INTERVAL_MS) {
+                Serial.println("Maintenance restart interval reached - scheduling restart");
+                // Store restart reason for next boot
+                restartLogger.storeRestartReason(MAINTENANCE_RESTART, ntpService);
+                transitionToState(currentState, RESTART, stateStartTime);
+                break;
+            }
+            
+            // TODO: Add other periodic maintenance tasks here:
+            // - Memory usage checks
+            // - Sensor health diagnostics
+            // - WiFi signal strength monitoring
+            // - MQTT connection quality checks
+            
+            Serial.println("Periodic checks complete - returning to normal operation");
+            lastPeriodicCheck = currentTime;  // Update timestamp for next periodic check
+            transitionToState(currentState, WAIT, stateStartTime);
             break;
 
         case WAIT:
             // Check connectivity first (highest priority)
             if (!isWiFiConnected()) {
-                currentState = CONNECT_WIFI;
+                transitionToState(currentState, CONNECT_WIFI, stateStartTime);
             } else if (!isMqttConnected()) {
-                currentState = CONNECT_MQTT;
+                transitionToState(currentState, CONNECT_MQTT, stateStartTime);
+            }
+            // Check for periodic maintenance tasks
+            else if (currentTime - lastPeriodicCheck >= PERIODIC_CHECKS_INTERVAL_MS) {
+                transitionToState(currentState, OPERATIONAL_PERIODIC_CHECKS, stateStartTime);
             }
             // Check for work to do
             else if (!g_publishQueue.empty()) {
-                currentState = PUBLISH_DATA;
+                transitionToState(currentState, PUBLISH_DATA, stateStartTime);
             } else {
                 // Check if any sensors need reading
                 checkSensorsNeedingRead();
                 if (!g_sensorsToReadQueue.empty()) {
-                    currentState = READ_SENSORS;
+                    transitionToState(currentState, READ_SENSORS, stateStartTime);
                 } else {
-                    // Nothing to do, stay in WAIT state
-                    currentState = WAIT;
+                    // Nothing to do, explicitly stay in WAIT state
+                    transitionToState(currentState, WAIT, stateStartTime);
                 }
             }
             break;
@@ -423,7 +449,7 @@ void loop() {
 
         default:
             Serial.println("Unknown state! Going to RESTART");
-            currentState = RESTART;
+            transitionToState(currentState, RESTART, stateStartTime);
             break;
     }
 

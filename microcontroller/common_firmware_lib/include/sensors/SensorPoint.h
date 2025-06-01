@@ -28,7 +28,7 @@ public:
     SensorPoint(unsigned long timeNeededReadMs, unsigned long publishIntervalMs, unsigned long mainLoopDelayMs)
         : _timeNeededReadMs(timeNeededReadMs)
         , _lastReadAttemptMs(0)
-        , _lastPublishTimeMs(0) 
+        , _lastPublishTimeMs(ULONG_MAX - publishIntervalMs)  // Initialize to trigger immediate read
         , _publishIntervalMs(publishIntervalMs)
         , _mainLoopDelayMs(mainLoopDelayMs) {}
     
@@ -48,6 +48,12 @@ public:
     // Check if this sensor needs to be read (considering both timing constraints)
     bool needToRead(unsigned long currentTimeMs) {
         unsigned long timeSinceLastPublish = currentTimeMs - _lastPublishTimeMs;
+        
+        // If we're past our publish interval, check if safe to retry read
+        if (timeSinceLastPublish >= _publishIntervalMs) {
+            return (currentTimeMs - _lastReadAttemptMs >= _timeNeededReadMs);
+        }
+        
         unsigned long timeUntilNextPublish = _publishIntervalMs - timeSinceLastPublish;
         
         // Start reading when we're getting close to publish time
