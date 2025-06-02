@@ -2,6 +2,7 @@
 #define ACTUATOR_CONTROL_POINT_H
 
 #include <Arduino.h>
+#include "ActuatorConfigs.h"  // For ActuatorConfig struct
 
 /**
  * ActuatorControlPoint Class
@@ -11,10 +12,11 @@
  * and current physical state, but not pending command details.
  * 
  * Based on ADR-22 Section 2.2.1 (Modified for FSM-centric state management)
+ * Updated for ADR-25 struct-based configuration
  */
 class ActuatorControlPoint {
 private:
-    // Configuration members (from autogen_config.h)
+    // Configuration members (from ActuatorConfig struct)
     int _pin;
     int _pinMode;                    // Always OUTPUT for actuators
     int _initialState;               // HIGH or LOW
@@ -35,18 +37,10 @@ private:
     
 public:
     /**
-     * Constructor
-     * Initializes configuration members, sets timestamps to 0
+     * Constructor (ADR-25: Struct-based configuration)
+     * Initializes configuration members from ActuatorConfig struct, sets timestamps to 0
      */
-    ActuatorControlPoint(int pin, 
-                        int pinMode, 
-                        int initialState,
-                        const char* pointName,
-                        const char* writeTopic,
-                        const char* readbackTopic,
-                        const char* readbackUUID,
-                        unsigned long outputRepublishFrequencyMillis,
-                        unsigned long maxTimeNoPublishMillis);
+    ActuatorControlPoint(const ActuatorConfig& config);
 
     /**
      * Called by FSM in SETUP_HW state

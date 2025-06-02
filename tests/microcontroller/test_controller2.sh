@@ -6,10 +6,10 @@
 # =============================================================================
 
 # MQTT Configuration (from autogen_config.h)
-BROKER="BROKERHERE"
-PORT="PORTHERE"
-USERNAME="UNAMEHERE"
-PASSWORD="PASSWORDHERE"
+BROKER=192.168.1.17
+PORT=1883
+USERNAME=ttfoley
+PASSWORD=password
 
 # MQTT Topics (from autogen_config.h)
 HUMIDIFIER_WRITE="mush/humidity_driver_fruiting/commands/c2/humidifier/write"

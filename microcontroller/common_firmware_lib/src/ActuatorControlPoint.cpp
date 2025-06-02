@@ -1,23 +1,15 @@
 #include "actuators/ActuatorControlPoint.h"
 
-ActuatorControlPoint::ActuatorControlPoint(int pin, 
-                                         int pinMode, 
-                                         int initialState,
-                                         const char* pointName,
-                                         const char* writeTopic,
-                                         const char* readbackTopic,
-                                         const char* readbackUUID,
-                                         unsigned long outputRepublishFrequencyMillis,
-                                         unsigned long maxTimeNoPublishMillis)
-    : _pin(pin),
-      _pinMode(pinMode),
-      _initialState(initialState),
-      _pointName(pointName),
-      _writeTopic(writeTopic),
-      _readbackTopic(readbackTopic),
-      _readbackUUID(readbackUUID),
-      _outputRepublishFrequencyMillis(outputRepublishFrequencyMillis),
-      _maxTimeNoPublishMillis(maxTimeNoPublishMillis),
+ActuatorControlPoint::ActuatorControlPoint(const ActuatorConfig& config)
+    : _pin(config.pin),
+      _pinMode(config.pin_mode),
+      _initialState(config.initial_state),
+      _pointName(config.point_name),
+      _writeTopic(config.write_topic),
+      _readbackTopic(config.readback_topic),
+      _readbackUUID(config.readback_uuid),
+      _outputRepublishFrequencyMillis(config.republish_frequency_ms),
+      _maxTimeNoPublishMillis(config.max_time_no_publish_ms),
       _lastPublishTimeMillis(0),                  // Initialize to 0
       _lastSuccessfulPayload("")                  // Initialize to empty string
 {

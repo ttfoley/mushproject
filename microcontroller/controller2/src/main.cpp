@@ -1,14 +1,13 @@
 #include <Arduino.h>
-#include "NtpService.h" // Assuming NtpService.h is in common_firmware_lib/include
-                       // and common_firmware_lib is correctly linked.
+#include "services/NtpService.h" // NTP service for timestamping
 #include <WiFi.h>
 #include "autogen_config.h" // For WiFi credentials and MQTT configuration
-#include "JsonBuilder.h" // For testing ADR-10 JSON payload construction
-#include "MqttService.h" // For MQTT communication
-#include "ActuatorControlPoint.h" // For actuator management
+#include "utils/JsonBuilder.h" // For testing ADR-10 JSON payload construction
+#include "services/MqttService.h" // For MQTT communication
+#include "actuators/ActuatorControlPoint.h" // For actuator management (updated path)
 #include "PublishData.h" // For publish queue
-#include "RestartReasonLogger.h" // For persistent restart reason logging
-#include "FsmUtils.h" // For FSM utility functions
+#include "services/RestartReasonLogger.h" // For persistent restart reason logging
+#include "utils/FsmUtils.h" // For FSM utility functions
 #include <map>
 #include <queue>
 #include <set>
@@ -16,47 +15,6 @@
 
 // Use FsmUtils namespace for cleaner function calls
 using namespace FsmUtils;
-
-// =============================================================================
-// ACTUATOR CREATION MACRO (DRY Principle)
-// =============================================================================
-
-// Macro to automatically create ActuatorControlPoint instances from autogen_config.h naming pattern
-// Usage: CREATE_ACTUATOR(C2_HumidifierRelay) expands to full constructor call
-#define CREATE_ACTUATOR(name) \
-    new ActuatorControlPoint( \
-        PIN_##name, \
-        MODE_##name, \
-        INITIAL_STATE_##name, \
-        POINT_NAME_##name, \
-        TOPIC_##name##_WRITE, \
-        TOPIC_##name##_READBACK, \
-        UUID_##name##_READBACK, \
-        OUTPUT_REPUBLISH_FREQUENCY_MS, \
-        MAX_TIME_NO_PUBLISH_MS \
-    )
-
-// Combined macro that creates actuator, adds to vector, and maps topic in one call
-// Usage: CREATE_AND_MAP_ACTUATOR(C2_HumidifierRelay) does everything
-#define CREATE_AND_MAP_ACTUATOR(name) \
-    do { \
-        g_actuatorPoints.push_back(CREATE_ACTUATOR(name)); \
-        Serial.print("Created actuator: "); Serial.println(POINT_NAME_##name); \
-        g_topicToActuatorMap[String(TOPIC_##name##_WRITE)] = g_actuatorPoints.back(); \
-        Serial.print("Mapped topic "); Serial.print(TOPIC_##name##_WRITE); \
-        Serial.print(" to actuator: "); Serial.println(g_actuatorPoints.back()->getPointName()); \
-    } while(0)
-
-// Macro to automatically subscribe to actuator WRITE topics from autogen_config.h naming pattern
-// Usage: SUBSCRIBE_TO_ACTUATOR(C2_HumidifierRelay) expands to subscription call
-#define SUBSCRIBE_TO_ACTUATOR(name) \
-    do { \
-        if (mqttService.subscribe(TOPIC_##name##_WRITE)) { \
-            Serial.print("Subscribed to: "); Serial.println(TOPIC_##name##_WRITE); \
-        } else { \
-            Serial.print("Failed to subscribe to: "); Serial.println(TOPIC_##name##_WRITE); \
-        } \
-    } while(0)
 
 // =============================================================================
 // GLOBAL COMMAND MANAGEMENT STRUCTURES (ADR-22 Section 2.3.1)
@@ -80,8 +38,7 @@ std::queue<PublishData> g_publishQueue;
 // FSM STATE MANAGEMENT (ADR-17, ADR-22)
 // =============================================================================
 
-
-FsmState currentState = CONNECT_WIFI; // Start with WiFi connection - consistent startup sequence
+FsmState currentState = CONNECT_WIFI; // Start with WiFi connection - actuator setup is simple and done in setup()
 unsigned long stateStartTime = 0;  // For state timeouts
 
 // =============================================================================
@@ -118,12 +75,26 @@ unsigned long lastDebugPrint = 0;
 void setupActuators() {
     Serial.println("Initializing Actuator Control Points...");
     
-    // Create ActuatorControlPoint instances for all actuators using X-Macro pattern
-    // Based on ACTUATOR_LIST from autogen_config.h
+    // Create ActuatorControlPoint instances using struct-based configuration (ADR-25)
+    ActuatorControlPoint* humidifier = new ActuatorControlPoint(HUMIDIFIER_CONFIG);
+    g_actuatorPoints.push_back(humidifier);
+    g_topicToActuatorMap[String(HUMIDIFIER_CONFIG.write_topic)] = humidifier;
+    Serial.println("Created humidifier actuator");
     
-    #define X(name) CREATE_AND_MAP_ACTUATOR(name);
-    ACTUATOR_LIST
-    #undef X
+    ActuatorControlPoint* heatingpad = new ActuatorControlPoint(HEATINGPAD_CONFIG);
+    g_actuatorPoints.push_back(heatingpad);
+    g_topicToActuatorMap[String(HEATINGPAD_CONFIG.write_topic)] = heatingpad;
+    Serial.println("Created heating pad actuator");
+    
+    ActuatorControlPoint* light = new ActuatorControlPoint(LIGHT_CONFIG);
+    g_actuatorPoints.push_back(light);
+    g_topicToActuatorMap[String(LIGHT_CONFIG.write_topic)] = light;
+    Serial.println("Created light actuator");
+    
+    ActuatorControlPoint* ventfan = new ActuatorControlPoint(VENTFAN_CONFIG);
+    g_actuatorPoints.push_back(ventfan);
+    g_topicToActuatorMap[String(VENTFAN_CONFIG.write_topic)] = ventfan;
+    Serial.println("Created vent fan actuator");
     
     Serial.print("Total actuators created: "); Serial.println(g_actuatorPoints.size());
     Serial.print("Topic mappings created: "); Serial.println(g_topicToActuatorMap.size());
@@ -139,7 +110,7 @@ void setupActuators() {
     Serial.println("Setting up initial actuator commands...");
     for (ActuatorControlPoint* actuator : g_actuatorPoints) {
         // Use helper method to get the initial command payload
-        // This respects the INITIAL_STATE_##name values from autogen_config.h
+        // This respects the initial_state values from the struct configs
         String initialPayload = actuator->getInitialCommandPayload();
         
         Serial.print("Initial state for ");
@@ -170,10 +141,15 @@ void setupActuators() {
 void setupSubscriptions() {
     Serial.println("Setting up MQTT subscriptions...");
     
-    // Subscribe to all actuator WRITE topics using X-Macro pattern
-    #define X(name) SUBSCRIBE_TO_ACTUATOR(name);
-    ACTUATOR_LIST
-    #undef X
+    // Subscribe to all actuator WRITE topics using struct configs
+    for (ActuatorControlPoint* actuator : g_actuatorPoints) {
+        const char* writeTopic = actuator->getWriteTopic();
+        if (mqttService.subscribe(writeTopic)) {
+            Serial.print("Subscribed to: "); Serial.println(writeTopic);
+        } else {
+            Serial.print("Failed to subscribe to: "); Serial.println(writeTopic);
+        }
+    }
     
     Serial.println("MQTT subscriptions complete.");
 }
@@ -282,8 +258,6 @@ void loop() {
     // Main FSM Logic
     switch (currentState) {
         case CONNECT_WIFI:
-            Serial.println("State: CONNECT_WIFI");
-            
             // Check if WiFi is already connected
             if (WiFi.status() == WL_CONNECTED) {
                 Serial.println("WiFi connected successfully!");
@@ -314,8 +288,6 @@ void loop() {
             break;
 
         case SYNC_NTP:
-            Serial.println("State: SYNC_NTP");
-            
             // Initialize NTP service if this is the first attempt
             if (ntpAttempts == 0) {
                 Serial.println("Initializing NTP Service...");
@@ -356,8 +328,6 @@ void loop() {
             break;
 
         case CONNECT_MQTT:
-            Serial.println("State: CONNECT_MQTT");
-            
             if (mqttService.connectBroker()) {
                 Serial.println("MQTT connected successfully!");
                 setupSubscriptions(); // Subscribe to all actuator WRITE topics
@@ -375,6 +345,7 @@ void loop() {
                 if (checkTimeout(stateStartTime, MQTT_CONNECT_TIMEOUT_MS)) {
                     handleRestartWithReason(currentState, MQTT_TIMEOUT, restartLogger, ntpService);
                 } else {
+                    // Stay in this state, keep timer - don't spam transitions  
                     transitionToState(currentState, CONNECT_MQTT, stateStartTime); // Stay in this state, keep timer
                     delay(MQTT_RETRY_DELAY_MS); // Retry delay from autogen_config.h
                 }
@@ -382,8 +353,6 @@ void loop() {
             break;
 
         case PUBLISH_BOOT_STATUS: {
-            Serial.println("State: PUBLISH_BOOT_STATUS");
-            
             // Always publish a restart reason - default to unknown if none stored
             PublishData bootStatus;
             if (restartLogger.hasStoredRestartReason()) {
@@ -416,7 +385,6 @@ void loop() {
         }
 
         case PROCESS_COMMANDS:
-            Serial.println("State: PROCESS_COMMANDS");
             if (!g_actuatorsToProcessQueue.empty()) {
                 // Process one command from the queue
                 ActuatorControlPoint* actuatorToProcess = g_actuatorsToProcessQueue.front();
@@ -463,17 +431,14 @@ void loop() {
                 g_pendingActuatorCommands.erase(actuatorToProcess);
                 
                 // Transition to publish the readback (if any was created)
-                currentState = PUBLISH_DATA;
+                transitionToState(currentState, PUBLISH_DATA, stateStartTime);
             } else {
                 // No commands to process, go to wait state
-
-                currentState = WAIT;
+                transitionToState(currentState, WAIT, stateStartTime);
             }
             break;
 
         case PUBLISH_DATA:
-            Serial.println("State: PUBLISH_DATA");
-            
             // Check MQTT connection first - if not connected, transition to reconnect
             if (!mqttService.isConnected()) {
                 Serial.println("MQTT not connected in PUBLISH_DATA state - transitioning to CONNECT_MQTT");
@@ -505,33 +470,31 @@ void loop() {
                     // For now, just continue - could implement retry logic later
                 }
                 
-                // Check if there are more items to publish
-                if (!g_publishQueue.empty()) {
-                    currentState = PUBLISH_DATA; // Stay in this state
-                } else {
-                    currentState = WAIT; // Go to wait state
-                }
+                // Always transition to WAIT to let FSM decide what's next
+                transitionToState(currentState, WAIT, stateStartTime);
             } else {
-                currentState = WAIT;
+                // Nothing to publish, go to wait
+                transitionToState(currentState, WAIT, stateStartTime);
             }
             break;
 
         case WAIT:
             // Check connectivity first (highest priority)
             if (!isWiFiConnected()) {
-                currentState = CONNECT_WIFI;
+                transitionToState(currentState, CONNECT_WIFI, stateStartTime);
             } else if (!isMqttConnected()) {
-                currentState = CONNECT_MQTT;
+                transitionToState(currentState, CONNECT_MQTT, stateStartTime);
             }
             // Check for work to do
             else if (!g_actuatorsToProcessQueue.empty()) {
-                currentState = PROCESS_COMMANDS;
+                transitionToState(currentState, PROCESS_COMMANDS, stateStartTime);
             } else if (!g_publishQueue.empty()) {
-                currentState = PUBLISH_DATA;
+                transitionToState(currentState, PUBLISH_DATA, stateStartTime);
             } else {
                 // Check for periodic republishing (lowest priority)
                 checkPeriodicRepublishing();
-                currentState = WAIT;
+                // Explicitly stay in WAIT state
+                transitionToState(currentState, WAIT, stateStartTime);
             }
             break;
 
@@ -543,7 +506,7 @@ void loop() {
 
         default:
             Serial.println("Unknown state! Going to RESTART");
-            currentState = RESTART;
+            transitionToState(currentState, RESTART, stateStartTime);
             break;
     }
 
