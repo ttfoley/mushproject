@@ -3,7 +3,7 @@
 
 #include "SensorPoint.h"
 #include "SensorReadTimes.h"
-#include "../SensorConfigs.h"  // For DS18B20Config struct (up one level)
+#include "SensorConfigs.h"  // For DS18B20Config struct (now in same directory)
 #include <OneWire.h>
 #include <DallasTemperature.h>
 

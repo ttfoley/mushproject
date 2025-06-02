@@ -2,7 +2,8 @@
 #include "services/NtpService.h" // NTP service for timestamping
 #include <WiFi.h>
 #include "autogen_config.h" // For WiFi credentials and MQTT configuration
-#include "SensorConfigs.h" // Sensor configuration structs
+#include "utils/FsmUtils.h"
+#include "sensors/SensorConfigs.h" // Sensor configuration structs
 #include "utils/JsonBuilder.h" // For testing ADR-10 JSON payload construction
 #include "services/MqttService.h" // For MQTT communication
 #include "PublishData.h" // For publish queue

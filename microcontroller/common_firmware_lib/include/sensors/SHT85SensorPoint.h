@@ -3,7 +3,7 @@
 
 #include "SensorPoint.h"
 #include "SensorReadTimes.h"
-#include "../SensorConfigs.h"  // For SHT85Config struct (up one level)
+#include "SensorConfigs.h"  // For SHT85Config struct (now in same directory)
 #include <Adafruit_SHT31.h>  // Using SHT31 library for SHT85 (compatible)
 
 class SHT85SensorPoint : public SensorPoint {

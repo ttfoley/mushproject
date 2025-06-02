@@ -3,7 +3,7 @@
 
 #include "SensorPoint.h"
 #include "SensorReadTimes.h"
-#include "../SensorConfigs.h"  // For DHT22Config struct (up one level)
+#include "SensorConfigs.h"  // For DHT22Config struct (now in same directory)
 #include <DHT.h>  // DHT sensor library
 
 class DHT22SensorPoint : public SensorPoint {

@@ -3,7 +3,7 @@
 
 #include "SensorPoint.h"
 #include "SensorReadTimes.h"
-#include "../SensorConfigs.h"  // For BME280Config struct (up one level)
+#include "SensorConfigs.h"  // For BME280Config struct (now in same directory)
 #include <Adafruit_BME280.h>
 
 class BME280SensorPoint : public SensorPoint {
