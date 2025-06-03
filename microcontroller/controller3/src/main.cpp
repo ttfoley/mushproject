@@ -383,8 +383,9 @@ void loop() {
                     
                     // Update sensor last publish time for the specific sensor that provided this data
                     if (item.sourceSensor != nullptr) {
-                        item.sourceSensor->updateLastPublishTime(currentTime);
+                        item.sourceSensor->updateLastPublishTime(millis());
                     }
+                    g_publishQueue.markPublishComplete(item);
                 } else {
                     Serial.println("Publish failed!");
                     // For now, just continue - could implement retry logic later
