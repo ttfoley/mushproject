@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <vector>
 
+#define SENSOR_PUBLISH_FUDGE_FACTOR 100 
 // Structure to hold a single sensor reading with all necessary publish info
 struct SensorReading {
     const char* topic;
@@ -58,9 +59,10 @@ public:
         
         // Start reading when we're getting close to publish time
         // Leave enough time for the sensor read to complete PLUS main loop delay
-        bool closeToPublishTime = (timeUntilNextPublish <= (_timeNeededReadMs + _mainLoopDelayMs));
+        //REALLY SHITTY SOLUTION FOR NOW - FUDGE FACTOR because of delays likely caused by mqtt loop and publish.
+        bool closeToPublishTime = (timeUntilNextPublish <= (_timeNeededReadMs + _mainLoopDelayMs + SENSOR_PUBLISH_FUDGE_FACTOR));
         
-        // Also ensure we haven't tried to read too recently
+        // Also ensure we haven't tried to read too recently. Note this is just resigning ourselves to waiting for the next publish interval, which seems fine.
         bool safeToRetryRead = (currentTimeMs - _lastReadAttemptMs >= _timeNeededReadMs);
         
         return closeToPublishTime && safeToRetryRead;

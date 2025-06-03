@@ -12,6 +12,7 @@ private:
     OneWire _oneWire;
     DallasTemperature _sensors;
     uint8_t _pin;
+    uint8_t _resolutionBits;
     bool _convertToFahrenheit;
     const char* _sensorType = "DS18B20";  // Reduce repetition
     
@@ -30,6 +31,7 @@ public:
         , _oneWire(config.pin)
         , _sensors(&_oneWire)
         , _pin(config.pin)
+        , _resolutionBits(config.resolution_bits)
         , _convertToFahrenheit(config.c_to_f)
         , _temperatureTopic(config.temp_topic)
         , _temperatureUUID(config.temp_uuid)
@@ -56,16 +58,34 @@ public:
         Serial.println(" device(s)");
         
         // Set resolution for better accuracy (9, 10, 11, or 12 bits)
-        _sensors.setResolution(12);
+        _sensors.setResolution(_resolutionBits);
         
         return true;
     }
     
     bool read(const String& timestamp) override {
-        _sensors.requestTemperatures(); // Request temperature from all devices on the bus
+        Serial.print(_sensorType);
+        Serial.print(" starting requestTemperaturesByIndex(0) on pin ");
+        Serial.println(_pin);
+        unsigned long startRequest = millis();
+        
+        _sensors.requestTemperaturesByIndex(0); // Request temperature from device 0 on THIS bus only
+        
+        unsigned long endRequest = millis();
+        Serial.print(_sensorType);
+        Serial.print(" requestTemperaturesByIndex(0) took: ");
+        Serial.print(endRequest - startRequest);
+        Serial.println(" ms");
         
         // Read temperature from the first device (index 0)
+        unsigned long startRead = millis();
         float tempC = _sensors.getTempCByIndex(0);
+        unsigned long endRead = millis();
+        
+        Serial.print(_sensorType);
+        Serial.print(" getTempCByIndex() took: ");
+        Serial.print(endRead - startRead);
+        Serial.println(" ms");
         
         // Check for invalid reading (DEVICE_DISCONNECTED_C = -127.0)
         if (tempC == DEVICE_DISCONNECTED_C || tempC == 85.0) {

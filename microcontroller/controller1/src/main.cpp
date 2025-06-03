@@ -15,6 +15,8 @@
 #include "sensors/DHT22SensorPoint.h" // DHT22 sensor implementation
 #include "sensors/DS18B20SensorPoint.h" // DS18B20 sensor implementation
 #include "utils/UniqueQueue.h" // For duplicate-free queue management
+#include "utils/I2cUtils.h" // For I2C debugging utilities
+#include "utils/SensorPublishQueue.h" // For sensor publish queue management
 #include <Wire.h> // For I2C
 #include <map>
 #include <queue>
@@ -34,8 +36,8 @@ std::vector<SensorPoint*> g_sensorPoints;
 // Queue of sensors that need to be read (prevents duplicates)
 UniqueQueue<SensorPoint*> g_sensorsToReadQueue;
 
-// Global publish queue for all outgoing MQTT messages
-std::queue<PublishData> g_publishQueue;
+// Global publish queue for all outgoing MQTT messages with sensor tracking
+SensorPublishQueue g_publishQueue;
 
 // =============================================================================
 // FSM STATE MANAGEMENT (ADR-17, ADR-22)
@@ -78,6 +80,12 @@ unsigned long lastDebugPrint = 0;
 // How often to run periodic maintenance checks (milliseconds)
 unsigned long lastPeriodicCheck = 0;
 
+// =============================================================================
+// PUBLISH QUEUE HELPER FUNCTIONS
+// =============================================================================
+
+
+
 void setupSensors() {
     Serial.println("Creating sensor instances...");
     
@@ -97,21 +105,21 @@ void setupSensors() {
     
     // === OneWire Sensors ===
     // DS18B20 Temperature Sensors (Digital pins 32 and 33)
-    g_sensorPoints.push_back(new DS18B20SensorPoint(DS18B20_0_CONFIG));
-    Serial.println("Created DS18B20_0 sensor (FruitingChamber)");
-    
     g_sensorPoints.push_back(new DS18B20SensorPoint(DS18B20_1_CONFIG));
     Serial.println("Created DS18B20_1 sensor (FruitingChamber)");
+    
+    // g_sensorPoints.push_back(new DS18B20SensorPoint(DS18B20_0_CONFIG));
+    // Serial.println("Created DS18B20_0 sensor (FruitingChamber)");
     
     Serial.print("Total sensors created: ");
     Serial.println(g_sensorPoints.size());
 }
 
 void checkSensorsNeedingRead() {
-    unsigned long currentTime = millis();
     
     for (SensorPoint* sensor : g_sensorPoints) {
-        if (sensor->needToRead(currentTime)) {
+        // Check if sensor already has data waiting to publish
+        if (!g_publishQueue.hasPendingData(sensor) && sensor->needToRead(millis())) {
             if (g_sensorsToReadQueue.tryEnqueue(sensor)) {
                 Serial.println("Sensor queued for reading");
             }
@@ -165,11 +173,13 @@ void setup() {
 }
 
 void loop() {
-    unsigned long currentTime = millis();
+    unsigned long currentTime = millis();// Note this is not sufficient for timing that must account for blocking operations, but is good enough for FSM timing.
 
     mqttService.loop(); // Process MQTT messages and maintain connection
-
+    // Always check for sensors needing to be read for better timing. Our awareness of when things should be read should not be dependent on the FSM. 
+    checkSensorsNeedingRead();
     // Main FSM Logic
+    
     switch (currentState) {
         case SETUP_HW:
             Serial.println("State: SETUP_HW");
@@ -180,6 +190,11 @@ void loop() {
             Serial.print(I2C_SDA_PIN);
             Serial.print(", SCL:");
             Serial.println(I2C_SCL_PIN);
+            
+            // Scan I2C bus to check for hardware issues (if enabled in config)
+            #if DEBUG_I2C_SCAN_ON_STARTUP
+            I2cUtils::scanI2CBus();
+            #endif
             
             // Initialize all sensor hardware - fail fast on any failure
             Serial.println("Initializing sensor hardware...");
@@ -313,7 +328,7 @@ void loop() {
                 );
             }
             
-            g_publishQueue.push(bootStatus);
+            g_publishQueue.queueForPublish(bootStatus);
             Serial.println("Restart reason queued for publishing");
             
             // Mark boot status as published and transition to normal operation
@@ -327,26 +342,45 @@ void loop() {
                 SensorPoint* sensor = g_sensorsToReadQueue.dequeue();
                 
                 Serial.println("Reading sensor...");
-                sensor->updateLastReadAttempt(currentTime);
+                sensor->updateLastReadAttempt(millis());
                 
                 // Capture timestamp just before reading sensor
                 String readTimestamp = ntpService.getFormattedISO8601Time();
                 
+                // DEBUG: Start timing the sensor read
+                unsigned long readStartTime = millis();
+                Serial.print("Starting sensor read at: ");
+                Serial.println(readStartTime);
+                
                 if (sensor->read(readTimestamp)) {  // Pass timestamp for sensor to store
+                    // DEBUG: End timing the sensor read
+                    unsigned long readEndTime = millis();
+                    unsigned long readDuration = readEndTime - readStartTime;
+                    Serial.print("Sensor read completed in: ");
+                    Serial.print(readDuration);
+                    Serial.println(" ms");
+                    
                     Serial.println("Sensor read successful, packaging readings...");
                     auto readings = sensor->getAllReadings();
                     
                     for (const auto& reading : readings) {
-                        PublishData pub(reading.topic, reading.uuid, reading.value, reading.timestamp);
-                        g_publishQueue.push(pub);
+                        PublishData pub(reading.topic, reading.uuid, reading.value, reading.timestamp, sensor);
+                        g_publishQueue.queueForPublish(pub);
                         Serial.print("Queued: ");
                         Serial.print(reading.topic);
                         Serial.print(" = ");
                         Serial.println(reading.value);
                     }
                     
-                    sensor->updateLastPublishTime(currentTime);
+                    // DON'T update last publish time here - that should happen when MQTT actually publishes!
                 } else {
+                    // DEBUG: End timing even for failed reads
+                    unsigned long readEndTime = millis();
+                    unsigned long readDuration = readEndTime - readStartTime;
+                    Serial.print("Sensor read FAILED after: ");
+                    Serial.print(readDuration);
+                    Serial.println(" ms");
+                    
                     Serial.println("Sensor read failed - will retry next cycle");
                 }
                 
@@ -367,8 +401,7 @@ void loop() {
             }
             
             if (!g_publishQueue.empty()) {
-                PublishData item = g_publishQueue.front();
-                g_publishQueue.pop();
+                PublishData item = g_publishQueue.dequeueForPublish();
                 
                 Serial.print("Publishing to ");
                 Serial.print(item.topic);
@@ -381,7 +414,11 @@ void loop() {
                 if (mqttService.publishJson(item.topic, item.timestampIsoUtc, item.uuid, item.serializedValue)) {
                     Serial.println("Publish successful!");
                     
-                    // TODO: Update sensor last publish time if needed
+                    // Update sensor last publish time and remove from tracking
+                    if (item.sourceSensor != nullptr) {
+                        item.sourceSensor->updateLastPublishTime(millis());
+                    }
+                    g_publishQueue.markPublishComplete(item);
                 } else {
                     Serial.println("Publish failed!");
                     // For now, just continue - could implement retry logic later
@@ -417,6 +454,7 @@ void loop() {
             break;
 
         case WAIT:
+
             // Check connectivity first (highest priority)
             if (!isWiFiConnected()) {
                 transitionToState(currentState, CONNECT_WIFI, stateStartTime);
@@ -431,8 +469,6 @@ void loop() {
             else if (!g_publishQueue.empty()) {
                 transitionToState(currentState, PUBLISH_DATA, stateStartTime);
             } else {
-                // Check if any sensors need reading
-                checkSensorsNeedingRead();
                 if (!g_sensorsToReadQueue.empty()) {
                     transitionToState(currentState, READ_SENSORS, stateStartTime);
                 } else {

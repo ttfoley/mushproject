@@ -122,6 +122,7 @@ String RestartReasonLogger::restartReasonToString(RestartReason reason) {
         case NOPUBLISH_TIMEOUT: return "nopublish_timeout";
         case COMMAND_ERROR:     return "command_error";
         case SENSOR_ERROR:      return "sensor_error";
+        case SENSOR_INIT_FAILED: return "sensor_init_failed";
         case USER_REQUESTED:    return "user_requested";
         case FIRMWARE_UPDATE:   return "firmware_update";
         case MAINTENANCE_RESTART: return "maintenance_restart";

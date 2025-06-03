@@ -46,6 +46,22 @@ struct BME280Config {
     unsigned long main_loop_delay_ms;  // Main loop delay for timing calculations
 };
 
+/**
+ * @brief Configuration structure for SCD4x I2C CO2/Temperature/Humidity Sensor
+ */
+struct SCD4xConfig {
+    uint8_t address;                    // I2C address (typically 0x62)
+    bool c_to_f;                       // Convert Celsius to Fahrenheit
+    const char* co2_topic;             // MQTT topic for CO2 concentration
+    const char* co2_uuid;              // UUID for CO2 reading
+    const char* temp_topic;            // MQTT topic for temperature
+    const char* temp_uuid;             // UUID for temperature reading
+    const char* humidity_topic;        // MQTT topic for humidity
+    const char* humidity_uuid;         // UUID for humidity reading
+    unsigned long publish_interval_ms; // How often to publish readings
+    unsigned long main_loop_delay_ms;  // Main loop delay for timing calculations
+};
+
 // === Digital Sensor Configuration Structs ===
 
 /**
