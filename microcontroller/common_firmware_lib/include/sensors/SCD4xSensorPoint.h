@@ -46,7 +46,7 @@ private:
     
 public:
     SCD4xSensorPoint(const SCD4xConfig& config)
-        : SensorPoint(SCD4X_TOTAL_READ_TIME_MS, config.publish_interval_ms, config.main_loop_delay_ms)  // Use actual calculated read time
+        : SensorPoint(SCD4X_TOTAL_READ_TIME_MS, config.publish_interval_ms, config.main_loop_delay_ms, config.max_time_no_publish_ms, config.point_name)  // Use actual calculated read time
         , _i2cAddress(config.address)
         , _convertToFahrenheit(config.c_to_f)
         , _co2Topic(config.co2_topic)

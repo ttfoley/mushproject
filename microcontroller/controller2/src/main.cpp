@@ -196,16 +196,8 @@ bool isMqttConnected() {
 }
 
 void checkPeriodicRepublishing() {
-    //note only actuators are checked for periodic republishing, not the whole system
+    // Check only for periodic republishing, timeout checking moved to WAIT state
     for (ActuatorControlPoint* actuator : g_actuatorPoints) {
-        // Check for no-publish timeout first (ADR-18, P1.C2.7)
-        if (actuator->hasNoPublishTimeoutOccurred()) {
-            Serial.print("No-publish timeout occurred for actuator: ");
-            Serial.println(actuator->getPointName());
-            handleRestartWithReason(currentState, NOPUBLISH_TIMEOUT, restartLogger, ntpService);
-            return; // Exit immediately - don't continue checking other actuators
-        }
-        
         // Check for periodic republishing
         if (actuator->isTimeToRepublish() && actuator->isLastStateSet()) {
             String timestamp = ntpService.getFormattedISO8601Time();
@@ -479,7 +471,15 @@ void loop() {
             break;
 
         case WAIT:
-            // Check connectivity first (highest priority)
+            // Check for component publish timeouts first (critical safety check)
+            if (checkForNoPublishTimeouts(g_actuatorPoints)) {
+                Serial.println("Component publish timeout detected - restarting controller");
+                restartLogger.storeRestartReason(NOPUBLISH_TIMEOUT, ntpService);
+                transitionToState(currentState, RESTART, stateStartTime);
+                break;
+            }
+            
+            // Check connectivity (highest priority after timeout checks)
             if (!isWiFiConnected()) {
                 transitionToState(currentState, CONNECT_WIFI, stateStartTime);
             } else if (!isMqttConnected()) {
@@ -491,7 +491,7 @@ void loop() {
             } else if (!g_publishQueue.empty()) {
                 transitionToState(currentState, PUBLISH_DATA, stateStartTime);
             } else {
-                // Check for periodic republishing (lowest priority)
+                // Check for periodic republishing
                 checkPeriodicRepublishing();
                 // Explicitly stay in WAIT state
                 transitionToState(currentState, WAIT, stateStartTime);

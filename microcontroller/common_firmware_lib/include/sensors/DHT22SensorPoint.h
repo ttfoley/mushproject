@@ -27,7 +27,7 @@ private:
     
 public:
     DHT22SensorPoint(const DHT22Config& config)
-        : SensorPoint(DHT22_READ_TIME_MS, config.publish_interval_ms, config.main_loop_delay_ms)
+        : SensorPoint(DHT22_READ_TIME_MS, config.publish_interval_ms, config.main_loop_delay_ms, config.max_time_no_publish_ms, config.point_name)
         , _dht(config.pin, DHT22)
         , _pin(config.pin)
         , _convertToFahrenheit(config.c_to_f)

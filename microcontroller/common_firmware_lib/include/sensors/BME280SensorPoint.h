@@ -30,7 +30,7 @@ private:
     
 public:
     BME280SensorPoint(const BME280Config& config)
-        : SensorPoint(BME280_READ_TIME_MS, config.publish_interval_ms, config.main_loop_delay_ms)
+        : SensorPoint(BME280_READ_TIME_MS, config.publish_interval_ms, config.main_loop_delay_ms, config.max_time_no_publish_ms, config.point_name)
         , _i2cAddress(config.address)
         , _convertToFahrenheit(config.c_to_f)
         , _temperatureTopic(config.temp_topic)

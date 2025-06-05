@@ -24,14 +24,18 @@ protected:
     unsigned long _lastPublishTimeMs;    // Last time readings were successfully published
     unsigned long _publishIntervalMs;    // How often to publish this sensor's data
     unsigned long _mainLoopDelayMs;      // Main loop delay to account for in timing
+    unsigned long _maxTimeNoPublishMs;   // Timeout for publish failure detection
+    const char* _pointName;              // Human-readable point name
     
 public:
-    SensorPoint(unsigned long timeNeededReadMs, unsigned long publishIntervalMs, unsigned long mainLoopDelayMs)
+    SensorPoint(unsigned long timeNeededReadMs, unsigned long publishIntervalMs, unsigned long mainLoopDelayMs, unsigned long maxTimeNoPublishMs, const char* pointName)
         : _timeNeededReadMs(timeNeededReadMs)
         , _lastReadAttemptMs(0)
         , _lastPublishTimeMs(ULONG_MAX - publishIntervalMs)  // Initialize to trigger immediate read
         , _publishIntervalMs(publishIntervalMs)
-        , _mainLoopDelayMs(mainLoopDelayMs) {}
+        , _mainLoopDelayMs(mainLoopDelayMs)
+        , _maxTimeNoPublishMs(maxTimeNoPublishMs)
+        , _pointName(pointName) {}
     
     virtual ~SensorPoint() = default;
     
@@ -76,6 +80,24 @@ public:
     // Update timing after successful publish (called by FSM) 
     void updateLastPublishTime(unsigned long currentTimeMs) {
         _lastPublishTimeMs = currentTimeMs;
+    }
+    
+    // Check if this sensor has exceeded its publish timeout (matches ActuatorControlPoint pattern)
+    bool hasNoPublishTimeoutOccurred() const {
+        if (_maxTimeNoPublishMs == 0) {
+            // Timeout monitoring disabled
+            return false;
+        }
+        
+        unsigned long currentTime = millis();
+        unsigned long timeSinceLastPublish = currentTime - _lastPublishTimeMs;
+        
+        return timeSinceLastPublish > _maxTimeNoPublishMs;
+    }
+    
+    // Get point name for logging and debugging (matches ActuatorControlPoint pattern)
+    const char* getPointName() const {
+        return _pointName;
     }
     
     // Getters for FSM debugging/monitoring

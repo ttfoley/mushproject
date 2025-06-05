@@ -9,6 +9,7 @@
 #include "autogen_config.h" // For FsmState enum
 #include "../services/RestartReasonLogger.h"
 #include "../services/NtpService.h"
+#include <vector>
 
 namespace FsmUtils {
 
@@ -132,6 +133,26 @@ namespace FsmUtils {
             Serial.println(" successful - retry counter reset");
             attempts = 0;
         }
+    }
+
+    /**
+     * Check for publish timeouts in a vector of components (sensors or actuators)
+     * Returns true if ANY component has exceeded its timeout period
+     * Template function works with any component type that has hasNoPublishTimeoutOccurred() and getPointName() methods
+     * 
+     * @param components Vector of component pointers to check
+     * @return true if any component has timed out (should trigger restart)
+     */
+    template<typename T>
+    inline bool checkForNoPublishTimeouts(const std::vector<T*>& components) {
+        for (const auto* component : components) {
+            if (component->hasNoPublishTimeoutOccurred()) {
+                Serial.printf("TIMEOUT: %s has not published within timeout period\n", 
+                             component->getPointName());
+                return true; // First timeout found - fail fast
+            }
+        }
+        return false; // No timeouts detected
     }
 
 } // namespace FsmUtils

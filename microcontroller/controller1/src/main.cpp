@@ -8,7 +8,6 @@
 #include "services/MqttService.h" // For MQTT communication
 #include "PublishData.h" // For publish queue
 #include "services/RestartReasonLogger.h" // For persistent restart reason logging
-#include "utils/FsmUtils.h" // For FSM utility functions
 #include "sensors/SensorPoint.h" // Base sensor class
 #include "sensors/SHT85SensorPoint.h" // SHT85 sensor implementation
 #include "sensors/BME280SensorPoint.h" // BME280 sensor implementation
@@ -43,7 +42,7 @@ SensorPublishQueue g_publishQueue;
 // FSM STATE MANAGEMENT (ADR-17, ADR-22)
 // =============================================================================
 
-FsmState currentState = SETUP_HW; // Start with hardware setup - consistent with controller2
+FsmState currentState = SETUP_HW; // Start with hardware setup 
 unsigned long stateStartTime = 0;  // For state timeouts
 
 // =============================================================================
@@ -79,10 +78,6 @@ unsigned long lastDebugPrint = 0;
 
 // How often to run periodic maintenance checks (milliseconds)
 unsigned long lastPeriodicCheck = 0;
-
-// =============================================================================
-// PUBLISH QUEUE HELPER FUNCTIONS
-// =============================================================================
 
 
 
@@ -454,6 +449,12 @@ void loop() {
             break;
 
         case WAIT:
+
+            // Check for sensor/actuator publish timeouts first (critical failure condition)
+            if (checkForNoPublishTimeouts(g_sensorPoints)) {
+                handleRestartWithReason(currentState, NOPUBLISH_TIMEOUT, restartLogger, ntpService);
+                break;
+            }
 
             // Check connectivity first (highest priority)
             if (!isWiFiConnected()) {

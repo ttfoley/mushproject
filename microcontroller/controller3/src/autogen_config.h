@@ -75,6 +75,10 @@ typedef enum {
 
 // SCD4x CO2/Temperature/Humidity Sensor Instance  
 const SCD4xConfig SCD4X_0_CONFIG = {
+    .point_name = "FruitingChamber_SCD4x_0",
+    .publish_interval_ms = SENSOR_AND_STATUS_PUBLISH_INTERVAL_MS,
+    .main_loop_delay_ms = MAIN_LOOP_DELAY_MS,
+    .max_time_no_publish_ms = MAX_TIME_NO_PUBLISH_MS,
     .address = 0x62,  // SCD4x standard I2C address
     .c_to_f = true,
     .co2_topic = "mush/c3/sensors/fruitingchamber_scd4x-0/ppm",
@@ -82,9 +86,7 @@ const SCD4xConfig SCD4X_0_CONFIG = {
     .temp_topic = "mush/c3/sensors/fruitingchamber_scd4x-0/degf",
     .temp_uuid = "06cbf1a2-b3c4-4d5e-6f70-8192a3b4c5e1",
     .humidity_topic = "mush/c3/sensors/fruitingchamber_scd4x-0/percent_rh",
-    .humidity_uuid = "17dcf1a2-b3c4-4d5e-6f70-8192a3b4c5e2",
-    .publish_interval_ms = SENSOR_AND_STATUS_PUBLISH_INTERVAL_MS,
-    .main_loop_delay_ms = MAIN_LOOP_DELAY_MS
+    .humidity_uuid = "17dcf1a2-b3c4-4d5e-6f70-8192a3b4c5e2"
 };
 
 // System Info: C3_WifiUptime

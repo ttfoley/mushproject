@@ -421,7 +421,15 @@ void loop() {
             break;
 
         case WAIT:
-            // Check connectivity first (highest priority)
+            // Check for component publish timeouts first (critical safety check)
+            if (checkForNoPublishTimeouts(g_sensorPoints)) {
+                Serial.println("Component publish timeout detected - restarting controller");
+                restartLogger.storeRestartReason(NOPUBLISH_TIMEOUT, ntpService);
+                transitionToState(currentState, RESTART, stateStartTime);
+                break;
+            }
+            
+            // Check connectivity (highest priority after timeout checks)
             if (!isWiFiConnected()) {
                 transitionToState(currentState, CONNECT_WIFI, stateStartTime);
             } else if (!isMqttConnected()) {

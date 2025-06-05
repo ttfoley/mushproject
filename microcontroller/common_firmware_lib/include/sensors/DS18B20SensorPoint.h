@@ -27,7 +27,7 @@ private:
     
 public:
     DS18B20SensorPoint(const DS18B20Config& config)
-        : SensorPoint(DS18B20_READ_TIME_MS, config.publish_interval_ms, config.main_loop_delay_ms)
+        : SensorPoint(DS18B20_READ_TIME_MS, config.publish_interval_ms, config.main_loop_delay_ms, config.max_time_no_publish_ms, config.point_name)
         , _oneWire(config.pin)
         , _sensors(&_oneWire)
         , _pin(config.pin)
