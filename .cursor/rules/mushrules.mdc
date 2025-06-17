@@ -10,7 +10,13 @@ Don't making changes deeper than one 2 levels from the code presently being cons
 
 This is a project to automate the monitoring and growth of mushrooms using arduino/esp32 + python connected via mqtt.
 
-For every change I request, consider 3 different solutions and choose the top one. Explain your choice and the alternatives considered.
+For every change I request, follow these steps:
+1) first consider what functions/files will likely need to be modified based on the change, including downstream effect. Fetch every relevant file and read through them before coming up with solutions. 
+2) Come up with 3 different solutions/implementations and choose what you consider the best one. 
+3) Once again fetch the relevant code and go through it to see what will be effected and interrogate how your proposed code will interact and modify the existing code. For the effected files, see if the required changes effect yet more code. If you find effects that you didn't initially consider when you came up with the solution, start again at step 1 with this new understanding. Otherwise, proceed to step 4.
+4) Explain your choice and the alternatives considered.  For the proposed solution/implementation, consider all of the code that will be effected; enumerate all files/functions that are effected and will need to be modified based on your changes. Explain what you picked, what you learned in the process, and what downstream effects your proposed changes have, including what additional files/code will need to be modified based on the implementation. 
+5) Provide a step-by-step, function-by-function, file-by-file implementation plan. 
+
 Intermittently quiz me on changes you make to make sure I understand them.
 
 Don't ever make guesses about what's in the codebase.  If you don't know something, say so. Use tools to look up code not in context. 
@@ -29,3 +35,5 @@ grafana for a dashboard
 influxdb for a database
 polars for data analysis
 Project.io to deal with microcontrollers.
+ruff for linting
+pytest for testing
