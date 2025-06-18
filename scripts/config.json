@@ -1,0 +1,75 @@
+{
+  "output_dir": "../docs",
+  "databases": [
+    {
+      "name": "Project Documentation",
+      "prefix": "PROJ", 
+      "database_id": "20f3d27a75da804cb161d37a98007e6a",
+      "title_property_name": "Document Name",
+      "skip_content": false
+    },
+    {
+      "name": "Code Documentation",
+      "prefix": "CODE", 
+      "database_id": "20b3d27a75da80568655c9885b1a3ecc",
+      "title_property_name": "Document Name",
+      "skip_content": false
+    },
+    {
+      "name": "Architecture Decisions Record",
+      "prefix": "ADR", 
+      "database_id": "1c33d27a75da804295dee8a23a816018",
+      "title_property_name": "Decision Title",
+      "skip_content": false
+    },
+    {
+      "name": "Requirements",
+      "prefix": "REQ",
+      "database_id": "2113d27a75da80c6b200ef4d54cd9fdc",
+      "title_property_name": "Requirement",
+      "skip_content": false
+    },
+    {
+      "name": "Requirements Acceptance Status",
+      "prefix": "RAQ", 
+      "database_id": "2133d27a75da801fb3d1d2b6985007a2",
+      "title_property_name": "Acceptence Criterion",
+      "skip_content": true
+    },
+    {
+      "name": "Design Docs",
+      "prefix": "DES", 
+      "database_id": "2113d27a75da80059e06d57eb4d67910",
+      "title_property_name": "Title",
+      "skip_content": false
+    },
+    {
+      "name": "Epics",
+      "prefix": "EPIC", 
+      "database_id": "2113d27a75da801da70cc502f579cdca",
+      "title_property_name": "Name",
+      "skip_content": true
+    },
+    {
+      "name": "Tasks",
+      "prefix": "TASK", 
+      "database_id": "2123d27a75da8028be3de63dfedcf1c9",
+      "title_property_name": "Name",
+      "skip_content": true
+    },
+    {
+      "name": "Templates and Instructions",
+      "prefix": "TAI", 
+      "database_id": "2103d27a75da809dbd92e3d9ac2b376d",
+      "title_property_name": "Name",
+      "skip_content": false
+    },
+    {
+      "name": "Document Generation",
+      "prefix": "GEN", 
+      "database_id": "2113d27a75da8087938eddecffc2dbb9",
+      "title_property_name": "Name",
+      "skip_content": false
+    }
+  ]
+} 
