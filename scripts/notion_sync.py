@@ -48,13 +48,13 @@ def load_config():
 
 def init_notion_client():
     """Initialize Notion client with API key."""
-    load_dotenv()
+    load_dotenv() 
     api_key = os.environ.get("NOTION_API_KEY")
-    
+        
     if not api_key:
-        print("❌ NOTION_API_KEY not found. Make sure it's set in your .env file.")
-        sys.exit(1)
-    
+            print("❌ NOTION_API_KEY not found. Make sure it's set in your .env file.")
+            sys.exit(1)
+        
     try:
         client = Client(auth=api_key)
         print("✅ Notion client initialized")
@@ -261,6 +261,21 @@ def convert_block_to_markdown(client, block, level=0):
         text = extract_rich_text(block_data.get('rich_text', []))
         indent = '  ' * level
         markdown = f"{indent}1. {text}\n"
+        
+        # Handle nested items
+        if block.get('has_children'):
+            children = fetch_page_blocks(client, block['id'])
+            for child in children:
+                markdown += convert_block_to_markdown(client, child, level + 1)
+        
+        return markdown
+    
+    elif block_type == 'to_do':
+        text = extract_rich_text(block_data.get('rich_text', []))
+        checked = block_data.get('checked', False)
+        checkbox = '- [x]' if checked else '- [ ]'
+        indent = '  ' * level
+        markdown = f"{indent}{checkbox} {text}\n"
         
         # Handle nested items
         if block.get('has_children'):

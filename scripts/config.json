@@ -1,5 +1,5 @@
 {
-  "output_dir": "../docs",
+  "output_dir": "docs",
   "databases": [
     {
       "name": "Project Documentation",
@@ -31,7 +31,7 @@
     },
     {
       "name": "Requirements Acceptance Status",
-      "prefix": "RAQ", 
+      "prefix": "RAC", 
       "database_id": "2133d27a75da801fb3d1d2b6985007a2",
       "title_property_name": "Acceptence Criterion",
       "skip_content": true
@@ -55,7 +55,7 @@
       "prefix": "TASK", 
       "database_id": "2123d27a75da8028be3de63dfedcf1c9",
       "title_property_name": "Name",
-      "skip_content": true
+      "skip_content": false
     },
     {
       "name": "Templates and Instructions",

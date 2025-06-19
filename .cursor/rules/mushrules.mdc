@@ -10,7 +10,38 @@ Don't making changes deeper than one 2 levels from the code presently being cons
 
 This is a project to automate the monitoring and growth of mushrooms using arduino/esp32 + python connected via mqtt.
 the folder docs/ contains all sort of relevant information, especially folders in the PROJ, ADR, and REQ category. If we're trying to make architectual decisions or debating implementation details, you should search docs/ to see if there's anything relevant to the present problem.
-At the beginning of the chat, you should at least check out the PROJ files to know what's going on. 
+At the beginning of a new chat, you must check out the PROJ files to know what's going on. Here's what's in the docs/:
+## Documentation Structure & Search Strategy
+
+### Notion Database Prefixes (docs/ folder):
+- **REQ-*** = Requirements (main requirement documents)
+- **RAC-*** = Requirements Acceptance Criteria (completion status tracking for the requirements) 
+- **ADR-*** = Architecture Decision Records
+- **TASK-*** = Tasks
+- **EPIC-*** = Epics  
+- **PROJ-*** = Project Documentation
+- **CODE-*** = Code Documentation
+- **TAI-*** = Templates and Instructions
+- **DES-*** = Design Documents
+- **GEN-*** = Document Generation
+
+### Search Strategy for Requirements:
+1. **For requirement details**: Search `REQ-*` files
+2. **For acceptance criteria**: Search `RAC-*` files (sparse files with just titles + completion status)
+3. **For architecture decisions**: Search `ADR-*` files
+
+### RAC File Format:
+- **Sparse files**: Only YAML frontmatter with title + completion status
+- **No content**: Just `<!-- This is a sparse entry with properties only -->`
+- **Purpose**: Track completion of individual acceptance criteria
+- **Search tip**: Use title property for semantic search, not content
+
+### When looking for completion status or acceptance criteria:
+- **Always check RAC-* files first**
+- **Search by title** since content is sparse
+- **Look for `completed: true/false` property**
+
+
 
 For every change I request, follow these steps:
 1) first consider what functions/files will likely need to be modified based on the change, including downstream effect. Fetch every relevant file and read through them before coming up with solutions. 
@@ -25,9 +56,6 @@ Don't ever make guesses about what's in the codebase.  If you don't know somethi
 
 Use search tools to get the latest library documentation and examples. Only use the latest. 
 
-To understand the full system, refer to [architecture_overview.txt](mdc:docs/architecture_overview.txt)
-Consider the design and principles [designandprinciples.txt](mdc:docs/designandprinciples.txt) when responding to requests
-[MQTT Data Flow (1).pdf](mdc:docs/MQTT Data Flow (1) describes how communication between components should work.
 
 Tools:
 Pydantic v2 to facilitate config based approach and validation
