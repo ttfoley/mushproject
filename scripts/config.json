@@ -34,7 +34,8 @@
       "prefix": "RAC", 
       "database_id": "2133d27a75da801fb3d1d2b6985007a2",
       "title_property_name": "Acceptence Criterion",
-      "skip_content": true
+      "skip_content": true,
+      "output_csv": true
     },
     {
       "name": "Design Docs",

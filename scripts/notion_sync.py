@@ -4,6 +4,7 @@ import json
 import sys
 import yaml
 import shutil
+import csv
 from pathlib import Path
 from dotenv import load_dotenv
 from notion_client import Client
@@ -168,7 +169,14 @@ def extract_page_properties(page, title_property_name):
         elif prop_type == 'date' and prop_data.get('date'):
             extracted[prop_name.lower().replace(' ', '_')] = prop_data['date']['start']
         elif prop_type == 'relation':
-            extracted[prop_name.lower().replace(' ', '_')] = [rel['id'] for rel in prop_data.get('relation', [])]
+            relation_ids = [rel['id'] for rel in prop_data.get('relation', [])]
+            
+            # Special handling for requirement relations - convert to file paths
+            if prop_name.lower() in ['requirement', 'requirements']:
+                extracted['requirement_file'] = [f"REQ-{rel_id}/index.md" for rel_id in relation_ids]
+            else:
+                # Keep other relations as-is for now
+                extracted[prop_name.lower().replace(' ', '_')] = relation_ids
         # Add more property types as needed
     
     return extracted
@@ -366,11 +374,13 @@ def sync_database(client, db_config, output_dir, dry_run=False, force_update=Fal
     synced_count = 0
     skipped_count = 0
     page_ids = {page['id'] for page in pages}
+    all_properties = []  # Collect all properties for CSV output
     
     for i, page in enumerate(pages, 1):
         try:
             # Extract properties
             properties = extract_page_properties(page, db_config['title_property_name'])
+            all_properties.append(properties)  # Collect properties
             
             print(f"   [{i}/{len(pages)}] Processing: {properties['title']}")
             
@@ -411,6 +421,10 @@ def sync_database(client, db_config, output_dir, dry_run=False, force_update=Fal
             
         except Exception as e:
             print(f"      ❌ Error processing '{properties.get('title', 'Unknown')}': {str(e)}")
+    
+    # Write CSV if configured
+    if db_config.get('output_csv', False) and not dry_run:
+        write_database_to_csv(output_dir, db_config, all_properties)
     
     if not dry_run and skipped_count > 0:
         print(f"✅ Synced {synced_count}/{len(pages)} pages from '{db_name}' ({skipped_count} skipped - up to date)")
@@ -602,6 +616,27 @@ def create_sparse_markdown_file(output_dir, db_config, page, properties):
         f.write("<!-- This is a sparse entry with properties only -->\n")
     
     return folder_path, index_file
+
+def write_database_to_csv(output_dir, db_config, all_pages_properties):
+    """Write database contents to CSV file."""
+    csv_filename = f"{db_config['name'].lower().replace(' ', '_')}.csv"
+    csv_path = Path(output_dir) / csv_filename
+    
+    if not all_pages_properties:
+        return
+    
+    # Get all unique property keys
+    all_keys = set()
+    for props in all_pages_properties:
+        all_keys.update(props.keys())
+    
+    # Write CSV
+    with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=sorted(all_keys))
+        writer.writeheader()
+        writer.writerows(all_pages_properties)
+    
+    print(f"      📊 Created CSV: {csv_filename}")
 
 def clean_orphaned_files(output_dir, all_current_page_ids, db_configs, dry_run=False):
     """Remove files for pages that no longer exist in Notion."""

@@ -9,7 +9,8 @@ Don't try to "improve" things that I don't ask you to. Focus on the change I'm c
 Don't making changes deeper than one 2 levels from the code presently being considered without first laying out your plan and asking for approval. 
 
 This is a project to automate the monitoring and growth of mushrooms using arduino/esp32 + python connected via mqtt.
-the folder docs/ contains all sort of relevant information, especially folders in the PROJ, ADR, and REQ category. If we're trying to make architectual decisions or debating implementation details, you should search docs/ to see if there's anything relevant to the present problem.
+the folder docs/ contains all sort of relevant information, especially folders in the PROJ, ADR, and REQ category. Each folder contains an index.md with a header that contains 
+information such as Title and relations to other databases; IF there is a page corresponding to an entry, its contents are shown after the header. If we're trying to make architectual decisions or debating implementation details, you should search docs/ to see if there's anything relevant to the present problem.
 At the beginning of a new chat, you must check out the PROJ files to know what's going on. Here's what's in the docs/:
 ## Documentation Structure & Search Strategy
 
@@ -25,23 +26,43 @@ At the beginning of a new chat, you must check out the PROJ files to know what's
 - **DES-*** = Design Documents
 - **GEN-*** = Document Generation
 
-### Search Strategy for Requirements:
-1. **For requirement details**: Search `REQ-*` files
-2. **For acceptance criteria**: Search `RAC-*` files (sparse files with just titles + completion status)
-3. **For architecture decisions**: Search `ADR-*` files
+### OPTIMIZED Search Strategy:
 
-### RAC File Format:
-- **Sparse files**: Only YAML frontmatter with title + completion status
-- **No content**: Just `<!-- This is a sparse entry with properties only -->`
-- **Purpose**: Track completion of individual acceptance criteria
-- **Search tip**: Use title property for semantic search, not content
+#### For Requirements & Acceptance Criteria:
+1. **FIRST: Check CSV files** - `docs/requirements_acceptance_status.csv` contains ALL RAC data in one file
+   - Perfect for LLM semantic analysis of relationships
+   - Contains explicit file paths: `requirement_file` column shows `REQ-UUID/index.md` 
+   - Shows completion status, titles, and direct links to requirements
+   - Use this for questions about: completion status, finding requirements by criteria, relationship analysis
 
-### When looking for completion status or acceptance criteria:
-- **Always check RAC-* files first**
-- **Search by title** since content is sparse
-- **Look for `completed: true/false` property**
+2. **THEN: Read specific REQ files** - Use file paths from CSV to get full requirement details
+   - Rich content perfect for semantic search
+   - Contains goals, descriptions, detailed acceptance criteria
 
+3. **Grep as backup** - Only if CSV + semantic search fail
+   - `grep -i "keyword" docs/REQ-*/index.md` for exact matches
+   - Fast but requires knowing exact terminology
 
+#### For Architecture Decisions:
+- **Semantic search** `ADR-*` files (rich content)
+- **Grep backup** for exact terms
+
+#### UUID to File Mapping:
+- **CSV contains explicit paths**: `requirement_file` column shows `REQ-2143d27a-75da-809e-92df-dcd2344016d9/index.md`
+- **No inference needed**: Direct file paths eliminate UUID guesswork
+- **Folders follow pattern**: PREFIX-UUID (e.g., REQ-abc123, RAC-def456, ADR-xyz789)
+
+### RAC Data Format:
+- **Primary source**: `docs/requirements_acceptance_status.csv` 
+- **Backup folders**: `RAC-*` directories (sparse files, used for sync timestamps)
+- **CSV columns**: `completed`, `last_edited_time`, `notion_id`, `requirement_file`, `title`
+- **Relationships**: CSV `requirement_file` column provides direct paths to requirements
+
+### Search Priority Order:
+1. **RAC questions**: Read CSV first (instant analysis of all acceptance criteria)
+2. **REQ details**: Use requirement_file paths from CSV to read specific requirements  
+3. **Architecture**: Semantic search ADR files
+4. **Complex queries**: Combine CSV analysis + semantic search of rich content files
 
 For every change I request, follow these steps:
 1) first consider what functions/files will likely need to be modified based on the change, including downstream effect. Fetch every relevant file and read through them before coming up with solutions. 
