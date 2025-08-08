@@ -4,9 +4,19 @@
 # Placeholders for non-temperature driver config files remain.
 
 # --- System Wide Configuration ---
-mqtt_broker:
-  host: "mqtt.local"
-  port: 1883
+
+global_settings:
+  mqtt_topic_prefix: "mush/"
+  mqtt_broker:
+    address: "192.168.1.100"
+    port: 1883
+    username: "your_mqtt_user" # Optional
+    password: "your_mqtt_password" # Optional
+  ntp_server:
+    address: "us.pool.ntp.org"
+    utc_offset_seconds: 0
+    update_interval_ms: 7200000 # 2 hours
+
 command_hierarchy:
   - "Manual_HOA"
   - "Watchdog" # Assuming Watchdog > Governor if present
@@ -16,7 +26,7 @@ command_hierarchy:
 points:
   # == Microcontroller C1 Sensors ==
   - uuid: "f47ac10b-58cc-4372-a567-0e02b2c3d479" 
-    name: "C1_SHT0_Temperature"
+    name: "FruitingChamber_SHT85-0_Temperature_Raw"
     description: "Sensor reading from C1/sht_0"
     value_type: CONTINUOUS
     units: "degF" 
@@ -26,8 +36,10 @@ points:
     persist_to_db: true 
     validation_rules: { min_value: 0.0, max_value: 100.0 } 
     initial_value: null
+    function_grouping: sensor
+    topic_originator_slug: "fruitingchamber_sht85-0"
   - uuid: "9c8b1da3-1b2a-4c8e-9d1f-6a7b8c9d0e1f" 
-    name: "C1_SHT0_Humidity"
+    name: "FruitingChamber_SHT85-0_Humidity_Raw"
     description: "Sensor reading from C1/sht_0"
     value_type: CONTINUOUS
     units: "percent_rh" 
@@ -37,8 +49,10 @@ points:
     persist_to_db: true 
     validation_rules: { min_value: 0.0, max_value: 100.0 }
     initial_value: null
+    function_grouping: sensor
+    topic_originator_slug: "fruitingchamber_sht85-0"
   - uuid: "2a3b4c5d-6e7f-4a1b-8c2d-3e4f5a6b7c8d" 
-    name: "C1_DHT0_Temperature"
+    name: "Outside_DHT-0_Temperature_Raw"
     description: "Sensor reading from C1/dht_0"
     value_type: CONTINUOUS
     units: "degF" 
@@ -48,8 +62,10 @@ points:
     persist_to_db: true 
     validation_rules: { min_value: 0.0, max_value: 100.0 } 
     initial_value: null
+    function_grouping: sensor
+    topic_originator_slug: "outside_dht-0"
   - uuid: "b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e" 
-    name: "C1_DHT0_Humidity"
+    name: "Outside_DHT-0_Humidity_Raw"
     description: "Sensor reading from C1/dht_0"
     value_type: CONTINUOUS
     units: "percent_rh" 
@@ -59,8 +75,10 @@ points:
     persist_to_db: true 
     validation_rules: { min_value: 0.0, max_value: 100.0 }
     initial_value: null
+    function_grouping: sensor
+    topic_originator_slug: "outside_dht-0"
   - uuid: "c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f" 
-    name: "C1_BME280_1_Temperature"
+    name: "FruitingChamber_BME280-1_Temperature_Raw"
     description: "Temperature reading from BME280_1 on C1."
     value_type: CONTINUOUS
     units: "degF"
@@ -70,8 +88,10 @@ points:
     persist_to_db: true
     validation_rules: { min_value: -40.0, max_value: 185.0 } 
     initial_value: null
+    function_grouping: sensor
+    topic_originator_slug: "fruitingchamber_bme280-1"
   - uuid: "d3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f70" 
-    name: "C1_BME280_1_Humidity"
+    name: "FruitingChamber_BME280-1_Humidity_Raw"
     description: "Humidity reading from BME280_1 on C1."
     value_type: CONTINUOUS
     units: "percent_rh"
@@ -81,8 +101,10 @@ points:
     persist_to_db: true
     validation_rules: { min_value: 0.0, max_value: 100.0 }
     initial_value: null
+    function_grouping: sensor
+    topic_originator_slug: "fruitingchamber_bme280-1"
   - uuid: "e4f5a6b7-c8d9-4e0f-1a2b-3c4d5e6f7081" 
-    name: "C1_BME280_1_Pressure"
+    name: "FruitingChamber_BME280-1_Pressure_Raw"
     description: "Pressure reading from BME280_1 on C1."
     value_type: CONTINUOUS
     units: "pascal"
@@ -92,8 +114,10 @@ points:
     persist_to_db: true
     validation_rules: { min_value: 30000.0, max_value: 110000.0 } 
     initial_value: null
+    function_grouping: sensor
+    topic_originator_slug: "fruitingchamber_bme280-1"
   - uuid: "f5a6b7c8-d9e0-4f1a-2b3c-4d5e6f708192" 
-    name: "C1_DS18B20_0_Temperature"
+    name: "FruitingChamber_DS18B20-0_Temperature_Raw"
     description: "Temperature reading from DS18B20_0 on C1."
     value_type: CONTINUOUS
     units: "degF"
@@ -103,8 +127,10 @@ points:
     persist_to_db: true
     validation_rules: { min_value: 0.0, max_value: 200.0 } 
     initial_value: null
+    function_grouping: sensor
+    topic_originator_slug: "fruitingchamber_ds18b20-0"
   - uuid: "06b7c8d9-e0f1-4a2b-3c4d-5e6f708192a3" 
-    name: "C1_DS18B20_1_Temperature"
+    name: "FruitingChamber_DS18B20-1_Temperature_Raw"
     description: "Temperature reading from DS18B20_1 on C1."
     value_type: CONTINUOUS
     units: "degF"
@@ -114,6 +140,8 @@ points:
     persist_to_db: true
     validation_rules: { min_value: 0.0, max_value: 200.0 } 
     initial_value: null
+    function_grouping: sensor
+    topic_originator_slug: "fruitingchamber_ds18b20-1"
   - uuid: "17c8d9e0-f1a2-4b3c-4d5e-6f708192a3b4" 
     name: "C1_Status_WifiUptime"
     description: "WiFi connection uptime for C1."
@@ -125,6 +153,8 @@ points:
     persist_to_db: true 
     validation_rules: { min_value: 0.0 }
     initial_value: null
+    function_grouping: status
+    topic_status_slug: "wifi_uptime"
   - uuid: "28d9e0f1-a2b3-4c4d-5e6f-708192a3b4c5" 
     name: "C1_Status_LastRestartReason"
     description: "Last restart reason for C1."
@@ -136,6 +166,8 @@ points:
     persist_to_db: true 
     validation_rules: { allowed_values: ["unknown", "power_on", "wifi_timeout", "mqtt_timeout", "sensor_timeout", "manual_reset", "other"] }
     initial_value: "unknown"
+    function_grouping: status
+    topic_status_slug: "last_restart_reason"
 
   # == Microcontroller C2 Sensors ==
   - uuid: "39e0f1a2-b3c4-4d5e-6f70-8192a3b4c5d6" 
@@ -149,6 +181,8 @@ points:
     persist_to_db: true 
     validation_rules: { min_value: 0.0, max_value: 1000000.0 } 
     initial_value: null
+    function_grouping: status
+    topic_status_slug: "wifi_uptime"
   - uuid: "4a0f1a2b-3c4d-4e6f-7081-92a3b4c5d6e7" 
     name: "C2_Status_LastRestartReason"
     description: "Last restart reason for C2."
@@ -160,10 +194,12 @@ points:
     persist_to_db: true 
     validation_rules: { allowed_values: ["unknown", "power_on", "wifi_timeout", "mqtt_timeout", "sensor_timeout", "manual_reset", "other"] }
     initial_value: "unknown"
+    function_grouping: status
+    topic_status_slug: "last_restart_reason"
 
   # == Microcontroller C2 Control Points (Humidifier - CP_25) ==
   - uuid: "5b10f1a2-b3c4-4d5e-6f70-8192a3b4c5d6" 
-    name: "C2_CP25_Humidifier_Status"
+    name: "FruitingChamber_Humidifier_Readback"
     description: "Humidifier status readback"
     value_type: DISCRETE
     units: "on/off"
@@ -171,11 +207,12 @@ points:
     access: READ_ONLY
     writable_by: []
     persist_to_db: true 
-    command_point_uuid: "6c21f1a2-b3c4-4d5e-6f70-8192a3b4c5d7" 
     validation_rules: { allowed_values: ["unknown", "on", "off"] } 
     initial_value: "off" 
+    function_grouping: actuator
+    topic_device_slug: "humidifier"
   - uuid: "6c21f1a2-b3c4-4d5e-6f70-8192a3b4c5d7" 
-    name: "C2_CP25_Humidifier_Command"
+    name: "FruitingChamber_Humidifier_Write"
     description: "Humidifier command"
     value_type: DISCRETE
     units: "on/off"
@@ -183,13 +220,15 @@ points:
     access: READ_WRITE
     writable_by: ["humidity_driver_fruiting"] 
     persist_to_db: true 
-    status_point_uuid: "5b10f1a2-b3c4-4d5e-6f70-8192a3b4c5d6" 
+    readback_point_uuid: "5b10f1a2-b3c4-4d5e-6f70-8192a3b4c5d6"
     validation_rules: { allowed_values: ["on", "off"] } 
-    initial_value: "off" 
+    initial_value: "off"
+    function_grouping: command
+    topic_directive_slug: "humidifier"
 
   # == Microcontroller C2 Control Points (HeatingPad - CP_26) ==
   - uuid: "7d32f1a2-b3c4-4d5e-6f70-8192a3b4c5d8" 
-    name: "C2_CP26_HeatingPad_Status"
+    name: "FruitingChamber_HeatingPad_Readback"
     description: "HeatingPad status readback"
     value_type: DISCRETE
     units: "on/off"
@@ -197,11 +236,12 @@ points:
     access: READ_ONLY
     writable_by: []
     persist_to_db: true 
-    command_point_uuid: "8e43f1a2-b3c4-4d5e-6f70-8192a3b4c5d9" 
     validation_rules: { allowed_values: ["unknown", "on", "off"] }
     initial_value: "off" 
+    function_grouping: actuator
+    topic_device_slug: "heatingpad"
   - uuid: "8e43f1a2-b3c4-4d5e-6f70-8192a3b4c5d9" 
-    name: "C2_CP26_HeatingPad_Command"
+    name: "FruitingChamber_HeatingPad_Write"
     description: "HeatingPad command"
     value_type: DISCRETE
     units: "on/off"
@@ -209,13 +249,15 @@ points:
     access: READ_WRITE
     writable_by: ["temperature_driver_fruiting"] 
     persist_to_db: true 
-    status_point_uuid: "7d32f1a2-b3c4-4d5e-6f70-8192a3b4c5d8" 
+    readback_point_uuid: "7d32f1a2-b3c4-4d5e-6f70-8192a3b4c5d8"
     validation_rules: { allowed_values: ["on", "off"] }
-    initial_value: "off" 
+    initial_value: "off"
+    function_grouping: command
+    topic_directive_slug: "heatingpad"
 
   # == Microcontroller C2 Control Points (Light - CP_32) ==
   - uuid: "9f54f1a2-b3c4-4d5e-6f70-8192a3b4c5da" 
-    name: "C2_CP32_Light_Status"
+    name: "FruitingChamber_Light_Readback"
     description: "Light status readback"
     value_type: DISCRETE
     units: "on/off"
@@ -223,11 +265,12 @@ points:
     access: READ_ONLY
     writable_by: []
     persist_to_db: true 
-    command_point_uuid: "a065f1a2-b3c4-4d5e-6f70-8192a3b4c5db" 
     validation_rules: { allowed_values: ["unknown", "on", "off"] }
     initial_value: "off" 
+    function_grouping: actuator
+    topic_device_slug: "light"
   - uuid: "a065f1a2-b3c4-4d5e-6f70-8192a3b4c5db" 
-    name: "C2_CP32_Light_Command"
+    name: "FruitingChamber_Light_Write"
     description: "Light command"
     value_type: DISCRETE
     units: "on/off"
@@ -235,13 +278,15 @@ points:
     access: READ_WRITE
     writable_by: ["light_driver_fruiting"] 
     persist_to_db: true 
-    status_point_uuid: "9f54f1a2-b3c4-4d5e-6f70-8192a3b4c5da" 
+    readback_point_uuid: "9f54f1a2-b3c4-4d5e-6f70-8192a3b4c5da"
     validation_rules: { allowed_values: ["on", "off"] }
-    initial_value: "off" 
+    initial_value: "off"
+    function_grouping: command
+    topic_directive_slug: "light"
 
   # == Microcontroller C2 Control Points (VentFan - CP_33) ==
   - uuid: "b176f1a2-b3c4-4d5e-6f70-8192a3b4c5dc" 
-    name: "C2_CP33_VentFan_Status"
+    name: "FruitingChamber_VentFan_Readback"
     description: "VentFan status readback"
     value_type: DISCRETE
     units: "on/off"
@@ -249,11 +294,12 @@ points:
     access: READ_ONLY
     writable_by: []
     persist_to_db: true 
-    command_point_uuid: "c287f1a2-b3c4-4d5e-6f70-8192a3b4c5dd" 
     validation_rules: { allowed_values: ["unknown", "on", "off"] }
     initial_value: "off" 
+    function_grouping: actuator
+    topic_device_slug: "ventfan"
   - uuid: "c287f1a2-b3c4-4d5e-6f70-8192a3b4c5dd" 
-    name: "C2_CP33_VentFan_Command"
+    name: "FruitingChamber_VentFan_Write"
     description: "VentFan command"
     value_type: DISCRETE
     units: "on/off"
@@ -261,15 +307,17 @@ points:
     access: READ_WRITE
     writable_by: ["vent_driver_fruiting"] 
     persist_to_db: true 
-    status_point_uuid: "b176f1a2-b3c4-4d5e-6f70-8192a3b4c5dc" 
+    readback_point_uuid: "b176f1a2-b3c4-4d5e-6f70-8192a3b4c5dc"
     validation_rules: { allowed_values: ["on", "off"] }
-    initial_value: "off" 
+    initial_value: "off"
+    function_grouping: command
+    topic_directive_slug: "ventfan"
 
 
 
   # == Microcontroller C3 Sensors (SCD4x) ==
   - uuid: "f5baf1a2-b3c4-4d5e-6f70-8192a3b4c5e0" 
-    name: "C3_SCD4x_CO2"
+    name: "FruitingChamber_SCD4x-0_CO2_Raw"
     description: "CO2 reading from SCD4x on C3."
     value_type: CONTINUOUS
     units: "ppm"
@@ -279,8 +327,10 @@ points:
     persist_to_db: true
     validation_rules: { min_value: 0.0, max_value: 20000.0 } 
     initial_value: null
+    function_grouping: sensor
+    topic_originator_slug: "fruitingchamber_scd4x-0"
   - uuid: "06cbf1a2-b3c4-4d5e-6f70-8192a3b4c5e1" 
-    name: "C3_SCD4x_Temperature"
+    name: "FruitingChamber_SCD4x-0_Temperature_Raw"
     description: "Temperature reading from SCD4x on C3."
     value_type: CONTINUOUS
     units: "degF"
@@ -290,8 +340,10 @@ points:
     persist_to_db: true
     validation_rules: { min_value: -40.0, max_value: 185.0 } 
     initial_value: null
+    function_grouping: sensor
+    topic_originator_slug: "fruitingchamber_scd4x-0"
   - uuid: "17dcf1a2-b3c4-4d5e-6f70-8192a3b4c5e2" 
-    name: "C3_SCD4x_Humidity"
+    name: "FruitingChamber_SCD4x-0_Humidity_Raw"
     description: "Humidity reading from SCD4x on C3."
     value_type: CONTINUOUS
     units: "percent_rh"
@@ -301,6 +353,8 @@ points:
     persist_to_db: true
     validation_rules: { min_value: 0.0, max_value: 100.0 }
     initial_value: null
+    function_grouping: sensor
+    topic_originator_slug: "fruitingchamber_scd4x-0"
   - uuid: "28eef1a2-b3c4-4d5e-6f70-8192a3b4c5e3" 
     name: "C3_Status_WifiUptime"
     description: "WiFi connection uptime for C3."
@@ -312,6 +366,8 @@ points:
     persist_to_db: true 
     validation_rules: { min_value: 0.0 }
     initial_value: null
+    function_grouping: status
+    topic_status_slug: "wifi_uptime"
   - uuid: "39fff1a2-b3c4-4d5e-6f70-8192a3b4c5e4" 
     name: "C3_Status_LastRestartReason"
     description: "Last restart reason for C3."
@@ -323,6 +379,8 @@ points:
     persist_to_db: true 
     validation_rules: { allowed_values: ["unknown", "power_on", "wifi_timeout", "mqtt_timeout", "sensor_timeout", "manual_reset", "other"] }
     initial_value: "unknown"
+    function_grouping: status
+    topic_status_slug: "last_restart_reason"
 
   # == Governor Setpoints / Commands (Inputs to Governor or Driver) ==
   - uuid: "4a00f1a2-b3c4-4d5e-6f70-8192a3b4c5e5" 
@@ -330,23 +388,29 @@ points:
     description: "Target temperature setpoint for the controller (e.g., Governor)."
     value_type: CONTINUOUS
     units: "degF" 
-    data_source_layer: manual_input 
+    data_source_layer: manual 
     access: READ_WRITE
     writable_by: ["Manual_HOA"] 
     persist_to_db: true
     validation_rules: { min_value: 0.0, max_value: 100.0 } 
-    initial_value: 70.0 
+    initial_value: 70.0
+    function_grouping: command
+    topic_directive_slug: "temperature_target_setpoint"
+    target_component: "temperature_governor"
   - uuid: "5b11f1a2-b3c4-4d5e-6f70-8192a3b4c5e6" 
     name: "FruitingChamber_Temp_Target_Deadband"
     description: "Deadband (+/- value around setpoint) or total hysteresis width for bang-bang control."
     value_type: CONTINUOUS
     units: "delta_degF" 
-    data_source_layer: manual_input 
+    data_source_layer: manual 
     access: READ_WRITE
     writable_by: ["Manual_HOA"] 
     persist_to_db: true
     validation_rules: { min_value: 0.0, max_value: 10.0 } 
-    initial_value: 2.0 
+    initial_value: 2.0
+    function_grouping: command
+    topic_directive_slug: "temperature_target_deadband"
+    target_component: "temperature_governor"
   - uuid: "6c22f1a2-b3c4-4d5e-6f70-8192a3b4c5e7" 
     name: "FruitingChamber_Heater_Governor_Mode_Command"
     description: "Desired operating mode from the Governor for the Heater Driver FSM (e.g., pwm, off, on)."
@@ -357,18 +421,23 @@ points:
     writable_by: ["temperature_governor"] 
     persist_to_db: true
     initial_value: "off" 
-    validation_rules: { allowed_values: ["pwm", "off", "on"] } 
+    validation_rules: { allowed_values: ["pwm", "off", "on"] }
+    function_grouping: command
+    topic_directive_slug: "heater_mode"
   - uuid: "7d33f1a2-b3c4-4d5e-6f70-8192a3b4c5e8" 
     name: "FruitingChamber_Heater_Manual_Command"
     description: "Desired operating mode from Manual/HOA input for the Heater Driver FSM (e.g., on, off)."
     value_type: DISCRETE
     units: "mode_command" 
-    data_source_layer: manual_input 
+    data_source_layer: manual 
     access: READ_WRITE
     writable_by: ["Manual_HOA"] 
     persist_to_db: true
     initial_value: "off" 
-    validation_rules: { allowed_values: ["on", "off"] } 
+    validation_rules: { allowed_values: ["on", "off"] }
+    function_grouping: command
+    topic_directive_slug: "heater_manual_override"
+    target_component: "temperature_governor"
   - uuid: "8e44f1a2-b3c4-4d5e-6f70-8192a3b4c5e9" 
     name: "FruitingChamber_Heater_PWM_Setpoint"
     description: "Target PWM duty cycle (0.0 to 1.0) set by Gov/Manual, read by Driver for PWM logic."
@@ -380,6 +449,8 @@ points:
     persist_to_db: true
     validation_rules: { min_value: 0.0, max_value: 1.0 }
     initial_value: 0.0
+    function_grouping: command
+    topic_directive_slug: "heater_pwm_setpoint"
   - uuid: "9f55f1a2-b3c4-4d5e-6f70-8192a3b4c5ea" 
     name: "FruitingChamber_Heater_PWM_ON_Duration_Setpoint"
     description: "Target ON duration (seconds) for PWM cycle, published by Governor, read by Driver's FSM."
@@ -391,6 +462,8 @@ points:
     persist_to_db: true 
     validation_rules: { min_value: 0.0 }
     initial_value: 0.0
+    function_grouping: command
+    topic_directive_slug: "heater_pwm_on_duration"
   - uuid: "a066f1a2-b3c4-4d5e-6f70-8192a3b4c5eb" 
     name: "FruitingChamber_Heater_PWM_OFF_Duration_Setpoint"
     description: "Target OFF duration (seconds) for PWM cycle, published by Governor, read by Driver's FSM."
@@ -402,6 +475,8 @@ points:
     persist_to_db: true 
     validation_rules: { min_value: 0.0 }
     initial_value: 60.0
+    function_grouping: command
+    topic_directive_slug: "heater_pwm_off_duration"
 
   # == Humidity Governor Setpoints / Commands (Inputs to Humidity Governor or Driver) ==
   - uuid: "16cc030a-27f6-4d46-83c2-e60ec5b84e02"
@@ -415,29 +490,37 @@ points:
     persist_to_db: true
     initial_value: "off"
     validation_rules: { allowed_values: ["off", "on"] }
+    function_grouping: command
+    topic_directive_slug: "humidifier_mode"
   # == Humidity Governor Setpoints / Commands (Inputs to Governor or Driver) ==
   - uuid: "1ccbdc0e-30cd-4b02-964f-fd5208821bee"
     name: "FruitingChamber_Humidity_Target_Setpoint"
     description: "Target humidity setpoint for the controller (e.g., Humidity Governor)."
     value_type: CONTINUOUS
     units: "percent_rh" # Units for relative humidity
-    data_source_layer: manual_input # Or scheduler, UI etc.
+    data_source_layer: manual # Or scheduler, UI etc.
     access: READ_WRITE
     writable_by: ["Manual_HOA", "humidity_governor"] # Added humidity_governor as a potential writer
     persist_to_db: true
     validation_rules: { min_value: 0.0, max_value: 100.0 } # Standard RH range
     initial_value: 85.0 # Example initial humidity setpoint
+    function_grouping: command
+    topic_directive_slug: "humidity_target_setpoint"
+    target_component: "humidity_governor"
   - uuid: "e13a213e-d936-44ab-9948-895c335026b0"
     name: "FruitingChamber_Humidity_Target_Deadband"
     description: "Deadband (+/- value around setpoint) or total hysteresis width for humidity bang-bang control."
     value_type: CONTINUOUS
     units: "delta_percent_rh" # Represents a humidity difference
-    data_source_layer: manual_input # Or scheduler, UI etc.
+    data_source_layer: manual # Or scheduler, UI etc.
     access: READ_WRITE
     writable_by: ["Manual_HOA", "humidity_governor"] # Added humidity_governor as a potential writer
     persist_to_db: true
     validation_rules: { min_value: 0.0, max_value: 20.0 } # Example range for RH deadband, must be non-negative
     initial_value: 5.0 # Example initial humidity deadband
+    function_grouping: command
+    topic_directive_slug: "humidity_target_deadband"
+    target_component: "humidity_governor"
   # == Vent Fan Governor Mode Command Point ==
   - uuid: "c263c3fc-018d-4996-800a-5317465c7178"
     name: "FruitingChamber_VentFan_Governor_Mode_Command"
@@ -450,28 +533,36 @@ points:
     persist_to_db: true
     initial_value: "off"
     validation_rules: { allowed_values: ["off", "on"] } # Assuming simple on/off for now
+    function_grouping: command
+    topic_directive_slug: "ventfan_mode"
   - uuid: "3039aac8-2816-4191-9f44-1d453e2e7924"
     name: "FruitingChamber_VentFan_Timer_OnIntervalMinutes" # Name reflects minutes
     description: "ON duration in minutes for the fruiting vent fan timer. Set manually or by a future scheduler."
     value_type: CONTINUOUS
     units: "minutes" # Vent Fan Governor uses MINUTES
-    data_source_layer: manual_input
+    data_source_layer: manual
     access: READ_WRITE
     writable_by: ["Manual_HOA"] # Consistent with similar parameter points
     persist_to_db: true
     validation_rules: { min_value: 0.0, max_value: 120.0 } # Example: max 120 minutes (2 hours) on
     initial_value: 5.0 # Value is now in minutes
+    function_grouping: command
+    topic_directive_slug: "ventfan_timer_on_interval"
+    target_component: "vent_fan_governor"
   - uuid: "e0cf042f-5222-4be3-9fad-62ee28f3e3a8"
     name: "FruitingChamber_VentFan_Timer_OffIntervalMinutes" # Name reflects minutes
     description: "OFF duration in minutes for the fruiting vent fan timer. Set manually or by a future scheduler."
     value_type: CONTINUOUS
     units: "minutes" # Vent Fan Governor uses MINUTES
-    data_source_layer: manual_input
+    data_source_layer: manual
     access: READ_WRITE
     writable_by: ["Manual_HOA"] # Consistent with similar parameter points
     persist_to_db: true
     validation_rules: { min_value: 0.0, max_value: 1440.0 } # Example: max 1440 minutes (24 hours) off
     initial_value: 55.0 # Value is now in minutes
+    function_grouping: command
+    topic_directive_slug: "ventfan_timer_off_interval"
+    target_component: "vent_fan_governor"
 
   # == Light Governor Mode Command Point ==
   - uuid: "7bbe9f99-a3b3-4e97-a10a-d3c4f92c838d"
@@ -485,32 +576,41 @@ points:
     persist_to_db: true
     initial_value: "off"
     validation_rules: { allowed_values: ["off", "on"] } # Assuming simple on/off for now
+    function_grouping: command
+    topic_directive_slug: "light_mode"
   - uuid: "2be2a778-d0f6-4d33-97a1-747107b952b3"
     name: "FruitingChamber_Light_Timer_OnIntervalMinutes"
     description: "ON duration in minutes for the fruiting light timer. Set manually or by a future scheduler."
     value_type: CONTINUOUS
-    units: "minutes" # Changed from "h" to "hours"
-    data_source_layer: manual_input
+    units: "minutes"
+    data_source_layer: manual
     access: READ_WRITE
-    writable_by: ["Manual_HOA"] # Or other designated config/UI component
+    writable_by: ["Manual_HOA"]
     persist_to_db: true
-    validation_rules: { min_value: 0.0, max_value: 1440.0 }
-    initial_value: 720.0
+    validation_rules: { min_value: 0.0, max_value: 1440.0 } # Example: max 1440 minutes (24 hours) on
+    initial_value: 720.0 # 12 hours on
+    function_grouping: command
+    topic_directive_slug: "light_timer_on_interval"
+    target_component: "light_governor"
   - uuid: "f9cc975a-89f2-4b93-8159-074edf2a6c88"
     name: "FruitingChamber_Light_Timer_OffIntervalMinutes"
     description: "OFF duration in minutes for the fruiting light timer. Set manually or by a future scheduler."
     value_type: CONTINUOUS
-    units: "minutes" # Changed from "h" to "hours"
-    data_source_layer: manual_input
+    units: "minutes"
+    data_source_layer: manual
     access: READ_WRITE
-    writable_by: ["Manual_HOA"] # Or other designated config/UI component
+    writable_by: ["Manual_HOA"]
     persist_to_db: true
-    validation_rules: { min_value: 0.0, max_value: 1440.0 }
-    initial_value: 720.0
+    validation_rules: { min_value: 0.0, max_value: 1440.0 } # Example: max 1440 minutes (24 hours) off
+    initial_value: 720.0 # 12 hours off
+    function_grouping: command
+    topic_directive_slug: "light_timer_off_interval"
+    target_component: "light_governor"
+    
   # == Driver Internal State Points ==
   #temperature driver
   - uuid: "b177f1a2-b3c4-4d5e-6f70-8192a3b4c5ec" 
-    name: "TempDriver_TimeInState" 
+    name: "FruitingChamber_TemperatureDriver_TimeInState"
     description: "Time elapsed (seconds) since the temperature driver's FSM internally changed state."
     value_type: CONTINUOUS
     units: "seconds"
@@ -519,8 +619,10 @@ points:
     writable_by: []
     persist_to_db: true 
     initial_value: 0.0
+    function_grouping: status
+    topic_status_slug: "time_in_state"
   - uuid: "c288f1a2-b3c4-4d5e-6f70-8192a3b4c5ed" 
-    name: "TempDriver_FSM_State" 
+    name: "FruitingChamber_TemperatureDriver_FSM_State"
     description: "Current internal state name of the temperature driver FSM."
     value_type: DISCRETE
     units: "state_name" 
@@ -529,8 +631,10 @@ points:
     writable_by: []
     persist_to_db: true 
     initial_value: "unknown"
+    function_grouping: status
+    topic_status_slug: "fsm_state"
   - uuid: "d399f1a2-b3c4-4d5e-6f70-8192a3b4c5ee" 
-    name: "TempDriver_FSM_Health" 
+    name: "FruitingChamber_TemperatureDriver_FSM_Health"
     description: "Confirmation status for the temperature driver."
     value_type: DISCRETE
     units: "health_status" 
@@ -539,10 +643,12 @@ points:
     writable_by: []
     persist_to_db: true 
     initial_value: "unknown" 
-    validation_rules: { allowed_values: ["pending", "verified", "fault", "unknown"] } 
+    validation_rules: { allowed_values: ["pending", "verified", "fault", "unknown"] }
+    function_grouping: status
+    topic_status_slug: "fsm_health"
 
   - uuid: "274979de-89e2-496e-a751-5c7faa61928c" # UUID for HumidityDriver_TimeInState
-    name: "HumidityDriver_TimeInState"
+    name: "FruitingChamber_HumidityDriver_TimeInState"
     description: "Time elapsed (seconds) since the humidity driver's FSM internally changed state."
     value_type: CONTINUOUS
     units: "seconds"
@@ -551,8 +657,10 @@ points:
     writable_by: []
     persist_to_db: true
     initial_value: 0.0
+    function_grouping: status
+    topic_status_slug: "time_in_state"
   - uuid: "b8016f02-56d4-449c-baf6-7602ef845fb7" # UUID for HumidityDriver_FSM_State
-    name: "HumidityDriver_FSM_State"
+    name: "FruitingChamber_HumidityDriver_FSM_State"
     description: "Current internal state name of the humidity driver FSM."
     value_type: DISCRETE
     units: "state_name"
@@ -564,8 +672,10 @@ points:
                              # and your FSM logic handles this.
                              # The 'lockout' state also needs to be in allowed_values if it's a possible reported state.
     validation_rules: { allowed_values: ["off", "on", "lockout", "unknown"] }
+    function_grouping: status
+    topic_status_slug: "fsm_state"
   - uuid: "41f6a24c-e22a-495c-9dde-5eb92b9c9926" # UUID for HumidityDriver_FSM_Health
-    name: "HumidityDriver_FSM_Health"
+    name: "FruitingChamber_HumidityDriver_FSM_Health"
     description: "Confirmation status for the humidity driver."
     value_type: DISCRETE
     units: "health_status"
@@ -575,10 +685,12 @@ points:
     persist_to_db: true
     initial_value: "unknown"
     validation_rules: { allowed_values: ["pending", "verified", "fault", "unknown"] }
+    function_grouping: status
+    topic_status_slug: "fsm_health"
 
   # == Vent Fan Driver Internal FSM Points ==
   - uuid: "37b0558a-a39e-4a3f-9cdc-ad83e0b5c3f9"
-    name: "VentFanDriver_TimeInState"
+    name: "FruitingChamber_VentFanDriver_TimeInState"
     description: "Time elapsed (seconds) since the vent fan driver's FSM internally changed state."
     value_type: CONTINUOUS
     units: "seconds"
@@ -587,8 +699,10 @@ points:
     writable_by: []
     persist_to_db: true
     initial_value: 0.0
+    function_grouping: status
+    topic_status_slug: "time_in_state"
   - uuid: "2eaa72d4-5b0e-46db-b5ee-8428726cd400"
-    name: "VentFanDriver_FSM_State"
+    name: "FruitingChamber_VentFanDriver_FSM_State"
     description: "Current internal state name of the vent fan driver FSM."
     value_type: DISCRETE
     units: "state_name"
@@ -598,8 +712,10 @@ points:
     persist_to_db: true
     initial_value: "off" # Assuming 'off' is the default and a defined state
     validation_rules: { allowed_values: ["off", "on", "unknown"] } # Add other states like 'lockout' if needed
+    function_grouping: status
+    topic_status_slug: "fsm_state"
   - uuid: "0c31a004-741f-4f8a-b2fd-3ceb37cdde8e"
-    name: "VentFanDriver_FSM_Health"
+    name: "FruitingChamber_VentFanDriver_FSM_Health"
     description: "Confirmation status for the vent fan driver."
     value_type: DISCRETE
     units: "health_status"
@@ -609,10 +725,12 @@ points:
     persist_to_db: true
     initial_value: "unknown"
     validation_rules: { allowed_values: ["pending", "verified", "fault", "unknown"] }
+    function_grouping: status
+    topic_status_slug: "fsm_health"
 
   # == Light Driver Internal FSM Points ==
   - uuid: "b6879dfc-c2eb-42e1-a479-5cffd07da6c0"
-    name: "LightDriver_TimeInState"
+    name: "FruitingChamber_LightDriver_TimeInState"
     description: "Time elapsed (seconds) since the light driver's FSM internally changed state."
     value_type: CONTINUOUS
     units: "seconds"
@@ -621,8 +739,10 @@ points:
     writable_by: []
     persist_to_db: true
     initial_value: 0.0
+    function_grouping: status
+    topic_status_slug: "time_in_state" 
   - uuid: "a30be0ec-54d5-4ccd-ad12-0a8482e61a54"
-    name: "LightDriver_FSM_State"
+    name: "FruitingChamber_LightDriver_FSM_State"
     description: "Current internal state name of the light driver FSM."
     value_type: DISCRETE
     units: "state_name"
@@ -632,8 +752,10 @@ points:
     persist_to_db: true
     initial_value: "off" # Assuming 'off' is the default and a defined state
     validation_rules: { allowed_values: ["off", "on", "unknown"] } # Add other states if needed
+    function_grouping: status
+    topic_status_slug: "fsm_state"
   - uuid: "9f1f19ad-ef0c-42bc-b6fe-9359b331e807"
-    name: "LightDriver_FSM_Health"
+    name: "FruitingChamber_LightDriver_FSM_Health"
     description: "Confirmation status for the light driver."
     value_type: DISCRETE
     units: "health_status"
@@ -643,7 +765,8 @@ points:
     persist_to_db: true
     initial_value: "unknown"
     validation_rules: { allowed_values: ["pending", "verified", "fault", "unknown"] }
-  # Add similar FSM state/health/time points for other drivers (humidity, light, etc.) if they have FSMs
+    function_grouping: status
+    topic_status_slug: "fsm_health"
 
 
 # --- Component Instance Definitions ---
@@ -653,15 +776,15 @@ components:
     type: microcontroller
     config_file: "config/microcontrollers/c1_config.yaml"
     points_provided: 
-      - "f47ac10b-58cc-4372-a567-0e02b2c3d479" # C1_SHT0_Temperature
-      - "9c8b1da3-1b2a-4c8e-9d1f-6a7b8c9d0e1f" # C1_SHT0_Humidity
-      - "2a3b4c5d-6e7f-4a1b-8c2d-3e4f5a6b7c8d" # C1_DHT0_Temperature
-      - "b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e" # C1_DHT0_Humidity
-      - "c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f" # C1_BME280_1_Temperature
-      - "d3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f70" # C1_BME280_1_Humidity
-      - "e4f5a6b7-c8d9-4e0f-1a2b-3c4d5e6f7081" # C1_BME280_1_Pressure
-      - "f5a6b7c8-d9e0-4f1a-2b3c-4d5e6f708192" # C1_DS18B20_0_Temperature
-      - "06b7c8d9-e0f1-4a2b-3c4d-5e6f708192a3" # C1_DS18B20_1_Temperature
+      - "f47ac10b-58cc-4372-a567-0e02b2c3d479" # FruitingChamber_SHT85-0_Temperature_Raw
+      - "9c8b1da3-1b2a-4c8e-9d1f-6a7b8c9d0e1f" # FruitingChamber_SHT85-0_Humidity_Raw
+      - "2a3b4c5d-6e7f-4a1b-8c2d-3e4f5a6b7c8d" # Outside_DHT-0_Temperature_Raw
+      - "b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e" # Outside_DHT-0_Humidity_Raw
+      - "c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f" # FruitingChamber_BME280-1_Temperature_Raw
+      - "d3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f70" # FruitingChamber_BME280-1_Humidity_Raw
+      - "e4f5a6b7-c8d9-4e0f-1a2b-3c4d5e6f7081" # FruitingChamber_BME280-1_Pressure_Raw
+      - "f5a6b7c8-d9e0-4f1a-2b3c-4d5e6f708192" # FruitingChamber_DS18B20-0_Temperature_Raw
+      - "06b7c8d9-e0f1-4a2b-3c4d-5e6f708192a3" # FruitingChamber_DS18B20-1_Temperature_Raw
       - "17c8d9e0-f1a2-4b3c-4d5e-6f708192a3b4" # C1_Status_WifiUptime
       - "28d9e0f1-a2b3-4c4d-5e6f-708192a3b4c5" # C1_Status_LastRestartReason
   - id: "c2"
@@ -670,17 +793,17 @@ components:
     points_provided: 
       - "39e0f1a2-b3c4-4d5e-6f70-8192a3b4c5d6" # C2_Status_WifiUptime
       - "4a0f1a2b-3c4d-4e6f-7081-92a3b4c5d6e7" # C2_Status_LastRestartReason
-      - "5b10f1a2-b3c4-4d5e-6f70-8192a3b4c5d6" # C2_CP25_Humidifier_Status
-      - "7d32f1a2-b3c4-4d5e-6f70-8192a3b4c5d8" # C2_CP26_HeatingPad_Status
-      - "9f54f1a2-b3c4-4d5e-6f70-8192a3b4c5da" # C2_CP32_Light_Status
-      - "b176f1a2-b3c4-4d5e-6f70-8192a3b4c5dc" # C2_CP33_VentFan_Status
+      - "5b10f1a2-b3c4-4d5e-6f70-8192a3b4c5d6" # FruitingChamber_Humidifier_Readback
+      - "7d32f1a2-b3c4-4d5e-6f70-8192a3b4c5d8" # FruitingChamber_HeatingPad_Readback
+      - "9f54f1a2-b3c4-4d5e-6f70-8192a3b4c5da" # FruitingChamber_Light_Readback
+      - "b176f1a2-b3c4-4d5e-6f70-8192a3b4c5dc" # FruitingChamber_VentFan_Readback
   - id: "c3"
     type: microcontroller
     config_file: "config/microcontrollers/c3_config.yaml"
     points_provided: 
-      - "f5baf1a2-b3c4-4d5e-6f70-8192a3b4c5e0" # C3_SCD4x_CO2
-      - "06cbf1a2-b3c4-4d5e-6f70-8192a3b4c5e1" # C3_SCD4x_Temperature
-      - "17dcf1a2-b3c4-4d5e-6f70-8192a3b4c5e2" # C3_SCD4x_Humidity
+      - "f5baf1a2-b3c4-4d5e-6f70-8192a3b4c5e0" # FruitingChamber_SCD4x-0_CO2_Raw
+      - "06cbf1a2-b3c4-4d5e-6f70-8192a3b4c5e1" # FruitingChamber_SCD4x-0_Temperature_Raw
+      - "17dcf1a2-b3c4-4d5e-6f70-8192a3b4c5e2" # FruitingChamber_SCD4x-0_Humidity_Raw
       - "28eef1a2-b3c4-4d5e-6f70-8192a3b4c5e3" # C3_Status_WifiUptime
       - "39fff1a2-b3c4-4d5e-6f70-8192a3b4c5e4" # C3_Status_LastRestartReason
 
@@ -690,20 +813,20 @@ components:
     config_file: "config/drivers/temperature_driver_fruiting.yaml" 
     controls_microcontroller: "c2" 
     virtual_points_provided: 
-      - "b177f1a2-b3c4-4d5e-6f70-8192a3b4c5ec" # TempDriver_TimeInState
-      - "c288f1a2-b3c4-4d5e-6f70-8192a3b4c5ed" # TempDriver_FSM_State
-      - "d399f1a2-b3c4-4d5e-6f70-8192a3b4c5ee" # TempDriver_FSM_Health
-      - "8e43f1a2-b3c4-4d5e-6f70-8192a3b4c5d9" # C2_CP26_HeatingPad_Command
+      - "b177f1a2-b3c4-4d5e-6f70-8192a3b4c5ec" # FruitingChamber_TemperatureDriver_TimeInState
+      - "c288f1a2-b3c4-4d5e-6f70-8192a3b4c5ed" # FruitingChamber_TemperatureDriver_FSM_State
+      - "d399f1a2-b3c4-4d5e-6f70-8192a3b4c5ee" # FruitingChamber_TemperatureDriver_FSM_Health
+      - "8e43f1a2-b3c4-4d5e-6f70-8192a3b4c5d9" # FruitingChamber_HeatingPad_Write
   
   - id: "humidity_driver_fruiting" 
     type: driver
     config_file: "config/drivers/humidity_driver_fruiting.yaml" 
     controls_microcontroller: "c2"
     virtual_points_provided:
-      - "6c21f1a2-b3c4-4d5e-6f70-8192a3b4c5d7" # C2_CP25_Humidifier_Command
-      - "274979de-89e2-496e-a751-5c7faa61928c" # HumidityDriver_TimeInState
-      - "b8016f02-56d4-449c-baf6-7602ef845fb7" # HumidityDriver_FSM_State
-      - "41f6a24c-e22a-495c-9dde-5eb92b9c9926" # HumidityDriver_FSM_Health  
+      - "6c21f1a2-b3c4-4d5e-6f70-8192a3b4c5d7" # FruitingChamber_Humidifier_Write
+      - "274979de-89e2-496e-a751-5c7faa61928c" # FruitingChamber_HumidityDriver_TimeInState
+      - "b8016f02-56d4-449c-baf6-7602ef845fb7" # FruitingChamber_HumidityDriver_FSM_State
+      - "41f6a24c-e22a-495c-9dde-5eb92b9c9926" # FruitingChamber_HumidityDriver_FSM_Health  
 
 
   - id: "light_driver_fruiting" 
@@ -711,10 +834,10 @@ components:
     config_file: "config/drivers/light_driver_fruiting.yaml" 
     controls_microcontroller: "c2"
     virtual_points_provided:
-      - "a065f1a2-b3c4-4d5e-6f70-8192a3b4c5db" # C2_CP32_Light_Command
-      - "b6879dfc-c2eb-42e1-a479-5cffd07da6c0" # LightDriver_TimeInState
-      - "a30be0ec-54d5-4ccd-ad12-0a8482e61a54" # LightDriver_FSM_State
-      - "9f1f19ad-ef0c-42bc-b6fe-9359b331e807" # LightDriver_FSM_Health
+      - "a065f1a2-b3c4-4d5e-6f70-8192a3b4c5db" # FruitingChamber_Light_Write
+      - "b6879dfc-c2eb-42e1-a479-5cffd07da6c0" # FruitingChamber_LightDriver_TimeInState
+      - "a30be0ec-54d5-4ccd-ad12-0a8482e61a54" # FruitingChamber_LightDriver_FSM_State
+      - "9f1f19ad-ef0c-42bc-b6fe-9359b331e807" # FruitingChamber_LightDriver_FSM_Health
 
 
   - id: "vent_driver_fruiting" 
@@ -722,10 +845,10 @@ components:
     config_file: "config/drivers/vent_driver_fruiting.yaml" 
     controls_microcontroller: "c2"
     virtual_points_provided:
-      - "c287f1a2-b3c4-4d5e-6f70-8192a3b4c5dd" # C2_CP33_VentFan_Command
-      - "37b0558a-a39e-4a3f-9cdc-ad83e0b5c3f9" # VentFanDriver_TimeInState
-      - "2eaa72d4-5b0e-46db-b5ee-8428726cd400" # VentFanDriver_FSM_State
-      - "0c31a004-741f-4f8a-b2fd-3ceb37cdde8e" # VentFanDriver_FSM_Health
+      - "c287f1a2-b3c4-4d5e-6f70-8192a3b4c5dd" # FruitingChamber_VentFan_Write
+      - "37b0558a-a39e-4a3f-9cdc-ad83e0b5c3f9" # FruitingChamber_VentFanDriver_TimeInState
+      - "2eaa72d4-5b0e-46db-b5ee-8428726cd400" # FruitingChamber_VentFanDriver_FSM_State
+      - "0c31a004-741f-4f8a-b2fd-3ceb37cdde8e" # FruitingChamber_VentFanDriver_FSM_Health
 
 
 
@@ -767,3 +890,21 @@ components:
     virtual_points_provided:
       - "c263c3fc-018d-4996-800a-5317465c7178" # FruitingChamber_VentFan_Governor_Mode_Command
 
+  - id: "manual_input"
+    type: manual
+    controls_governors:
+      - "temperature_governor"
+      - "humidity_governor"
+      - "light_governor"
+      - "vent_fan_governor"
+    virtual_points_provided:
+      - "4a00f1a2-b3c4-4d5e-6f70-8192a3b4c5e5" # FruitingChamber_Temp_Target_Setpoint
+      - "5b11f1a2-b3c4-4d5e-6f70-8192a3b4c5e6" # FruitingChamber_Temp_Target_Deadband
+      - "7d33f1a2-b3c4-4d5e-6f70-8192a3b4c5e8" # FruitingChamber_Heater_Manual_Command
+      - "1ccbdc0e-30cd-4b02-964f-fd5208821bee" # FruitingChamber_Humidity_Target_Setpoint
+      - "e13a213e-d936-44ab-9948-895c335026b0" # FruitingChamber_Humidity_Target_Deadband
+      - "3039aac8-2816-4191-9f44-1d453e2e7924" # FruitingChamber_VentFan_Timer_OnIntervalMinutes
+      - "e0cf042f-5222-4be3-9fad-62ee28f3e3a8" # FruitingChamber_VentFan_Timer_OffIntervalMinutes
+      - "2be2a778-d0f6-4d33-97a1-747107b952b3" # FruitingChamber_Light_Timer_OnIntervalMinutes
+      - "f9cc975a-89f2-4b93-8159-074edf2a6c88" # FruitingChamber_Light_Timer_OffIntervalMinutes
+      

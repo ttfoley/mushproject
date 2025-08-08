@@ -1,329 +1,485 @@
 #include <Arduino.h>
-#include <Wire.h>
-#include "WiFi.h"
-#include <PubSubClient.h>
-#include <SensirionI2CScd4x.h>
-#include "secrets.h"
+#include "services/NtpService.h" // NTP service for timestamping
+#include <WiFi.h>
+#include "autogen_config.h" // For WiFi credentials and MQTT configuration
+#include "utils/FsmUtils.h"
+#include "sensors/SensorConfigs.h" // Sensor configuration structs
+#include "utils/JsonBuilder.h" // For testing ADR-10 JSON payload construction
+#include "services/MqttService.h" // For MQTT communication
+#include "PublishData.h" // For publish queue
+#include "services/RestartReasonLogger.h" // For persistent restart reason logging
+#include "utils/FsmUtils.h" // For FSM utility functions
+#include "sensors/SensorPoint.h" // Base sensor class
+#include "sensors/SCD4xSensorPoint.h" // SCD4x sensor implementation (will handle all the complexity)
+#include "utils/UniqueQueue.h" // For duplicate-free queue management
+#include "utils/I2cUtils.h" // For I2C debugging utilities
+#include "utils/SensorPublishQueue.h" // For sensor publish queue management
+#include <Wire.h> // For I2C
+#include <map>
+#include <queue>
+#include <set>
+#include <vector>
 
-// WiFi credentials from secrets.h
-#define WIFI_SSID SECRET_WIFI_SSID
-#define WIFI_PASSWORD SECRET_WIFI_PWD
+// Use FsmUtils namespace for cleaner function calls
+using namespace FsmUtils;
 
-// MQTT Configuration
-const char* mqtt_server = "192.168.1.17";
-const char* mqtt_username = "ttfoley";
-const char* mqtt_password = "password";
-const char* clientID = "controller3";
+// =============================================================================
+// SENSOR MANAGEMENT STRUCTURES
+// =============================================================================
 
-// Add MQTT topics near other constants
-const char* mqtt_co2_topic = "mush/controllers/C3/sensors/scd_0/co2";
-const char* mqtt_temp_topic = "mush/controllers/C3/sensors/scd_0/temperature";
-const char* mqtt_humidity_topic = "mush/controllers/C3/sensors/scd_0/humidity";
+// Global vector to hold all sensor control points for this controller
+std::vector<SensorPoint*> g_sensorPoints;
 
-// Timing constants
-const unsigned long WIFI_RETRY_DELAY = 5000;      // 5 seconds between retries
-const unsigned long MQTT_RETRY_DELAY = 5000;      // 5 seconds between MQTT connection attempts
-const unsigned long MAX_TIME_NO_PUBLISH = 300000; // Restart if no publish for 5 minutes
-const unsigned long MAX_WIFI_ATTEMPTS = 20;       // Maximum WiFi connection attempts before restart
-const unsigned long MEASURE_TIME = 5000;  // Time to wait for measurement (5s)
-const unsigned long MEASUREMENT_INTERVAL = 30000; // Time between measurements (30s)
+// Queue of sensors that need to be read (prevents duplicates)
+UniqueQueue<SensorPoint*> g_sensorsToReadQueue;
 
-// Initialize objects
-SensirionI2CScd4x scd4x;
-WiFiClient wifiClient;
-PubSubClient mqttClient(mqtt_server, 1883, wifiClient);
+// Global publish queue for all outgoing MQTT messages with sensor tracking
+SensorPublishQueue g_publishQueue;
 
-// State machine definition
-enum State {
-    START,
-    WIFI_CONNECTING,
-    MQTT_CONNECTING,
-    INIT_SENSOR,
-    MEASURING,
-    PUBLISH,
-    WAIT,
-    RESTART
-};
+// =============================================================================
+// FSM STATE MANAGEMENT (ADR-17, ADR-22)
+// =============================================================================
 
-State currentState = START;
+FsmState currentState = SETUP_HW; // Start with hardware setup - consistent with controller1
+unsigned long stateStartTime = 0;  // For state timeouts
 
-// Function declarations
-void setState(State newState);
-const char* stateToString(State state);
-bool initializeSCD4x();
-bool connectWiFi();
-float celsiusToFahrenheit(float celsius);
-bool connectMQTT();
+// =============================================================================
+// FSM STATE ATTEMPT COUNTERS
+// =============================================================================
 
-// Add to global variables
-unsigned long lastPublishTime = 0;
-uint8_t wifiAttempts = 0;
-uint16_t co2;
-float temperature;
-float humidity;
+// WiFi connection attempts
+static unsigned int wifiAttempts = 0;
 
-void setup() {
-    Serial.begin(115200);
+// NTP sync attempts  
+static unsigned int ntpAttempts = 0;
+
+// Boot status publishing flag to prevent duplicates/publishes false restarts
+static bool bootStatusPublished = false;
+
+// =============================================================================
+// EXISTING CONFIGURATION AND SERVICES
+// =============================================================================
+
+NtpService ntpService;
+// Instantiate MqttService with credentials from auto_gen_config.h
+MqttService mqttService(MQTT_CLIENT_ID, MQTT_BROKER_ADDRESS, MQTT_BROKER_PORT, 
+                        MQTT_USERNAME, MQTT_PASSWORD);
+
+// Restart reason logger for persistent error logging (ADR-14, ADR-17)
+RestartReasonLogger restartLogger;
+
+// How often to attempt NTP update in the loop (milliseconds)
+unsigned long lastNtpLoopUpdate = 0;
+
+// How often to print debug queue status (milliseconds)
+unsigned long lastDebugPrint = 0;
+
+// How often to run periodic maintenance checks (milliseconds)
+unsigned long lastPeriodicCheck = 0;
+
+void setupSensors() {
+    Serial.println("Creating sensor instances...");
     
-    // Give everything time to power up stably
-    delay(5000);
+    // === I2C Sensors ===
+    // SCD4x CO2/Temperature/Humidity Sensor (I2C address 0x62)
+    // NOTE: This sensor is notoriously difficult and requires special handling
+    // All the complexity (I2C resets, blocking measurements, delays) is encapsulated
+    // in the SCD4xSensorPoint class implementation
+    g_sensorPoints.push_back(new SCD4xSensorPoint(SCD4X_0_CONFIG));
+    Serial.println("Created SCD4x sensor (FruitingChamber) - WARNING: This sensor requires special handling!");
     
-    Serial.println("Controller3 starting up - SCD41 dedicated controller");
-    
-    Wire.begin(21, 22);  // SDA = 21, SCL = 22
-    Wire.setClock(100000);  // Set to 100kHz
-    delay(2000);
-    
-    currentState = START;
+    Serial.print("Total sensors created: ");
+    Serial.println(g_sensorPoints.size());
 }
 
-void loop() {
-    mqttClient.loop();  // Add this at the start of loop
-    static unsigned long stateTimer = 0;
+void checkSensorsNeedingRead() {
     
-    // Check for publish timeout
-    if (millis() - lastPublishTime > MAX_TIME_NO_PUBLISH) {
-        Serial.println("No successful publish for too long, restarting...");
-        setState(RESTART);
-    }
-    
-    switch(currentState) {
-        case START:
-            Serial.println("State: START");
-            setState(INIT_SENSOR);
-            break;
-            
-        case INIT_SENSOR:
-            if (initializeSCD4x()) {
-                Serial.println("SCD4x initialized successfully");
-                setState(WIFI_CONNECTING);
-            } else {
-                Serial.println("Failed to initialize SCD4x, retrying...");
-                delay(1000);
+    for (SensorPoint* sensor : g_sensorPoints) {
+        // Check if sensor already has data waiting to publish
+        if (!g_publishQueue.hasPendingData(sensor) && sensor->needToRead(millis())) {
+            if (g_sensorsToReadQueue.tryEnqueue(sensor)) {
+                Serial.println("Sensor queued for reading");
             }
-            break;
-            
-        case WIFI_CONNECTING:
-            if (WiFi.status() == WL_CONNECTED) {
-                Serial.println("WiFi connected!");
-                Serial.print("MAC address: ");
-                Serial.println(WiFi.macAddress());
-                Serial.print("IP address: ");
-                Serial.println(WiFi.localIP());
-                Serial.print("Signal strength: ");
-                Serial.print(WiFi.RSSI());
-                Serial.println(" dBm");
-                wifiAttempts = 0;  // Reset counter on success
-                setState(MQTT_CONNECTING);
-            } else {
-                static unsigned long lastAttempt = 0;
-                if (millis() - lastAttempt >= WIFI_RETRY_DELAY) {
-                    lastAttempt = millis();
-                    wifiAttempts++;
-                    if (wifiAttempts >= MAX_WIFI_ATTEMPTS) {
-                        Serial.println("Max WiFi attempts reached, restarting...");
-                        setState(RESTART);
-                        break;
-                    }
-                    Serial.print("WiFi attempt ");
-                    Serial.print(wifiAttempts);
-                    Serial.print(" of ");
-                    Serial.println(MAX_WIFI_ATTEMPTS);
-                    connectWiFi();
-                }
-            }
-            break;
-            
-        case MQTT_CONNECTING:
-            if (WiFi.status() != WL_CONNECTED) {
-                setState(WIFI_CONNECTING);
-            } else {
-                static unsigned long lastMqttAttempt = 0;
-                if (millis() - lastMqttAttempt >= MQTT_RETRY_DELAY) {
-                    lastMqttAttempt = millis();
-                    Serial.println("Attempting MQTT connection...");
-                    if (connectMQTT()) {
-                        setState(WAIT);
-                    }
-                }
-            }
-            break;
-            
-        case MEASURING:
-            {
-                uint16_t error;
-                
-                // Reset I2C before trying
-                Wire.end();
-                delay(100);
-                Wire.begin(21, 22);
-                Wire.setClock(100000);
-                delay(100);
-                scd4x.begin(Wire);
-                delay(1000);
-                
-                // Start the measurement, measureSingleShot is blocking for 5 seconds.
-                error = scd4x.measureSingleShot();
-                if (error) {
-                    Serial.println("Failed to start measurement");
-                    delay(2000);  // Add delay before returning to WAIT
-                    setState(WAIT);
-                    break;
-                }
-                
-                // Conservative wait for measurement, note measure_single shot already took 5  seconds.
-                delay(2000);
-                
-                // Try reading once. Based on experience, if it doesn't work the first time it won't work at all.
-                error = scd4x.readMeasurement(co2, temperature, humidity);
-                if (!error && co2 != 0) {
-                    temperature = celsiusToFahrenheit(temperature);
-                    
-                    Serial.print("Co2: ");
-                    Serial.print(co2);
-                    Serial.print(" ppm, Temp: ");
-                    Serial.print(temperature);
-                    Serial.print(" F, Humidity: ");
-                    Serial.print(humidity);
-                    Serial.println(" %");
-                    
-                    setState(PUBLISH);
-                } else {
-                    Serial.println("Failed to read measurement, returning to WAIT");
-                    delay(250);  // Add delay here too just in case stupid scd needs it to settle.
-                    setState(WAIT);
-                }
-            }
-            break;
-            
-        case PUBLISH:
-            if (!mqttClient.connected()) {
-                setState(MQTT_CONNECTING);
-                break;
-            }
-            
-            // Publish all values
-            mqttClient.publish(mqtt_co2_topic, String(co2).c_str());
-            mqttClient.publish(mqtt_temp_topic, String(temperature).c_str());
-            mqttClient.publish(mqtt_humidity_topic, String(humidity).c_str());
-            
-            lastPublishTime = millis();
-            setState(WAIT);
-            break;
-            
-        case WAIT:
-            // Check connections first
-            if (WiFi.status() != WL_CONNECTED) {
-                setState(WIFI_CONNECTING);
-                break;
-            }
-            if (!mqttClient.connected()) {
-                setState(MQTT_CONNECTING);
-                break;
-            }
-            
-            // In periodic mode, just wait for MEASUREMENT_INTERVAL
-            if (millis() - lastPublishTime >= MEASUREMENT_INTERVAL) {
-                setState(MEASURING);
-                break;
-            }
-            break;
-            
-        case RESTART:
-            Serial.println("Restarting device...");
-            delay(1000);
-            ESP.restart();
-            break;
-        
-        default:
-            Serial.println("Unknown state!");
-            delay(1000);
-            break;
+            // If tryEnqueue returns false, sensor was already queued - no action needed
+        }
     }
 }
 
-void setState(State newState) {
-    Serial.print("State transition: ");
-    Serial.print(stateToString(currentState));
-    Serial.print(" -> ");
-    Serial.println(stateToString(newState));
-    currentState = newState;
+// =============================================================================
+// DEBUG HELPER FUNCTIONS
+// =============================================================================
+
+void printPublishQueueStatus() {
+    Serial.print("Publish queue size: ");
+    Serial.println(g_publishQueue.size());
 }
 
-const char* stateToString(State state) {
-    switch(state) {
-        case START: return "START";
-        case WIFI_CONNECTING: return "WIFI_CONNECTING";
-        case MQTT_CONNECTING: return "MQTT_CONNECTING";
-        case INIT_SENSOR: return "INIT_SENSOR";
-        case MEASURING: return "MEASURING";
-        case PUBLISH: return "PUBLISH";
-        case WAIT: return "WAIT";
-        case RESTART: return "RESTART";
-        default: return "UNKNOWN";
-    }
+void printSensorStatus() {
+    Serial.print("Total sensors: ");
+    Serial.println(g_sensorPoints.size());
+    Serial.print("Sensors to read queue: ");
+    Serial.println(g_sensorsToReadQueue.size());
 }
 
-bool initializeSCD4x() {
-    Serial.println("Testing I2C communication...");
-    
-    Wire.beginTransmission(0x62);  // SCD41 address
-    byte error = Wire.endTransmission();
-    
-    if (error == 0) {
-        Serial.println("Found device at 0x62");
-    } else {
-        Serial.println("No device at 0x62, error: " + String(error));
-        return false;
-    }
-    
-    delay(1000);
-    
-    // Initialize sensor
-    scd4x.begin(Wire);
-    delay(1000);
-    
-    // Stop any periodic measurement
-    uint16_t err = scd4x.stopPeriodicMeasurement();
-    delay(500);
-    
-    // Disable automatic self calibration
-    err = scd4x.setAutomaticSelfCalibration(0);
-    if (err) {
-        Serial.println("Failed to disable ASC");
-        return false;
-    }
-    delay(500);
-    
-    return true;
-}
-
-bool connectWiFi() {
-    if (WiFi.status() == WL_CONNECTED) return true;
-    
-    // Only disconnect if not already disconnected
-    if (WiFi.status() != WL_DISCONNECTED) {
-        WiFi.disconnect();
-        delay(100);
-    }
-    
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+bool isWiFiConnected() {
     return WiFi.status() == WL_CONNECTED;
 }
 
-float celsiusToFahrenheit(float celsius) {
-    return celsius * 9.0 / 5.0 + 32.0;
+bool isMqttConnected() {
+    return mqttService.isConnected();
 }
 
-bool connectMQTT() {
-    if (mqttClient.connected()) return true;
+void setup() {
+    Serial.begin(115200);
+    while (!Serial); // Wait for serial to connect (especially for some boards)
+    Serial.println("\n\n--- Controller C3 (SCD4x CO2 Sensor Controller) Starting ---");
+
+    // Hardware initialization only - connectivity handled by FSM
+    setupSensors();
     
-    Serial.print("Attempting MQTT connection...");
-    if (mqttClient.connect(clientID, mqtt_username, mqtt_password)) {
-        Serial.println("connected");
-        return true;
+    Serial.println("Initializing MQTT Service...");
+    mqttService.begin();// Sets server and callback, does not connect
+    
+    // Note: C3 doesn't need command management like C2 since it's sensor-only
+
+    Serial.println("Setup complete. Entering main FSM loop...");
+    Serial.println("FSM will handle: SETUP_HW -> WiFi -> NTP -> MQTT -> Boot Status -> Normal Operation");
+    lastNtpLoopUpdate = millis(); // Initialize for loop updates
+    lastDebugPrint = millis(); // Initialize debug timer
+    stateStartTime = millis(); // Initialize state timing for first FSM state
+}
+
+void loop() {
+    unsigned long currentTime = millis();
+
+    mqttService.loop(); // Process MQTT messages and maintain connection
+    // Always check for sensors needing to be read for better timing. Our awareness of when things should be read should not be dependent on the FSM. 
+    checkSensorsNeedingRead();
+    // Main FSM Logic
+    switch (currentState) {
+        case SETUP_HW:
+            Serial.println("State: SETUP_HW");
+            
+            // Initialize I2C bus
+            Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+            Serial.print("I2C initialized on SDA:");
+            Serial.print(I2C_SDA_PIN);
+            Serial.print(", SCL:");
+            Serial.println(I2C_SCL_PIN);
+            
+            // Scan I2C bus to check for hardware issues (if enabled in config)
+            #if DEBUG_I2C_SCAN_ON_STARTUP
+            I2cUtils::scanI2CBus();
+            #endif
+            
+            // Initialize all sensor hardware - fail fast on any failure
+            // NOTE: SCD4x sensor initialization includes all the special handling:
+            // - I2C communication test
+            // - Stop periodic measurement
+            // - Disable auto-calibration  
+            // - Set single-shot measurement mode
+            Serial.println("Initializing sensor hardware...");
+            for (SensorPoint* sensor : g_sensorPoints) {
+                if (!sensor->initialize()) {
+                    Serial.println("CRITICAL: Sensor initialization failed - restarting controller");
+                    handleRestartWithReason(currentState, SENSOR_INIT_FAILED, restartLogger, ntpService);
+                    return; // Exit immediately, don't continue with loop
+                }
+            }
+            
+            Serial.println("All sensors initialized successfully");
+            transitionToState(currentState, CONNECT_WIFI, stateStartTime);
+            break;
+
+        case CONNECT_WIFI:
+            // Check if WiFi is already connected
+            if (WiFi.status() == WL_CONNECTED) {
+                Serial.println("WiFi connected successfully!");
+                Serial.print("IP Address: ");
+                Serial.println(WiFi.localIP());
+                resetRetries(wifiAttempts, "WiFi");
+                transitionToState(currentState, SYNC_NTP, stateStartTime, true); // New operation - reset timer
+                break;
+            }
+            
+            // Check if this is a new attempt or timeout
+            if (wifiAttempts == 0 || checkTimeout(stateStartTime, WIFI_ATTEMPT_TIMEOUT_MS)) {
+                if (checkAndIncrementRetries(wifiAttempts, MAX_WIFI_ATTEMPTS, "WiFi")) {
+                    handleRestartWithReason(currentState, WIFI_TIMEOUT, restartLogger, ntpService);
+                    break;
+                }
+                
+                // Start new WiFi attempt
+                Serial.print(" - Connecting to: ");
+                Serial.println(WIFI_SSID);
+                
+                WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+                stateStartTime = currentTime; // Manual reset for new attempt timer
+            } else {
+                // Still waiting for current attempt
+                Serial.print(".");
+            }
+            break;
+
+        case SYNC_NTP:
+            // Initialize NTP service if this is the first attempt
+            if (ntpAttempts == 0) {
+                Serial.println("Initializing NTP Service...");
+                ntpService.begin();
+                ntpAttempts = 1;
+                stateStartTime = currentTime;
+            }
+            
+            // Try to update/sync NTP
+            ntpService.update();
+            
+            // Check if NTP is now synchronized
+            if (ntpService.isTimeSet()) {
+                Serial.println("NTP sync successful!");
+                Serial.print("Current UTC Time: ");
+                Serial.println(ntpService.getFormattedISO8601Time());
+                Serial.print("Current Epoch Time: ");
+                Serial.println(ntpService.getEpochTime());
+                resetRetries(ntpAttempts, "NTP");
+                transitionToState(currentState, CONNECT_MQTT, stateStartTime, true); // New operation - reset timer
+                break;
+            }
+            
+            // Check for timeout on current attempt
+            if (checkTimeout(stateStartTime, NTP_ATTEMPT_TIMEOUT_MS)) {
+                if (checkAndIncrementRetries(ntpAttempts, MAX_NTP_ATTEMPTS, "NTP")) {
+                    handleRestartWithReason(currentState, NTP_TIMEOUT, restartLogger, ntpService);
+                    break;
+                }
+                
+                // Start new NTP attempt
+                Serial.println(" - Retrying...");
+                stateStartTime = currentTime; // Manual reset for new attempt timer
+            } else {
+                // Still waiting for current attempt
+                Serial.print("n"); // NTP attempt indicator
+            }
+            break;
+
+        case CONNECT_MQTT:
+            if (mqttService.connectBroker()) {
+                Serial.println("MQTT connected successfully!");
+                // Note: C3 doesn't need to subscribe to any topics since it's sensor-only
+                
+                // Only publish boot status if we haven't already
+                if (!bootStatusPublished) {
+                    transitionToState(currentState, PUBLISH_BOOT_STATUS, stateStartTime);
+                } else {
+                    transitionToState(currentState, READ_SENSORS, stateStartTime);
+                }
+            } else {
+                Serial.println("MQTT connection failed, retrying...");
+                
+                // Check for MQTT timeout (using constant from autogen_config.h)
+                if (checkTimeout(stateStartTime, MQTT_CONNECT_TIMEOUT_MS)) {
+                    handleRestartWithReason(currentState, MQTT_TIMEOUT, restartLogger, ntpService);
+                } else {
+                    transitionToState(currentState, CONNECT_MQTT, stateStartTime); // Stay in this state, keep timer
+                    delay(MQTT_RETRY_DELAY_MS); // Retry delay from autogen_config.h
+                }
+            }
+            break;
+
+        case PUBLISH_BOOT_STATUS: {
+            // Always publish a restart reason - default to unknown if none stored
+            PublishData bootStatus;
+            if (restartLogger.hasStoredRestartReason()) {
+                Serial.println("Found stored restart reason, creating publish data...");
+                bootStatus = restartLogger.createPublishData(
+                    ntpService,
+                    TOPIC_C3_LastRestartReason_DATA,
+                    UUID_C3_LastRestartReason_DATA
+                );
+            } else {
+                Serial.println("No stored restart reason found, defaulting to unknown_reset");
+                // Create PublishData for unknown restart reason
+                String timestamp = ntpService.getFormattedISO8601Time();
+                String reasonString = RestartReasonLogger::restartReasonToString(UNKNOWN_RESET);
+                bootStatus = PublishData(
+                    TOPIC_C3_LastRestartReason_DATA,
+                    UUID_C3_LastRestartReason_DATA,
+                    reasonString,
+                    timestamp
+                );
+            }
+            
+            g_publishQueue.queueForPublish(bootStatus);
+            Serial.println("Restart reason queued for publishing");
+            
+            // Mark boot status as published and transition to normal operation
+            bootStatusPublished = true;
+            transitionToState(currentState, READ_SENSORS, stateStartTime);
+            break;
+        }
+
+        case READ_SENSORS:
+            if (!g_sensorsToReadQueue.empty()) {
+                SensorPoint* sensor = g_sensorsToReadQueue.dequeue();
+                
+                Serial.println("Reading sensor...");
+                sensor->updateLastReadAttempt(currentTime);
+                
+                // Capture timestamp just before reading sensor
+                String readTimestamp = ntpService.getFormattedISO8601Time();
+                
+                // NOTE: For SCD4x, the read() method will handle:
+                // - I2C reset sequence (Wire.end() -> Wire.begin() -> scd4x.begin())
+                // - 5-second blocking measureSingleShot() call
+                // - Conservative delays and error handling
+                // - Temperature conversion (C to F)
+                // - All the sensor-specific complexity
+                if (sensor->read(readTimestamp)) {  // Pass timestamp for sensor to store
+                    Serial.println("Sensor read successful, packaging readings...");
+                    auto readings = sensor->getAllReadings();
+                    
+                    for (const auto& reading : readings) {
+                        PublishData pub(reading.topic, reading.uuid, reading.value, reading.timestamp, sensor);
+                        g_publishQueue.queueForPublish(pub);
+                        Serial.print("Queued: ");
+                        Serial.print(reading.topic);
+                        Serial.print(" = ");
+                        Serial.println(reading.value);
+                    }
+                    
+                    // DON'T update last publish time here - that should happen when MQTT actually publishes!
+                } else {
+                    Serial.println("Sensor read failed - will retry next cycle");
+                }
+                
+                // Always transition to WAIT to let FSM decide what's next
+                transitionToState(currentState, WAIT, stateStartTime);
+            } else {
+                // No sensors to read, go to publish what we have (if any) or wait
+                transitionToState(currentState, WAIT, stateStartTime);
+            }
+            break;
+
+        case PUBLISH_DATA:
+            // Check MQTT connection first - if not connected, transition to reconnect
+            if (!mqttService.isConnected()) {
+                Serial.println("MQTT not connected in PUBLISH_DATA state - transitioning to CONNECT_MQTT");
+                transitionToState(currentState, CONNECT_MQTT, stateStartTime);
+                break;
+            }
+            
+            if (!g_publishQueue.empty()) {
+                PublishData item = g_publishQueue.dequeueForPublish();
+                
+                Serial.print("Publishing to ");
+                Serial.print(item.topic);
+                Serial.print(": ");
+                Serial.print(item.serializedValue);
+                Serial.print(" at ");
+                Serial.println(item.timestampIsoUtc);
+                
+                // Publish via MQTT using publishJson with the raw value
+                if (mqttService.publishJson(item.topic, item.timestampIsoUtc, item.uuid, item.serializedValue)) {
+                    Serial.println("Publish successful!");
+                    
+                    // Update sensor last publish time for the specific sensor that provided this data
+                    if (item.sourceSensor != nullptr) {
+                        item.sourceSensor->updateLastPublishTime(millis());
+                    }
+                    g_publishQueue.markPublishComplete(item);
+                } else {
+                    Serial.println("Publish failed!");
+                    // For now, just continue - could implement retry logic later
+                }
+                
+                // Always transition to WAIT to let FSM decide what's next
+                transitionToState(currentState, WAIT, stateStartTime);
+            } else {
+                // Nothing to publish, go to wait
+                transitionToState(currentState, WAIT, stateStartTime);
+            }
+            break;
+
+        case OPERATIONAL_PERIODIC_CHECKS:
+            // Check for maintenance restart interval (millis() overflow prevention)
+            if (currentTime >= MAINTENANCE_RESTART_INTERVAL_MS) {
+                Serial.println("Maintenance restart interval reached - scheduling restart");
+                // Store restart reason for next boot
+                restartLogger.storeRestartReason(MAINTENANCE_RESTART, ntpService);
+                transitionToState(currentState, RESTART, stateStartTime);
+                break;
+            }
+            
+            // TODO: Add other periodic maintenance tasks here:
+            // - Memory usage checks
+            // - Sensor health diagnostics
+            // - WiFi signal strength monitoring
+            // - MQTT connection quality checks
+            
+            Serial.println("Periodic checks complete - returning to normal operation");
+            lastPeriodicCheck = currentTime;  // Update timestamp for next periodic check
+            transitionToState(currentState, WAIT, stateStartTime);
+            break;
+
+        case WAIT:
+            // Check for component publish timeouts first (critical safety check)
+            if (checkForNoPublishTimeouts(g_sensorPoints)) {
+                Serial.println("Component publish timeout detected - restarting controller");
+                restartLogger.storeRestartReason(NOPUBLISH_TIMEOUT, ntpService);
+                transitionToState(currentState, RESTART, stateStartTime);
+                break;
+            }
+            
+            // Check connectivity (highest priority after timeout checks)
+            if (!isWiFiConnected()) {
+                transitionToState(currentState, CONNECT_WIFI, stateStartTime);
+            } else if (!isMqttConnected()) {
+                transitionToState(currentState, CONNECT_MQTT, stateStartTime);
+            }
+            // Check for periodic maintenance tasks
+            else if (currentTime - lastPeriodicCheck >= PERIODIC_CHECKS_INTERVAL_MS) {
+                transitionToState(currentState, OPERATIONAL_PERIODIC_CHECKS, stateStartTime);
+            }
+            // Check for work to do
+            else if (!g_publishQueue.empty()) {
+                transitionToState(currentState, PUBLISH_DATA, stateStartTime);
+            } else {
+                // Check if any sensors need reading
+                checkSensorsNeedingRead();
+                if (!g_sensorsToReadQueue.empty()) {
+                    transitionToState(currentState, READ_SENSORS, stateStartTime);
+                } else {
+                    // Nothing to do, explicitly stay in WAIT state
+                    transitionToState(currentState, WAIT, stateStartTime);
+                }
+            }
+            break;
+
+        case RESTART:
+            Serial.println("State: RESTART - Restarting controller...");
+            delay(RESTART_DELAY_MS);
+            ESP.restart();
+            break;
+
+        default:
+            Serial.println("Unknown state! Going to RESTART");
+            transitionToState(currentState, RESTART, stateStartTime);
+            break;
     }
-    Serial.print("failed, rc=");
-    Serial.println(mqttClient.state());
-    return false;
-} 
+
+    // Periodically try to update NTP
+    if (currentTime - lastNtpLoopUpdate >= NTP_LOOP_UPDATE_INTERVAL_MS) {
+        if (ntpService.update()) {
+            Serial.println("NTP update successful.");
+        }
+        lastNtpLoopUpdate = currentTime;
+    }
+
+    // Periodically print debug queue status
+    if (currentTime - lastDebugPrint >= DEBUG_QUEUE_INTERVAL_MS) {
+        printPublishQueueStatus();
+        printSensorStatus();
+        lastDebugPrint = currentTime;
+    }
+
+    delay(MAIN_LOOP_DELAY_MS); 
+}

@@ -7,7 +7,7 @@ update_interval_seconds: 10.0 # How often the governor runs its control logic (e
 controllers:
   - controller_type: "bang_bang" # Using BangBang for simple on/off command output
     # Input Points Read by this Governor strategy:
-    sensor_point_uuid: "9c8b1da3-1b2a-4c8e-9d1f-6a7b8c9d0e1f"    # C1_SHT0_Humidity
+    sensor_point_uuid: "9c8b1da3-1b2a-4c8e-9d1f-6a7b8c9d0e1f"    # FruitingChamber_SHT85-0_Humidity_Raw
     target_setpoint_point_uuid: "1ccbdc0e-30cd-4b02-964f-fd5208821bee" # FruitingChamber_Humidity_Target_Setpoint
     hysteresis_point_uuid: "e13a213e-d936-44ab-9948-895c335026b0"      # FruitingChamber_Humidity_Target_Deadband
 

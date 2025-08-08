@@ -1,338 +1,529 @@
 #include <Arduino.h>
-#include "WiFi.h"
-#include <secrets.h>
-#include <OneWire.h>
-#include <SPI.h>
-#include "PubSubClient.h"
-#include "pincontrol.h"
+#include "services/NtpService.h" // NTP service for timestamping
+#include <WiFi.h>
+#include "autogen_config.h" // For WiFi credentials and MQTT configuration
+#include "utils/JsonBuilder.h" // For testing ADR-10 JSON payload construction
+#include "services/MqttService.h" // For MQTT communication
+#include "actuators/ActuatorControlPoint.h" // For actuator management (updated path)
+#include "PublishData.h" // For publish queue
+#include "services/RestartReasonLogger.h" // For persistent restart reason logging
+#include "utils/FsmUtils.h" // For FSM utility functions
+#include <map>
+#include <queue>
+#include <set>
+#include <vector>
 
-#define WIFI_SSID SECRET_WIFI_SSID
-#define WIFI_PASSWORD SECRET_WIFI_PWD
+// Use FsmUtils namespace for cleaner function calls
+using namespace FsmUtils;
 
-//output pin definitions
-const int pin_4 = 4; //I've been using this for LED on the board
-const int pin_26 = 26;
-const int pin_25 = 25;
-const int pin_33 = 33;
-const int pin_32 = 32;
+// =============================================================================
+// GLOBAL COMMAND MANAGEMENT STRUCTURES (ADR-22 Section 2.3.1)
+// =============================================================================
 
-// Create instances of PinControl
-unsigned long initial_time = millis();
-PinControl pinControls[] = {
-    PinControl(pin_4, 0.0,0.0, "led",  "mush/controllers/C2/control_points/led1/readback", "mush/controllers/C2/control_points/led1/write",initial_time),
-    PinControl(pin_26, 0.0, 0.0, "pin26", "mush/controllers/C2/control_points/CP_26/readback", "mush/controllers/C2/control_points/CP_26/write", initial_time),
-    PinControl(pin_25, 0.0, 0.0, "pin25", "mush/controllers/C2/control_points/CP_25/readback", "mush/controllers/C2/control_points/CP_25/write", initial_time),
-    PinControl(pin_33, 0.0, 0.0, "pin33", "mush/controllers/C2/control_points/CP_33/readback", "mush/controllers/C2/control_points/CP_33/write", initial_time),
-    PinControl(pin_32, 0.0, 0.0, "pin32", "mush/controllers/C2/control_points/CP_32/readback", "mush/controllers/C2/control_points/CP_32/write", initial_time)
-};
-// readbacks for the pins. when controller comes on, they start low. Only change if sent from mqtt.
-//Floats for now because topic parsing in telegraf sucks.
-//I wish I passed pinControls to things like subscribeMQTT, but it looks like I need to add a whole new library to do that to get sizeof pinControls.
+// Global vector to hold all actuator control points for this controller
+std::vector<ActuatorControlPoint*> g_actuatorPoints;
 
-const size_t numPins = sizeof(pinControls) / sizeof(pinControls[0]);
+// Topic-to-Actuator mapping for efficient MQTT command processing
+std::map<String, ActuatorControlPoint*> g_topicToActuatorMap;
 
-// MQTT
-const char* mqttServer = "192.168.1.17";  // IP of the MQTT broker
-const char* mqttUsername = "ttfoley"; // MQTT username
-const char* mqttPassword = "password"; // MQTT password
-const char* clientID = "controller2"; // MQTT client ID
+// Command Management for "Latest Wins" Logic
+std::map<ActuatorControlPoint*, String> g_pendingActuatorCommands;
+std::queue<ActuatorControlPoint*> g_actuatorsToProcessQueue;
+std::set<ActuatorControlPoint*> g_actuatorsInProcessQueueSet;
 
+// Global publish queue for all outgoing MQTT messages
+std::queue<PublishData> g_publishQueue;
 
-// Initialise the WiFi and MQTT Client objects
-WiFiClient wifiClient;
-PubSubClient client(mqttServer, 1883, wifiClient);
+// =============================================================================
+// FSM STATE MANAGEMENT (ADR-17, ADR-22)
+// =============================================================================
 
-void connectWifi();
-void connectMQTT(PinControl pinControls[], size_t numPins);
-void mqttCallback(char *topic, byte *payload, unsigned int length);
-void SubscribeMQTT(PinControl pinControls[], size_t numPins);
-void writeDelay(String content, PinControl& pinControl, int delayTime = 10);
-bool publishReadback(PinControl& pinControl);
+FsmState currentState = CONNECT_WIFI; // Start with WiFi connection - actuator setup is simple and done in setup()
+unsigned long stateStartTime = 0;  // For state timeouts
 
-//State machine states
-enum State {START, WAIT, WIFI_CONNECT, MQTT_CONNECT, MQTT_PUBLISH, RESTART};
-State state = START;
+// =============================================================================
+// FSM STATE ATTEMPT COUNTERS
+// =============================================================================
 
-#define WAIT_WAIT 10
-#define WIFI_WAIT 60000
-#define MQTT_WAIT 10000
-#define FORCE_REPUBLISH_FREQ 30000
-#define WIFI_DURATION_POST_INTERVAL 60000
-//Keep track of how long wifi has been connected
-unsigned long wifiConnectedTime = 0;
-unsigned long wifiConnectionDuration = 0;
-unsigned long lastWifiDurationPostTime = 0;
-const char* wifiTopic = "mush/controllers/C2/sensors/status/wifi_uptime";
+// WiFi connection attempts
+static unsigned int wifiAttempts = 0;
 
-String INITIAL_VALUE = "off"; //On startup, set all outputs off
+// NTP sync attempts  
+static unsigned int ntpAttempts = 0;
+
+// Boot status publishing flag to prevent duplicates/publishes false restarts
+static bool bootStatusPublished = false;
+
+// =============================================================================
+// EXISTING CONFIGURATION AND SERVICES
+// =============================================================================
+
+NtpService ntpService;
+// Instantiate MqttService with credentials from auto_gen_config.h
+MqttService mqttService(MQTT_CLIENT_ID, MQTT_BROKER_ADDRESS, MQTT_BROKER_PORT, 
+                        MQTT_USERNAME, MQTT_PASSWORD);
+
+// Restart reason logger for persistent error logging (ADR-14, ADR-17)
+RestartReasonLogger restartLogger;
+
+// How often to attempt NTP update in the loop (milliseconds)
+unsigned long lastNtpLoopUpdate = 0;
+
+// How often to print debug queue status (milliseconds)
+unsigned long lastDebugPrint = 0;
+
+void setupActuators() {
+    Serial.println("Initializing Actuator Control Points...");
+    
+    // Create ActuatorControlPoint instances using struct-based configuration (ADR-25)
+    ActuatorControlPoint* humidifier = new ActuatorControlPoint(HUMIDIFIER_CONFIG);
+    g_actuatorPoints.push_back(humidifier);
+    g_topicToActuatorMap[String(HUMIDIFIER_CONFIG.write_topic)] = humidifier;
+    Serial.println("Created humidifier actuator");
+    
+    ActuatorControlPoint* heatingpad = new ActuatorControlPoint(HEATINGPAD_CONFIG);
+    g_actuatorPoints.push_back(heatingpad);
+    g_topicToActuatorMap[String(HEATINGPAD_CONFIG.write_topic)] = heatingpad;
+    Serial.println("Created heating pad actuator");
+    
+    ActuatorControlPoint* light = new ActuatorControlPoint(LIGHT_CONFIG);
+    g_actuatorPoints.push_back(light);
+    g_topicToActuatorMap[String(LIGHT_CONFIG.write_topic)] = light;
+    Serial.println("Created light actuator");
+    
+    ActuatorControlPoint* ventfan = new ActuatorControlPoint(VENTFAN_CONFIG);
+    g_actuatorPoints.push_back(ventfan);
+    g_topicToActuatorMap[String(VENTFAN_CONFIG.write_topic)] = ventfan;
+    Serial.println("Created vent fan actuator");
+    
+    Serial.print("Total actuators created: "); Serial.println(g_actuatorPoints.size());
+    Serial.print("Topic mappings created: "); Serial.println(g_topicToActuatorMap.size());
+    
+    // Initialize all actuators (calls pinMode and sets initial hardware state)
+    Serial.println("Initializing actuator hardware...");
+    for (ActuatorControlPoint* actuator : g_actuatorPoints) {
+        actuator->initialize();
+        Serial.print("Initialized hardware for: "); Serial.println(actuator->getPointName());
+    }
+    
+    // Setup initial commands for all actuators (ADR-22 Section 2.5 SETUP_HW state)
+    Serial.println("Setting up initial actuator commands...");
+    for (ActuatorControlPoint* actuator : g_actuatorPoints) {
+        // Use helper method to get the initial command payload
+        // This respects the initial_state values from the struct configs
+        String initialPayload = actuator->getInitialCommandPayload();
+        
+        Serial.print("Initial state for ");
+        Serial.print(actuator->getPointName());
+        Serial.print(": ");
+        Serial.print(actuator->getInitialState() == HIGH ? "HIGH" : "LOW");
+        Serial.print(" -> command: '");
+        Serial.print(initialPayload);
+        Serial.println("'");
+        
+        // Populate command management structures
+        g_pendingActuatorCommands[actuator] = initialPayload;
+        g_actuatorsToProcessQueue.push(actuator);
+        g_actuatorsInProcessQueueSet.insert(actuator);
+        
+        Serial.print("Queued initial command '"); 
+        Serial.print(initialPayload);
+        Serial.print("' for: ");
+        Serial.println(actuator->getPointName());
+    }
+    
+    Serial.print("Total actuators queued for initial command processing: ");
+    Serial.println(g_actuatorsToProcessQueue.size());
+    
+    Serial.println("Actuator setup complete.");
+}
+
+void setupSubscriptions() {
+    Serial.println("Setting up MQTT subscriptions...");
+    
+    // Subscribe to all actuator WRITE topics using struct configs
+    for (ActuatorControlPoint* actuator : g_actuatorPoints) {
+        const char* writeTopic = actuator->getWriteTopic();
+        if (mqttService.subscribe(writeTopic)) {
+            Serial.print("Subscribed to: "); Serial.println(writeTopic);
+        } else {
+            Serial.print("Failed to subscribe to: "); Serial.println(writeTopic);
+        }
+    }
+    
+    Serial.println("MQTT subscriptions complete.");
+}
+
+// =============================================================================
+// DEBUG HELPER FUNCTIONS
+// =============================================================================
+
+void printCommandQueueStatus() {
+    Serial.println("\n--- Command Queue Status ---");
+    Serial.print("Pending commands: "); Serial.println(g_pendingActuatorCommands.size());
+    Serial.print("Actuators to process: "); Serial.println(g_actuatorsToProcessQueue.size());
+    Serial.print("Actuators in process set: "); Serial.println(g_actuatorsInProcessQueueSet.size());
+    
+    if (!g_pendingActuatorCommands.empty()) {
+        Serial.println("Pending commands details:");
+        for (const auto& pair : g_pendingActuatorCommands) {
+            Serial.print("  - ");
+            Serial.print(pair.first->getPointName());
+            Serial.print(": '");
+            Serial.print(pair.second);
+            Serial.println("'");
+        }
+    }
+    Serial.println("--- End Command Queue Status ---\n");
+}
+
+void printPublishQueueStatus() {
+    Serial.println("\n--- Publish Queue Status ---");
+    Serial.print("Items in publish queue: "); Serial.println(g_publishQueue.size());
+    Serial.println("--- End Publish Queue Status ---\n");
+}
+
+// =============================================================================
+// CONNECTIVITY AND PERIODIC FUNCTIONS
+// =============================================================================
+
+bool isWiFiConnected() {
+    return WiFi.status() == WL_CONNECTED;
+}
+
+bool isMqttConnected() {
+    return mqttService.isConnected();
+}
+
+void checkPeriodicRepublishing() {
+    // Check only for periodic republishing, timeout checking moved to WAIT state
+    for (ActuatorControlPoint* actuator : g_actuatorPoints) {
+        // Check for periodic republishing
+        if (actuator->isTimeToRepublish() && actuator->isLastStateSet()) {
+            String timestamp = ntpService.getFormattedISO8601Time();
+            PublishData periodicReadback(
+                actuator->getReadbackTopic(),
+                actuator->getReadbackUUID(),
+                actuator->getLastSuccessfulPayload(),
+                timestamp,
+                actuator
+            );
+            g_publishQueue.push(periodicReadback);
+        }
+    }
+}
 
 void setup() {
-  Serial.begin(115200);
-  delay(2000); //so I don't miss any messages from setup
-  Serial.println("Hello from the setup");
-  Serial.println("Connected");
-  Serial.setTimeout(2000);
-  for (const auto& pinControl : pinControls) {
-      pinMode(pinControl.pin, OUTPUT);
-  }
-  delay(2000);
+    Serial.begin(115200);
+    while (!Serial); // Wait for serial to connect (especially for some boards)
+    Serial.println("\n\n--- Controller C2 (Refactored) Starting ---");
 
-  //MQTT setup
-  client.setCallback(mqttCallback);
+    // Hardware initialization only - connectivity handled by FSM
+    setupActuators();
+    
+    // Debug: Print command queue status after setup
+    printCommandQueueStatus();
+
+    Serial.println("Initializing MQTT Service...");
+    mqttService.begin();// Sets server and callback, does not connect
+    
+    // Set up command management for MQTT service
+    mqttService.setCommandManagement(
+        &g_topicToActuatorMap,
+        &g_pendingActuatorCommands,
+        &g_actuatorsToProcessQueue,
+        &g_actuatorsInProcessQueueSet
+    );
+
+    Serial.println("Setup complete. Entering main FSM loop...");
+    Serial.println("FSM will handle: WiFi -> NTP -> MQTT -> Boot Status -> Normal Operation");
+    lastNtpLoopUpdate = millis(); // Initialize for loop updates
+    lastDebugPrint = millis(); // Initialize debug timer
+    stateStartTime = millis(); // Initialize state timing for first FSM state
 }
 
-/* 
-  * It seems like the way arduino does things is via globals, so lots of globals are flying around here.
-  * client.loop() starts the mqtt loops. The rest of the code is a state machine that basically keeps wifi and mqtt connecte, AND
-  * Importantly, it also writes to controls points and posts that it's done so to mqtt.
-*/
 void loop() {
+    unsigned long currentTime = millis();
 
-  client.loop();
+    mqttService.loop(); // Process MQTT messages and maintain connection
 
+    // Main FSM Logic
+    switch (currentState) {
+        case CONNECT_WIFI:
+            // Check if WiFi is already connected
+            if (WiFi.status() == WL_CONNECTED) {
+                Serial.println("WiFi connected successfully!");
+                Serial.print("IP Address: ");
+                Serial.println(WiFi.localIP());
+                resetRetries(wifiAttempts, "WiFi");
+                transitionToState(currentState, SYNC_NTP, stateStartTime, true); // New operation - reset timer
+                break;
+            }
+            
+            // Check if this is a new attempt or timeout
+            if (wifiAttempts == 0 || checkTimeout(stateStartTime, WIFI_ATTEMPT_TIMEOUT_MS)) {
+                if (checkAndIncrementRetries(wifiAttempts, MAX_WIFI_ATTEMPTS, "WiFi")) {
+                    handleRestartWithReason(currentState, WIFI_TIMEOUT, restartLogger, ntpService);
+                    break;
+                }
+                
+                // Start new WiFi attempt
+                Serial.print(" - Connecting to: ");
+                Serial.println(WIFI_SSID);
+                
+                WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+                stateStartTime = currentTime; // Manual reset for new attempt timer
+            } else {
+                // Still waiting for current attempt
+                Serial.print(".");
+            }
+            break;
 
-  static unsigned long chrono;  // For timing in states (static means only initialized once?)
-  static bool timesUp = false;
+        case SYNC_NTP:
+            // Initialize NTP service if this is the first attempt
+            if (ntpAttempts == 0) {
+                Serial.println("Initializing NTP Service...");
+                ntpService.begin();
+                ntpAttempts = 1;
+                stateStartTime = currentTime;
+            }
+            
+            // Try to update/sync NTP
+            ntpService.update();
+            
+            // Check if NTP is now synchronized
+            if (ntpService.isTimeSet()) {
+                Serial.println("NTP sync successful!");
+                Serial.print("Current UTC Time: ");
+                Serial.println(ntpService.getFormattedISO8601Time());
+                Serial.print("Current Epoch Time: ");
+                Serial.println(ntpService.getEpochTime());
+                resetRetries(ntpAttempts, "NTP");
+                transitionToState(currentState, CONNECT_MQTT, stateStartTime, true); // New operation - reset timer
+                break;
+            }
+            
+            // Check for timeout on current attempt
+            if (checkTimeout(stateStartTime, NTP_ATTEMPT_TIMEOUT_MS)) {
+                if (checkAndIncrementRetries(ntpAttempts, MAX_NTP_ATTEMPTS, "NTP")) {
+                    handleRestartWithReason(currentState, NTP_TIMEOUT, restartLogger, ntpService);
+                    break;
+                }
+                
+                // Start new NTP attempt
+                Serial.println(" - Retrying...");
+                stateStartTime = currentTime; // Manual reset for new attempt timer
+            } else {
+                // Still waiting for current attempt
+                Serial.print("n"); // NTP attempt indicator
+            }
+            break;
 
-  if (WiFi.status() == WL_CONNECTED) {
-    wifiConnectionDuration = millis() - wifiConnectedTime; // Calculate the duration of the WiFi connection
-  }
+        case CONNECT_MQTT:
+            if (mqttService.connectBroker()) {
+                Serial.println("MQTT connected successfully!");
+                setupSubscriptions(); // Subscribe to all actuator WRITE topics
+                
+                // Only publish boot status if we haven't already
+                if (!bootStatusPublished) {
+                    transitionToState(currentState, PUBLISH_BOOT_STATUS, stateStartTime);
+                } else {
+                    transitionToState(currentState, PROCESS_COMMANDS, stateStartTime);
+                }
+            } else {
+                Serial.println("MQTT connection failed, retrying...");
+                
+                // Check for MQTT timeout (using constant from autogen_config.h)
+                if (checkTimeout(stateStartTime, MQTT_CONNECT_TIMEOUT_MS)) {
+                    handleRestartWithReason(currentState, MQTT_TIMEOUT, restartLogger, ntpService);
+                } else {
+                    // Stay in this state, keep timer - don't spam transitions  
+                    transitionToState(currentState, CONNECT_MQTT, stateStartTime); // Stay in this state, keep timer
+                    delay(MQTT_RETRY_DELAY_MS); // Retry delay from autogen_config.h
+                }
+            }
+            break;
 
-
-  switch (state) {
-    // This is the initial state, it sets all the pins to the initial value
-    case START:
-      Serial.println("State: START");
-      for (auto& pinControl : pinControls)
-      {
-        writeDelay(INITIAL_VALUE, pinControl);
-      }
-      state = WIFI_CONNECT;
-      chrono = millis();//This starts timer for wifi connection attempt, it's like a transition actions in statecharts
-      break;
-
-    //A convenience state, to decide where to go next based on the current state of the system with a little bit of time delay
-    // It adds a state that's not really necessary, but it simplifies some other states
-    case WAIT:
-      //Serial.println("State: WAIT");
-      if (WiFi.status() != WL_CONNECTED) 
-      {
-        state = WIFI_CONNECT;
-      }
-      else if (!client.connected()) 
-      {
-        state = MQTT_CONNECT;
-      }
-      else 
-      {
-        state = MQTT_PUBLISH;
-      }
-      break;
-
-    case WIFI_CONNECT:
-      Serial.println("State: WIFI_CONNECT");
-      connectWifi();
-      if (WiFi.status() == WL_CONNECTED) 
-      {
-        state = MQTT_CONNECT;
-        chrono = millis();
-      }
-      else if (millis() - chrono > WIFI_WAIT) //We've tried too many times, restarted the board
-      {
-        state = RESTART;
-      }
-      else // try to connect again
-      {
-        state = WIFI_CONNECT; //this doesn't do anything but just to be explicit. Note we don't restart timer.
-      }
-      break;
-
-
-    case MQTT_CONNECT:
-      Serial.println("State: MQTT_CONNECT");
-      if (client.connected())
-      {
-
-        state = MQTT_PUBLISH;
-        chrono = millis();
-      }
-      else if (WiFi.status() != WL_CONNECTED) //Note we lose track of our data when we do this, restarts whole machine
-      {
-        state = WIFI_CONNECT;
-        chrono = millis();
-      }
-      else if (millis() - chrono < MQTT_WAIT) // Try again if we haven't run out of time
-      {
-        connectMQTT(pinControls, numPins);
-        state = MQTT_CONNECT; // just to be explicit
-      }
-      else  // We're out of time and tried everything, let's give up
-      {
-        state = RESTART;
-      }
-      break;
-
-    /*
-     *Checks if changed value or republish time up, publishes if so
-     *If we made it here we were connected like 0.00001 seconds ago, not checking again.
-     *Note this has a side effect: If publish  succeeds, we'll update readback_last to be current. This just seems to be the way things are done in MQTT land.
-    */
-    case MQTT_PUBLISH: 
-      //Serial.println("State: MQTT_PUBLISH");
-      for (auto& pinControl : pinControls) {
-          // Check if it's time to republish
-          pinControl.checkTimeToRepublish(FORCE_REPUBLISH_FREQ);
-          
-          if (pinControl.needs_publish) {
-              if (publishReadback(pinControl)) {
-                  pinControl.publishComplete();
-              }
-          }
-      }
-      // Check if it's time to post wifiConnectionDuration
-      if (millis() - lastWifiDurationPostTime > WIFI_DURATION_POST_INTERVAL) {
-        char durationString[16];
-        dtostrf(wifiConnectionDuration / 60000.0, 1, 2, durationString); // Convert to minutes
-        if (client.publish(wifiTopic, durationString)) {
-          Serial.print("WiFi connection duration: ");
-          Serial.println(durationString);
-          lastWifiDurationPostTime = millis(); // Update the last post time
-        } else {
-          Serial.println("Failed to publish WiFi connection duration");
-        }
-      }
-
-      chrono = millis();
-      state = WAIT;
-      break;
-
-
-    case RESTART:
-      Serial.println("State: RESTART");
-      delay(500);
-      ESP.restart();
-      break;    
-  }
-}
-
-
-void connectWifi() {
-  Serial.print("Connecting to ");
-  Serial.println(WIFI_SSID);
-
-  // Connect to the WiFi
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  delay(2000);
-  if (WiFi.status() == WL_CONNECTED)
-  {
-    Serial.println("WiFi connected");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
-    Serial.print("\n");
-    wifiConnectedTime = millis(); // Set the timestamp when WiFi is connected
-  }
-
-}
-
-void connectMQTT(PinControl pinControls[], size_t numPins) {
-  Serial.print("Attempting MQTT connection...");
-  // Attempt to connect
-  if (client.connect(clientID, mqttUsername, mqttPassword)) {
-    Serial.println("connected");
-    SubscribeMQTT(pinControls, numPins); // only called once when connected
-  } else {
-    Serial.print("failed, rc=");
-    Serial.print(client.state());
-    delay(2000); //delay's ok here because we can't possible receive message if client is borken
-  }
-}
-
-//Subscribes to all of the topics in pinControls
-void SubscribeMQTT(PinControl pinControls[], size_t numPins){
-  for (size_t i = 0; i < numPins; ++i) {
-    client.subscribe(pinControls[i].output_topic);
-  }
-}
-
-
-/*
- * This takes action! write delay is called if matching topic is found, it writeDelay is called, writing to the point and updating readback.
- */ 
-void mqttCallback(char *topic, byte *payload, unsigned int length)
-{
-    Serial.print("Received on ");
-    Serial.print(topic);
-    Serial.print(": ");
-
-    String content = "";
-    String str_output_topic = String(topic);
-
-    for (size_t i = 0; i < length; i++)
-    {
-        content.concat((char)payload[i]);
-    }
-
-    Serial.print(content);
-    Serial.println();
-
-    bool topic_found = false;
-    for (auto& pinControl : pinControls)
-    {
-        if (str_output_topic == pinControl.output_topic)
-        {
-            writeDelay(content, pinControl);
-            topic_found = true;
+        case PUBLISH_BOOT_STATUS: {
+            // Always publish a restart reason - default to unknown if none stored
+            PublishData bootStatus;
+            if (restartLogger.hasStoredRestartReason()) {
+                Serial.println("Found stored restart reason, creating publish data...");
+                bootStatus = restartLogger.createPublishData(
+                    ntpService,
+                    TOPIC_C2_LastRestartReason_DATA,
+                    UUID_C2_LastRestartReason_DATA
+                );
+            } else {
+                Serial.println("No stored restart reason found, defaulting to unknown_reset");
+                // Create PublishData for unknown restart reason
+                String timestamp = ntpService.getFormattedISO8601Time();
+                String reasonString = RestartReasonLogger::restartReasonToString(UNKNOWN_RESET);
+                bootStatus = PublishData(
+                    TOPIC_C2_LastRestartReason_DATA,
+                    UUID_C2_LastRestartReason_DATA,
+                    reasonString,
+                    timestamp
+                );
+            }
+            
+            g_publishQueue.push(bootStatus);
+            Serial.println("Restart reason queued for publishing");
+            
+            // Mark boot status as published and transition to normal operation
+            bootStatusPublished = true;
+            transitionToState(currentState, PROCESS_COMMANDS, stateStartTime);
             break;
         }
+
+        case PROCESS_COMMANDS:
+            if (!g_actuatorsToProcessQueue.empty()) {
+                // Process one command from the queue
+                ActuatorControlPoint* actuatorToProcess = g_actuatorsToProcessQueue.front();
+                g_actuatorsToProcessQueue.pop();
+                g_actuatorsInProcessQueueSet.erase(actuatorToProcess);
+                
+                // Get the latest command for this actuator
+                String latestPayload = g_pendingActuatorCommands[actuatorToProcess];
+                
+                Serial.print("Processing command '");
+                Serial.print(latestPayload);
+                Serial.print("' for: ");
+                Serial.println(actuatorToProcess->getPointName());
+                
+                // Execute the command on the actuator
+                if (actuatorToProcess->executeDeviceCommand(latestPayload)) {
+                    // Command executed successfully - store the successful payload and create readback
+                    actuatorToProcess->setLastSuccessfulPayload(latestPayload);
+                    
+                    String timestamp = ntpService.getFormattedISO8601Time();
+                    
+                    PublishData readback(
+                        actuatorToProcess->getReadbackTopic(),
+                        actuatorToProcess->getReadbackUUID(),
+                        latestPayload,  // Use the payload we know succeeded
+                        timestamp,
+                        actuatorToProcess
+                    );
+                    
+                    g_publishQueue.push(readback);
+                    
+                    Serial.print("Queued readback: ");
+                    Serial.print(latestPayload);
+                    Serial.print(" for topic: ");
+                    Serial.println(actuatorToProcess->getReadbackTopic());
+                } else {
+                    // Command execution failed, Note that bad payloads are simply ignored instead trying to be interpreted as something "safe" like "off"
+                    Serial.print("Command execution failed for payload: ");
+                    Serial.println(latestPayload);
+                    // Could add error handling/logging here in future
+                }
+                
+                // Remove the processed command (whether successful or not)
+                g_pendingActuatorCommands.erase(actuatorToProcess);
+                
+                // Transition to publish the readback (if any was created)
+                transitionToState(currentState, PUBLISH_DATA, stateStartTime);
+            } else {
+                // No commands to process, go to wait state
+                transitionToState(currentState, WAIT, stateStartTime);
+            }
+            break;
+
+        case PUBLISH_DATA:
+            // Check MQTT connection first - if not connected, transition to reconnect
+            if (!mqttService.isConnected()) {
+                Serial.println("MQTT not connected in PUBLISH_DATA state - transitioning to CONNECT_MQTT");
+                transitionToState(currentState, CONNECT_MQTT, stateStartTime);
+                break;
+            }
+            
+            if (!g_publishQueue.empty()) {
+                PublishData item = g_publishQueue.front();
+                g_publishQueue.pop();
+                
+                Serial.print("Publishing to ");
+                Serial.print(item.topic);
+                Serial.print(": ");
+                Serial.print(item.serializedValue);
+                Serial.print(" at ");
+                Serial.println(item.timestampIsoUtc);
+                
+                // Publish via MQTT using publishJson with the raw value
+                if (mqttService.publishJson(item.topic, item.timestampIsoUtc, item.uuid, item.serializedValue)) {
+                    Serial.println("Publish successful!");
+                    
+                    // Update the source actuator's last publish time
+                    if (item.sourceActuator != nullptr) {
+                        item.sourceActuator->setLastPublishTimeMillis(currentTime);
+                    }
+                } else {
+                    Serial.println("Publish failed!");
+                    // For now, just continue - could implement retry logic later
+                }
+                
+                // Always transition to WAIT to let FSM decide what's next
+                transitionToState(currentState, WAIT, stateStartTime);
+            } else {
+                // Nothing to publish, go to wait
+                transitionToState(currentState, WAIT, stateStartTime);
+            }
+            break;
+
+        case WAIT:
+            // Check for component publish timeouts first (critical safety check)
+            if (checkForNoPublishTimeouts(g_actuatorPoints)) {
+                Serial.println("Component publish timeout detected - restarting controller");
+                restartLogger.storeRestartReason(NOPUBLISH_TIMEOUT, ntpService);
+                transitionToState(currentState, RESTART, stateStartTime);
+                break;
+            }
+            
+            // Check connectivity (highest priority after timeout checks)
+            if (!isWiFiConnected()) {
+                transitionToState(currentState, CONNECT_WIFI, stateStartTime);
+            } else if (!isMqttConnected()) {
+                transitionToState(currentState, CONNECT_MQTT, stateStartTime);
+            }
+            // Check for work to do
+            else if (!g_actuatorsToProcessQueue.empty()) {
+                transitionToState(currentState, PROCESS_COMMANDS, stateStartTime);
+            } else if (!g_publishQueue.empty()) {
+                transitionToState(currentState, PUBLISH_DATA, stateStartTime);
+            } else {
+                // Check for periodic republishing
+                checkPeriodicRepublishing();
+                // Explicitly stay in WAIT state
+                transitionToState(currentState, WAIT, stateStartTime);
+            }
+            break;
+
+        case RESTART:
+            Serial.println("State: RESTART - Restarting controller...");
+            delay(RESTART_DELAY_MS);
+            ESP.restart();
+            break;
+
+        default:
+            Serial.println("Unknown state! Going to RESTART");
+            transitionToState(currentState, RESTART, stateStartTime);
+            break;
     }
 
-    if (!topic_found)
-    {
-        Serial.println("Invalid topic");
+    // Periodically try to update NTP
+    if (currentTime - lastNtpLoopUpdate >= NTP_LOOP_UPDATE_INTERVAL_MS) {
+        if (ntpService.update()) {
+            Serial.println("NTP update successful.");
+        }
+        lastNtpLoopUpdate = currentTime;
     }
-}
 
-/*
- * This writes to pin (HIGH, LOW) and sets readback to (1.0, -1.0) depending on the content. Nothing else can change the outputs.
- * The delay time was to give the relay time to switch before we read back the value,
- * but it really doesn't matter since we're not reading a physically manifested value, only a bad proxy.
- */
-void writeDelay(String content, PinControl& pinControl, int delayTime)
-{
-  if (content == "on") 
-  {
-    digitalWrite(pinControl.pin, HIGH);
-    pinControl.updateReadback(1.0);
-    delay(delayTime);
-  }
-  else if (content == "off") 
-  {
-    digitalWrite(pinControl.pin, LOW);
-    pinControl.updateReadback(-1.0);
-    delay(delayTime);
-  }
-  else 
-  {
-    Serial.println("Invalid content");
-  }
-}
-
-/*
-  * This publishes the readback value to the readback topic. If successful, it updates the last readback value to be current.
-  * This is the only way to update the readback value.
-  * 
-*/
-bool publishReadback(PinControl& pinControl) {
-    char tempString[16];
-    dtostrf(pinControl.rb, 1, 2, tempString);
-    if (client.publish(pinControl.readback_topic, tempString)) {
-        Serial.println(tempString);
-        Serial.println("Sent!");
-        return true;
+    // Periodically print debug queue status
+    if (currentTime - lastDebugPrint >= DEBUG_QUEUE_INTERVAL_MS) {
+        printCommandQueueStatus();
+        printPublishQueueStatus();
+        lastDebugPrint = currentTime;
     }
-    return false;
-}
-/* If it succeeds, we'll update readback_last to be current. Note that in the meantime a new value could have been sent from MQTT,
-* meaning we'll miss this value by the next loop. PubSubClient doesn't keep a queue of messages, so unsent values are lost.
-* But it's very unlikely we'll receive a new value in the meantime if the client is failing to publish.
-*/
+
+    delay(MAIN_LOOP_DELAY_MS); 
+} 
