@@ -44,8 +44,17 @@ At the beginning of a new chat, you must check out the PROJ files to know what's
    - Fast but requires knowing exact terminology
 
 #### For Architecture Decisions:
-- **Semantic search** `ADR-*` files (rich content)
-- **Grep backup** for exact terms
+1. **FIRST: Check CSV files** - `docs/adr_content.csv` contains ADR data with AI-optimized search summaries
+   - Each ADR has AI-generated summaries designed for semantic search
+   - Contains recall phrases like "that document about...", "the ADR that..." 
+   - Much faster than reading individual ADR files
+   - Use this for questions about: architectural decisions, design choices, technical documentation
+
+2. **THEN: Read specific ADR files** - Use filename from CSV to get full ADR details
+   - Rich content with full context and technical details
+
+3. **Semantic search backup** - Only if CSV search fails
+   - `codebase_search` on `ADR-*` files for complex queries
 
 #### UUID to File Mapping:
 - **CSV contains explicit paths**: `requirement_file` column shows `REQ-2143d27a-75da-809e-92df-dcd2344016d9/index.md`
@@ -58,11 +67,25 @@ At the beginning of a new chat, you must check out the PROJ files to know what's
 - **CSV columns**: `completed`, `last_edited_time`, `notion_id`, `requirement_file`, `title`
 - **Relationships**: CSV `requirement_file` column provides direct paths to requirements
 
+#### For Tasks:
+1. **FIRST: Check CSV files** - `docs/task_content.csv` contains task data with TASK-XX IDs
+   - Each task has a human-readable ID (TASK-1, TASK-2, etc.)
+   - Use for questions about: "help me with TASK-XX", current work context
+   - Enables easy task referencing in conversations
+
+2. **THEN: Read specific TASK files** - Use filename from CSV to get full task details
+
+### Available CSV Files:
+- `docs/requirements_acceptance_status.csv` - Requirements Acceptance Criteria tracking
+- `docs/adr_content.csv` - Architecture Decision Records with AI summaries  
+- `docs/task_content.csv` - Tasks with human-readable IDs
+
 ### Search Priority Order:
-1. **RAC questions**: Read CSV first (instant analysis of all acceptance criteria)
+1. **RAC questions**: Read `requirements_acceptance_status.csv` first (instant analysis of all acceptance criteria)
 2. **REQ details**: Use requirement_file paths from CSV to read specific requirements  
-3. **Architecture**: Semantic search ADR files
-4. **Complex queries**: Combine CSV analysis + semantic search of rich content files
+3. **Architecture questions**: Read `adr_content.csv` first, then specific ADR files if needed
+4. **Task questions**: Read `task_content.csv` first for TASK-XX references
+5. **Complex queries**: Combine multiple CSV analyses + semantic search of rich content files
 
 For every change I request, follow these steps:
 1) first consider what functions/files will likely need to be modified based on the change, including downstream effect. Fetch every relevant file and read through them before coming up with solutions. 
