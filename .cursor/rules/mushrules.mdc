@@ -1,0 +1,115 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Don't ever make changes I don't explictly ask you to.
+Don't delete comments unless I ask you to. 
+Don't try to "improve" things that I don't ask you to. Focus on the change I'm currently requesting.
+Don't making changes deeper than one 2 levels from the code presently being considered without first laying out your plan and asking for approval. 
+
+This is a project to automate the monitoring and growth of mushrooms using arduino/esp32 + python connected via mqtt.
+the folder docs/ contains all sort of relevant information, especially folders in the PROJ, ADR, and REQ category. Each folder contains an index.md with a header that contains 
+information such as Title and relations to other databases; IF there is a page corresponding to an entry, its contents are shown after the header. If we're trying to make architectual decisions or debating implementation details, you should search docs/ to see if there's anything relevant to the present problem.
+At the beginning of a new chat, you must check out the PROJ files to know what's going on. Here's what's in the docs/:
+## Documentation Structure & Search Strategy
+
+### Notion Database Prefixes (docs/ folder):
+- **REQ-*** = Requirements (main requirement documents)
+- **RAC-*** = Requirements Acceptance Criteria (completion status tracking for the requirements) 
+- **ADR-*** = Architecture Decision Records
+- **TASK-*** = Tasks
+- **EPIC-*** = Epics  
+- **PROJ-*** = Project Documentation
+- **CODE-*** = Code Documentation
+- **TAI-*** = Templates and Instructions
+- **DES-*** = Design Documents
+- **GEN-*** = Document Generation
+
+### OPTIMIZED Search Strategy:
+
+#### For Requirements & Acceptance Criteria:
+1. **FIRST: Check CSV files** - `docs/requirements_acceptance_status.csv` contains ALL RAC data in one file
+   - Perfect for LLM semantic analysis of relationships
+   - Contains explicit file paths: `requirement_file` column shows `REQ-UUID/index.md` 
+   - Shows completion status, titles, and direct links to requirements
+   - Use this for questions about: completion status, finding requirements by criteria, relationship analysis
+
+2. **THEN: Read specific REQ files** - Use file paths from CSV to get full requirement details
+   - Rich content perfect for semantic search
+   - Contains goals, descriptions, detailed acceptance criteria
+
+3. **Grep as backup** - Only if CSV + semantic search fail
+   - `grep -i "keyword" docs/REQ-*/index.md` for exact matches
+   - Fast but requires knowing exact terminology
+
+#### For Architecture Decisions:
+1. **FIRST: Check CSV files** - `docs/adr_content.csv` contains ADR data with AI-optimized search summaries
+   - Each ADR has AI-generated summaries designed for semantic search
+   - Contains recall phrases like "that document about...", "the ADR that..." 
+   - Much faster than reading individual ADR files
+   - Use this for questions about: architectural decisions, design choices, technical documentation
+
+2. **THEN: Read specific ADR files** - Use filename from CSV to get full ADR details
+   - Rich content with full context and technical details
+
+3. **Semantic search backup** - Only if CSV search fails
+   - `codebase_search` on `ADR-*` files for complex queries
+
+#### UUID to File Mapping:
+- **CSV contains explicit paths**: `requirement_file` column shows `REQ-2143d27a-75da-809e-92df-dcd2344016d9/index.md`
+- **No inference needed**: Direct file paths eliminate UUID guesswork
+- **Folders follow pattern**: PREFIX-UUID (e.g., REQ-abc123, RAC-def456, ADR-xyz789)
+
+### RAC Data Format:
+- **Primary source**: `docs/requirements_acceptance_status.csv` 
+- **Backup folders**: `RAC-*` directories (sparse files, used for sync timestamps)
+- **CSV columns**: `completed`, `last_edited_time`, `notion_id`, `requirement_file`, `title`
+- **Relationships**: CSV `requirement_file` column provides direct paths to requirements
+
+#### For Tasks:
+1. **FIRST: Check CSV files** - `docs/task_content.csv` contains task data with TASK-XX IDs
+   - Each task has a human-readable ID (TASK-1, TASK-2, etc.)
+   - Use for questions about: "help me with TASK-XX", current work context
+   - Enables easy task referencing in conversations
+
+2. **THEN: Read specific TASK files** - Use filename from CSV to get full task details
+
+### Available CSV Files:
+- `docs/requirements_acceptance_status.csv` - Requirements Acceptance Criteria tracking
+- `docs/adr_content.csv` - Architecture Decision Records with AI summaries  
+- `docs/task_content.csv` - Tasks with human-readable IDs
+
+### Search Priority Order:
+1. **RAC questions**: Read `requirements_acceptance_status.csv` first (instant analysis of all acceptance criteria)
+2. **REQ details**: Use requirement_file paths from CSV to read specific requirements  
+3. **Architecture questions**: Read `adr_content.csv` first, then specific ADR files if needed
+4. **Task questions**: Read `task_content.csv` first for TASK-XX references
+5. **Complex queries**: Combine multiple CSV analyses + semantic search of rich content files
+
+For every change I request, follow these steps:
+1) first consider what functions/files will likely need to be modified based on the change, including downstream effect. Fetch every relevant file and read through them before coming up with solutions. 
+2) Come up with 3 different solutions/implementations and choose what you consider the best one. 
+3) Once again fetch the relevant code and go through it to see what will be effected and interrogate how your proposed code will interact and modify the existing code. For the effected files, see if the required changes effect yet more code. If you find effects that you didn't initially consider when you came up with the solution, start again at step 1 with this new understanding. Otherwise, proceed to step 4.
+4) Explain your choice and the alternatives considered.  For the proposed solution/implementation, consider all of the code that will be effected; enumerate all files/functions that are effected and will need to be modified based on your changes. Explain what you picked, what you learned in the process, and what downstream effects your proposed changes have, including what additional files/code will need to be modified based on the implementation. 
+5) Provide a step-by-step, function-by-function, file-by-file implementation plan. 
+
+Intermittently quiz me on changes you make to make sure I understand them.
+
+Don't ever make guesses about what's in the codebase.  If you don't know something, say so. Use tools to look up code not in context. 
+
+Use search tools to get the latest library documentation and examples. Only use the latest. 
+
+
+Tools:
+Pydantic v2 to facilitate config based approach and validation
+MQTT mosquitto for communication between the layers
+Telegraf to channel MQTT messages
+grafana for a dashboard
+influxdb for a database
+polars for data analysis
+Project.io to deal with microcontrollers.
+ruff for linting
+pytest for testing
+
+
