@@ -168,6 +168,22 @@ def extract_page_properties(page, title_property_name):
             extracted[prop_name.lower().replace(' ', '_')] = prop_data.get('checkbox', False)
         elif prop_type == 'date' and prop_data.get('date'):
             extracted[prop_name.lower().replace(' ', '_')] = prop_data['date']['start']
+        elif prop_type == 'rich_text':
+            extracted[prop_name.lower().replace(' ', '_')] = extract_rich_text(prop_data.get('rich_text', []))
+        elif prop_type == 'formula':
+            # Handle formula fields (ID might be a formula)
+            formula_result = prop_data.get('formula', {})
+            if formula_result.get('type') == 'string':
+                extracted[prop_name.lower().replace(' ', '_')] = formula_result.get('string', '')
+        elif prop_type == 'unique_id':
+            # Handle unique_id fields (like Notion's ID field)
+            unique_id_data = prop_data.get('unique_id', {})
+            prefix = unique_id_data.get('prefix', '')
+            number = unique_id_data.get('number', '')
+            if prefix and number:
+                extracted[prop_name.lower().replace(' ', '_')] = f"{prefix}-{number}"
+            elif number:
+                extracted[prop_name.lower().replace(' ', '_')] = str(number)
         elif prop_type == 'relation':
             relation_ids = [rel['id'] for rel in prop_data.get('relation', [])]
             
@@ -177,6 +193,14 @@ def extract_page_properties(page, title_property_name):
             else:
                 # Keep other relations as-is for now
                 extracted[prop_name.lower().replace(' ', '_')] = relation_ids
+        else:
+            # Handle unknown property types - try to extract any value we can
+            if hasattr(prop_data, 'get'):
+                # Try to find any string/number value in the property
+                for key in ['string', 'number', 'name', 'plain_text']:
+                    if key in prop_data and prop_data[key]:
+                        extracted[prop_name.lower().replace(' ', '_')] = prop_data[key]
+                        break
         # Add more property types as needed
     
     return extracted
@@ -423,7 +447,7 @@ def sync_database(client, db_config, output_dir, dry_run=False, force_update=Fal
             print(f"      ❌ Error processing '{properties.get('title', 'Unknown')}': {str(e)}")
     
     # Write CSV if configured
-    if db_config.get('output_csv', False) and not dry_run:
+    if db_config.get('output_csv') and not dry_run:
         write_database_to_csv(output_dir, db_config, all_properties)
     
     if not dry_run and skipped_count > 0:
@@ -471,7 +495,7 @@ def full_sync(client, config, dry_run=False, force_update=False):
     if not force_update:
         clean_orphaned_files(output_dir, all_current_page_ids, config['databases'], dry_run)
     
-    print(f"\n📊 Sync Summary:")
+    print("\n📊 Sync Summary:")
     print(f"✅ Total pages synced: {total_synced}")
     print(f"📁 Output location: {output_dir.absolute()}")
     
@@ -567,7 +591,7 @@ def needs_update(folder_path, notion_last_edited):
         return True  # File doesn't exist, needs creation
     
     if not notion_last_edited:
-        print(f"      ⚠️  No timestamp from Notion, forcing update")
+        print("      ⚠️  No timestamp from Notion, forcing update")
         return True  # Missing timestamp is suspicious, force update
     
     try:
@@ -619,22 +643,68 @@ def create_sparse_markdown_file(output_dir, db_config, page, properties):
 
 def write_database_to_csv(output_dir, db_config, all_pages_properties):
     """Write database contents to CSV file."""
-    csv_filename = f"{db_config['name'].lower().replace(' ', '_')}.csv"
+    # Use custom CSV name if specified, otherwise use database name
+    csv_name = db_config.get('output_csv', db_config['name'].lower().replace(' ', '_'))
+    csv_filename = f"{csv_name}.csv"
     csv_path = Path(output_dir) / csv_filename
     
     if not all_pages_properties:
         return
     
-    # Get all unique property keys
-    all_keys = set()
-    for props in all_pages_properties:
-        all_keys.update(props.keys())
+    # Define columns based on CSV type
+    if csv_name == "adr_content":
+        # ADR content CSV with specific columns
+        fieldnames = ['doc_type', 'uuid', 'title', 'filename', 'ai_document_summary', 'technical_terms', 'last_updated']
+        
+        # Transform data for ADR content format
+        transformed_data = []
+        for props in all_pages_properties:
+            row = {
+                'doc_type': 'ADR',
+                'uuid': props.get('notion_id', ''),
+                'title': props.get('title', ''),
+                'filename': f"ADR-{props.get('notion_id', '')}/index.md",
+                'ai_document_summary': props.get('ai_document_summary', ''),
+                'technical_terms': props.get('technical_terms', ''),
+                'last_updated': props.get('last_edited_time', '')
+            }
+            transformed_data.append(row)
+        
+        write_data = transformed_data
+        
+    elif csv_name == "task_content":
+        # Task content CSV with specific columns  
+        fieldnames = ['doc_type', 'uuid', 'id', 'title', 'filename', 'technical_terms', 'last_updated']
+        
+        # Transform data for task content format
+        transformed_data = []
+        for props in all_pages_properties:
+            row = {
+                'doc_type': 'TASK',
+                'uuid': props.get('notion_id', ''),
+                'id': props.get('id', ''),
+                'title': props.get('title', ''),
+                'filename': f"TASK-{props.get('notion_id', '')}/index.md",
+                'technical_terms': props.get('technical_terms', ''),
+                'last_updated': props.get('last_edited_time', '')
+            }
+            transformed_data.append(row)
+        
+        write_data = transformed_data
+        
+    else:
+        # Default CSV format (existing behavior)
+        all_keys = set()
+        for props in all_pages_properties:
+            all_keys.update(props.keys())
+        fieldnames = sorted(all_keys)
+        write_data = all_pages_properties
     
     # Write CSV
     with open(csv_path, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=sorted(all_keys))
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerows(all_pages_properties)
+        writer.writerows(write_data)
     
     print(f"      📊 Created CSV: {csv_filename}")
 
@@ -738,9 +808,9 @@ def main():
         total_synced = full_sync(client, config, dry_run=args.dry_run, force_update=args.force)
         
         if total_synced > 0:
-            print(f"\n🎉 Sync completed successfully!")
+            print("\n🎉 Sync completed successfully!")
         else:
-            print(f"\n⚠️  No pages were synced.")
+            print("\n⚠️  No pages were synced.")
     
     else:
         # Run tests
