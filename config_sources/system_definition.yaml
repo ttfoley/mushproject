@@ -774,7 +774,7 @@ components:
   # Microcontrollers
   - id: "c1"
     type: microcontroller
-    config_file: "config/microcontrollers/c1_config.yaml"
+    config_file: "microcontrollers/c1_config.yaml"
     points_provided: 
       - "f47ac10b-58cc-4372-a567-0e02b2c3d479" # FruitingChamber_SHT85-0_Temperature_Raw
       - "9c8b1da3-1b2a-4c8e-9d1f-6a7b8c9d0e1f" # FruitingChamber_SHT85-0_Humidity_Raw
@@ -789,7 +789,7 @@ components:
       - "28d9e0f1-a2b3-4c4d-5e6f-708192a3b4c5" # C1_Status_LastRestartReason
   - id: "c2"
     type: microcontroller
-    config_file: "config/microcontrollers/c2_config.yaml"
+    config_file: "microcontrollers/c2_config.yaml"
     points_provided: 
       - "39e0f1a2-b3c4-4d5e-6f70-8192a3b4c5d6" # C2_Status_WifiUptime
       - "4a0f1a2b-3c4d-4e6f-7081-92a3b4c5d6e7" # C2_Status_LastRestartReason
@@ -799,7 +799,7 @@ components:
       - "b176f1a2-b3c4-4d5e-6f70-8192a3b4c5dc" # FruitingChamber_VentFan_Readback
   - id: "c3"
     type: microcontroller
-    config_file: "config/microcontrollers/c3_config.yaml"
+    config_file: "microcontrollers/c3_config.yaml"
     points_provided: 
       - "f5baf1a2-b3c4-4d5e-6f70-8192a3b4c5e0" # FruitingChamber_SCD4x-0_CO2_Raw
       - "06cbf1a2-b3c4-4d5e-6f70-8192a3b4c5e1" # FruitingChamber_SCD4x-0_Temperature_Raw
@@ -810,7 +810,7 @@ components:
   # Drivers
   - id: "temperature_driver_fruiting" 
     type: driver
-    config_file: "config/drivers/temperature_driver_fruiting.yaml" 
+    config_file: "drivers/temperature_driver_fruiting.yaml" 
     controls_microcontroller: "c2" 
     virtual_points_provided: 
       - "b177f1a2-b3c4-4d5e-6f70-8192a3b4c5ec" # FruitingChamber_TemperatureDriver_TimeInState
@@ -820,7 +820,7 @@ components:
   
   - id: "humidity_driver_fruiting" 
     type: driver
-    config_file: "config/drivers/humidity_driver_fruiting.yaml" 
+    config_file: "drivers/humidity_driver_fruiting.yaml" 
     controls_microcontroller: "c2"
     virtual_points_provided:
       - "6c21f1a2-b3c4-4d5e-6f70-8192a3b4c5d7" # FruitingChamber_Humidifier_Write
@@ -831,7 +831,7 @@ components:
 
   - id: "light_driver_fruiting" 
     type: driver
-    config_file: "config/drivers/light_driver_fruiting.yaml" 
+    config_file: "drivers/light_driver_fruiting.yaml" 
     controls_microcontroller: "c2"
     virtual_points_provided:
       - "a065f1a2-b3c4-4d5e-6f70-8192a3b4c5db" # FruitingChamber_Light_Write
@@ -842,7 +842,7 @@ components:
 
   - id: "vent_driver_fruiting" 
     type: driver
-    config_file: "config/drivers/vent_driver_fruiting.yaml" 
+    config_file: "drivers/vent_driver_fruiting.yaml" 
     controls_microcontroller: "c2"
     virtual_points_provided:
       - "c287f1a2-b3c4-4d5e-6f70-8192a3b4c5dd" # FruitingChamber_VentFan_Write
@@ -856,7 +856,7 @@ components:
   # Governor
   - id: "temperature_governor" 
     type: governor
-    config_file: "config/governors/temperature_governor.yaml" 
+    config_file: "governors/temperature_governor.yaml" 
     controls_drivers:
       - "temperature_driver_fruiting" 
     virtual_points_provided: 
@@ -867,7 +867,7 @@ components:
 
   - id: "humidity_governor" 
     type: governor
-    config_file: "config/governors/humidity_governor.yaml" 
+    config_file: "governors/humidity_governor.yaml" 
     controls_drivers:
       - "humidity_driver_fruiting" 
     virtual_points_provided:
@@ -876,7 +876,7 @@ components:
 
   - id: "light_governor" 
     type: governor
-    config_file: "config/governors/light_governor.yaml" 
+    config_file: "governors/light_governor.yaml" 
     controls_drivers:
       - "light_driver_fruiting"     
     virtual_points_provided:
@@ -884,7 +884,7 @@ components:
 
   - id: "vent_fan_governor" 
     type: governor
-    config_file: "config/governors/vent_fan_governor.yaml" 
+    config_file: "governors/vent_fan_governor.yaml" 
     controls_drivers:
       - "vent_driver_fruiting" 
     virtual_points_provided:

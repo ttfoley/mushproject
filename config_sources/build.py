@@ -8,16 +8,21 @@ from typing import Optional, Dict, Any, Set, Tuple, List, get_args, get_origin, 
 import collections # Added for Counter
 import json
 
+# --- Add project root to sys.path for shared_libs imports ---
+import os
+project_root = Path(__file__).parent.parent  # config_sources parent = project root
+sys.path.insert(0, str(project_root))
+
 # --- Model Imports ---
 try:
-    # Assuming core_ssot_models now defines PointUUID
-    from common.config_models.core_ssot_models import (
+    # Import from the new shared_libs location
+    from shared_libs.config_models.core_ssot_models import (
         SystemDefinition, ComponentType, PointDefinition, PointUUID,
         ValueType, AccessMode, DataSourceLayer, FunctionGrouping, # Added FunctionGrouping
         DriverComponentDefinition, GovernorComponentDefinition, MicrocontrollerComponentDefinition,
         ManualSourceComponentDefinition # Added ManualSourceComponentDefinition
     )
-    from common.config_models.component_configs import (
+    from shared_libs.config_models.component_configs import (
         DriverConfig, # Removed unused WriteAction, StateCondition, etc. for this script
         DriverPWMOutputMapping, # Kept for DriverConfig
         AnyConstraintDefinition, ConstraintDefinition, ConstraintGroup, # Kept for DriverConfig
@@ -28,8 +33,8 @@ try:
 
 except ImportError as e:
     print(f"Error: Could not import required Pydantic models or PointUUID type: {e}")
-    print("Make sure build.py is in the project root ('control/') and models are in common/config_models/")
-    print("Ensure __init__.py exists in common/ and common/config_models/ directories.")
+    print("Make sure build.py is in config_sources/ and models are in shared_libs/config_models/")
+    print("Ensure __init__.py exists in shared_libs/ and shared_libs/config_models/ directories.")
     print(f"Current sys.path: {sys.path}")
     sys.exit(1)
 
@@ -1052,11 +1057,13 @@ class SystemBuilder:
 def main():
     print(f"Running build script from CWD: {Path.cwd()}")
     
-    # Configuration
+    # Configuration - paths are relative to config_sources/ directory
     ssot_file_path = Path("system_definition.yaml")
     config_base_dir = Path(".")
-    points_registry_path = Path("global_points_registry.json")
-    microcontroller_config_dir = Path("./config/microcontrollers/generated/")
+    # Output paths - relative to project root
+    project_root = Path(__file__).parent.parent
+    points_registry_path = project_root / "control" / "global_points_registry.json"
+    microcontroller_config_dir = Path("./microcontrollers/generated/")
     
     # Ensure output directories exist
     microcontroller_config_dir.mkdir(parents=True, exist_ok=True)
