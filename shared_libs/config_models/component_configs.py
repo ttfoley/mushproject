@@ -204,6 +204,32 @@ class TimingConstants(BaseModel):
     ntp_sync_timeout_ms: Optional[int] = Field(15000, gt=0, description="NTP synchronization timeout in milliseconds.")
     model_config = {"extra": "forbid"}
 
+class MicrocontrollerTimingConstants(BaseModel):
+    """FSM and logic-specific timing constants for microcontroller behavior."""
+    # Sensor and status publishing intervals
+    sensor_and_status_publish_interval_ms: int = Field(30000, gt=0, description="How often sensors publish data (milliseconds).")
+    status_publish_interval_ms: int = Field(300000, gt=0, description="How often status messages are published (milliseconds).")
+    
+    # FSM retry configuration  
+    max_wifi_attempts: int = Field(10, gt=0, description="Maximum WiFi connection attempts before restart.")
+    wifi_attempt_timeout_ms: int = Field(20000, gt=0, description="Timeout for each WiFi connection attempt (milliseconds).")
+    max_ntp_attempts: int = Field(5, gt=0, description="Maximum NTP sync attempts before restart.")
+    ntp_attempt_timeout_ms: int = Field(30000, gt=0, description="Timeout for each NTP sync attempt (milliseconds).")
+    
+    # Operational timeouts and maintenance
+    max_time_no_publish_ms: int = Field(300000, gt=0, description="Maximum time without publishing before restart (milliseconds).")
+    maintenance_restart_interval_ms: int = Field(604800000, gt=0, description="Automatic restart interval for maintenance (milliseconds, default 1 week).")
+    periodic_checks_interval_ms: int = Field(3600000, gt=0, description="Interval for periodic health checks (milliseconds, default 1 hour).")
+    
+    # Loop and retry delays
+    main_loop_delay_ms: int = Field(10, gt=0, description="Delay in main loop iteration (milliseconds).")
+    mqtt_retry_delay_ms: int = Field(2000, gt=0, description="Delay between MQTT connection retries (milliseconds).")
+    restart_delay_ms: int = Field(1000, gt=0, description="Delay before restarting controller (milliseconds).")
+    ntp_loop_update_interval_ms: int = Field(60000, gt=0, description="Interval for NTP updates in main loop (milliseconds).")
+    debug_queue_interval_ms: int = Field(30000, gt=0, description="Interval for debug queue status prints (milliseconds).")
+    
+    model_config = {"extra": "forbid"}
+
 # --- Hardware Point Base Classes ---
 class HardwarePointBase_MicrocontrollerImpl(BaseModel):
     name: str = Field(..., description="Logical name for this hardware point (used for C++ define prefixes).")
@@ -290,7 +316,8 @@ class MicrocontrollerConfig(BaseModel):
     wifi: Optional[WiFiConfig] = Field(None, description="WiFi configuration (overrides global settings if provided).")
     mqtt_broker: Optional[MQTTBrokerConfigOptional] = Field(None, description="MQTT broker configuration (overrides global settings if provided).")
     ntp_server: Optional[NTPServerConfigOptional] = Field(None, description="NTP server configuration (overrides global settings if provided).")
-    timing_constants: Optional[TimingConstants] = Field(None, description="Timing configuration for this microcontroller.")
+    timing_constants: Optional[TimingConstants] = Field(None, description="Infrastructure timing configuration for this microcontroller.")
+    microcontroller_timing: Optional[MicrocontrollerTimingConstants] = Field(None, description="FSM and logic-specific timing configuration for this microcontroller.")
     hardware_points: Optional[List[AnyHardwarePoint_MicrocontrollerImpl]] = Field(None, description="List of hardware points managed by this microcontroller (new approach).")
     output_republish_frequency_ms: Optional[int] = Field(None, description="Output status republish interval in milliseconds.")
     

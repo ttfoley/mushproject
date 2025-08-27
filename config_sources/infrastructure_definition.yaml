@@ -1,0 +1,61 @@
+# Infrastructure Definition - Shared settings for all components
+# This file contains PUBLIC structure with placeholders for secrets
+# Real secret values are stored in secrets/infrastructure_secrets.yaml (gitignored)
+
+# Global WiFi Configuration (shared across all microcontrollers)
+wifi:
+  ssid: "${WIFI_SSID}"
+  password: "${WIFI_PASSWORD}"
+
+# Global MQTT Broker Configuration  
+mqtt_broker:
+  address: "${MQTT_BROKER_ADDRESS}"
+  port: "${MQTT_BROKER_PORT}"
+  username: "${MQTT_USERNAME}"
+  password: "${MQTT_PASSWORD}"
+
+# Global NTP Server Configuration
+ntp_server:
+  address: "us.pool.ntp.org"
+  utc_offset_seconds: 0
+  update_interval_ms: 3600000
+
+# Standard Infrastructure Timing Constants
+# These apply to connection/retry behavior across all components
+timing_constants:
+  publish_interval_ms: 15000
+  wifi_connect_timeout_ms: 30000
+  mqtt_connect_timeout_ms: 20000
+  ntp_sync_timeout_ms: 15000
+
+# FSM State Definitions (shared across all microcontrollers)
+fsm_states:
+  - SETUP_HW
+  - CONNECT_WIFI  
+  - SYNC_NTP
+  - CONNECT_MQTT
+  - PUBLISH_BOOT_STATUS
+  - PROCESS_COMMANDS
+  - READ_SENSORS
+  - PUBLISH_DATA
+  - OPERATIONAL_PERIODIC_CHECKS
+  - WAIT
+  - RESTART
+
+# Default Microcontroller Timing Constants
+# These can be overridden in individual controller configs
+default_microcontroller_timing:
+  sensor_and_status_publish_interval_ms: 30000
+  status_publish_interval_ms: 300000
+  max_wifi_attempts: 10
+  wifi_attempt_timeout_ms: 20000
+  max_ntp_attempts: 5
+  ntp_attempt_timeout_ms: 30000
+  max_time_no_publish_ms: 300000
+  maintenance_restart_interval_ms: 604800000  # 1 week
+  periodic_checks_interval_ms: 3600000        # 1 hour
+  main_loop_delay_ms: 10
+  mqtt_retry_delay_ms: 2000
+  restart_delay_ms: 1000
+  ntp_loop_update_interval_ms: 60000
+  debug_queue_interval_ms: 30000

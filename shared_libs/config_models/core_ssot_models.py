@@ -46,6 +46,12 @@ class ComponentType(str, enum.Enum):
     MANUAL = "manual"
 
 # --- Global System Settings Models (NEW ADDITIONS) ---
+class GlobalWiFiConfig(BaseModel):
+    """Defines the mandatory global WiFi configuration."""
+    ssid: str = Field(..., description="WiFi network SSID.")
+    password: str = Field(..., description="WiFi network password.")
+    model_config = {"extra": "forbid"}
+
 class GlobalMQTTBrokerConfig(BaseModel):
     """Defines the mandatory global MQTT Broker configuration."""
     address: str = Field(..., description="Hostname or IP address of the global MQTT broker.")
@@ -62,8 +68,9 @@ class GlobalNTPServerConfig(BaseModel):
     model_config = {"extra": "forbid"}
 
 class GlobalSettings(BaseModel):
-    """Defines global system settings, including MQTT prefix and default broker/NTP."""
+    """Defines global system settings, including MQTT prefix and default broker/NTP/WiFi."""
     mqtt_topic_prefix: str = Field(..., description="Global MQTT topic prefix (e.g., 'mush/'). Must end with a slash if intended as a prefix path.")
+    wifi: GlobalWiFiConfig = Field(..., description="Global WiFi connection details.")
     mqtt_broker: GlobalMQTTBrokerConfig = Field(..., description="Global MQTT broker connection details.")
     ntp_server: GlobalNTPServerConfig = Field(..., description="Global NTP server details.")
     model_config = {"extra": "forbid"}
