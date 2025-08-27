@@ -1,53 +1,139 @@
-# Configuration for Microcontroller c1
-# Path: control/config/microcontrollers/c1_config.yaml
-# Conforms to the MicrocontrollerConfig Pydantic model
-# Supports multiple OneWire pins by defining pin per device.
+# Enhanced Configuration for Microcontroller c1
+# This shows what the config should look like to generate the full autogen_config.h
 
-# I2C Bus Configuration (for SHT0 and BME280_1)
-# PLEASE UPDATE sda_pin and scl_pin to your ESP32's actual I2C pins.
+# Basic device info
+device_id: "c1"
+description: "Sensor controller for fruiting chamber"
+
+# WiFi Configuration (temporarily using actual values for testing)
+wifi:
+  ssid: "ThomassenCondo_EXT"
+  password: "OceanBreeze"
+
+# MQTT Configuration (temporarily using actual values for testing)
+mqtt:
+  broker_address: "192.168.1.17"
+  broker_port: 1883
+  username: "ttfoley"
+  password: "password"
+  client_id: "controller1"
+
+# NTP Configuration
+ntp:
+  address: "us.pool.ntp.org"
+  utc_offset_seconds: 0
+  update_interval_ms: 3600000
+
+# FSM Configuration
+fsm:
+  states:
+    - SETUP_HW
+    - CONNECT_WIFI  
+    - SYNC_NTP
+    - CONNECT_MQTT
+    - PUBLISH_BOOT_STATUS
+    - PROCESS_COMMANDS
+    - READ_SENSORS
+    - PUBLISH_DATA
+    - OPERATIONAL_PERIODIC_CHECKS
+    - WAIT
+    - RESTART
+
+# Comprehensive Timing Constants
+timing:
+  # Basic intervals
+  publish_interval_ms: 15000
+  sensor_and_status_publish_interval_ms: 30000
+  status_publish_interval_ms: 300000
+  
+  # Connection timeouts
+  wifi_connect_timeout_ms: 30000
+  mqtt_connect_timeout_ms: 20000
+  ntp_sync_timeout_ms: 15000
+  
+  # FSM retry configuration
+  max_wifi_attempts: 10
+  wifi_attempt_timeout_ms: 20000
+  max_ntp_attempts: 5
+  ntp_attempt_timeout_ms: 30000
+  
+  # Operation timeouts
+  max_time_no_publish_ms: 300000
+  maintenance_restart_interval_ms: 604800000  # 1 week
+  periodic_checks_interval_ms: 3600000        # 1 hour
+  
+  # Loop and retry delays
+  mqtt_retry_delay_ms: 2000
+  restart_delay_ms: 1000
+  main_loop_delay_ms: 10
+  ntp_loop_update_interval_ms: 60000
+  debug_queue_interval_ms: 30000
+
+# I2C Bus Configuration
 i2c:
-  sda_pin: 21 # Example I2C SDA pin
-  scl_pin: 22 # Example I2C SCL pin
-  # clock_speed: 100000 # Optional, I2C default is usually 100kHz
+  sda_pin: 21
+  scl_pin: 22
 
-i2c_devices:
-  - sensor_model: "SHT85" # Adjust if your SHT0 is a different model (e.g., SHT31)
-    address: 0x44        # PLEASE VERIFY: Common default for SHT sensors
-    point_uuids:
-      temperature: "f47ac10b-58cc-4372-a567-0e02b2c3d479" # C1_SHT0_Temperature
-      humidity: "9c8b1da3-1b2a-4c8e-9d1f-6a7b8c9d0e1f"    # C1_SHT0_Humidity
-
-  - sensor_model: "BME280" # For BME280_1
-    address: 0x77        # PLEASE VERIFY: Common for BME280 (can also be 0x76)
-    point_uuids:
-      temperature: "c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f" # C1_BME280_1_Temperature
-      humidity: "d3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f70"    # C1_BME280_1_Humidity
-      pressure: "e4f5a6b7-c8d9-4e0f-1a2b-3c4d5e6f7081"    # C1_BME280_1_Pressure
+# I2C Sensor Configurations with full struct data
+i2c_sensors:
+  - type: "SHT85"
+    instance_name: "SHT85_0"
+    address: 0x44
+    point_name: "FruitingChamber_SHT85_0"
+    temperature_uuid: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+    humidity_uuid: "9c8b1da3-1b2a-4c8e-9d1f-6a7b8c9d0e1f"
+    c_to_f: true
+    
+  - type: "BME280"
+    instance_name: "BME280_1" 
+    address: 0x77
+    point_name: "FruitingChamber_BME280_1"
+    temperature_uuid: "c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f"
+    humidity_uuid: "d3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f70"
+    pressure_uuid: "e4f5a6b7-c8d9-4e0f-1a2b-3c4d5e6f7081"
+    c_to_f: true
 
 # DHT Sensor Configuration
 dht_sensors:
-  - sensor_model: "DHT22" # For DHT0. Adjust if it's a DHT11.
-    pin: 27              # PLEASE UPDATE to the actual GPIO pin for DHT0
-    point_uuids:
-      temperature: "2a3b4c5d-6e7f-4a1b-8c2d-3e4f5a6b7c8d" # C1_DHT0_Temperature
-      humidity: "b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e"    # C1_DHT0_Humidity
+  - type: "DHT22"
+    instance_name: "DHT22_0"
+    pin: 27
+    point_name: "Outside_DHT22_0"
+    temperature_uuid: "2a3b4c5d-6e7f-4a1b-8c2d-3e4f5a6b7c8d"
+    humidity_uuid: "b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e"
+    c_to_f: true
 
-# OneWire Devices - each device now specifies its own pin
-# This requires the OneWireDevice Pydantic model to include a 'pin' field,
-# and the top-level 'onewire' bus configuration to be removed from MicrocontrollerConfig.
-onewire_devices:
-  - sensor_model: "DS18B20"
-    pin: 32 # PLEASE CONFIRM: Pin for C1_DS18B20_0_Temperature
-    point_uuid: "f5a6b7c8-d9e0-4f1a-2b3c-4d5e6f708192" # C1_DS18B20_0_Temperature
+# OneWire Sensor Configuration  
+onewire_sensors:
+  - type: "DS18B20"
+    instance_name: "DS18B20_0"
+    pin: 32
+    point_name: "FruitingChamber_DS18B20_0"
+    temperature_uuid: "f5a6b7c8-d9e0-4f1a-2b3c-4d5e6f708192"
+    resolution_bits: 10
+    c_to_f: true
+    
+  - type: "DS18B20"
+    instance_name: "DS18B20_1"
+    pin: 33
+    point_name: "FruitingChamber_DS18B20_1" 
+    temperature_uuid: "06b7c8d9-e0f1-4a2b-3c4d-5e6f708192a3"
+    resolution_bits: 10
+    c_to_f: true
 
-  - sensor_model: "DS18B20"
-    pin: 33 # PLEASE CONFIRM: Pin for C1_DS18B20_1_Temperature
-    point_uuid: "06b7c8d9-e0f1-4a2b-3c4d-5e6f708192a3" # C1_DS18B20_1_Temperature
+# System Status Points
+status_points:
+  wifi_uptime:
+    point_name: "C1_WifiUptime"
+    uuid: "17c8d9e0-f1a2-4b3c-4d5e-6f708192a3b4"
+    topic: "mush/c1/statuses/wifi_uptime"
+    
+  last_restart_reason:
+    point_name: "C1_LastRestartReason" 
+    uuid: "28d9e0f1-a2b3-4c4d-5e6f-708192a3b4c5"
+    topic: "mush/c1/statuses/last_restart_reason"
 
-# Digital Outputs (C1 has no actuators listed in its points_provided in system_definition.yaml)
-# digital_outputs: []
-
-# Timing Parameters for C1
-publish_frequency_ms: 15000 # Example: publish sensor data every 15 seconds
-# output_republish_frequency_ms: 60000 # Not relevant as C1 has no digital_outputs defined
+# Debug Configuration
+debug:
+  i2c_scan_on_startup: true
 

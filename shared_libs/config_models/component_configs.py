@@ -197,6 +197,12 @@ class NTPServerConfigOptional(BaseModel):
     update_interval_ms: Optional[int] = Field(None, description="NTP update interval in milliseconds. If not provided, uses global setting.")
     model_config = {"extra": "forbid"}
 
+class NTPServerConfig(BaseModel):
+    address: str = Field(..., description="NTP server address")
+    utc_offset_seconds: int = Field(..., description="UTC offset in seconds")
+    update_interval_ms: int = Field(..., description="NTP update interval in milliseconds")
+    model_config = {"extra": "forbid"}
+
 class TimingConstants(BaseModel):
     publish_interval_ms: int = Field(..., gt=0, description="Sensor publish interval in milliseconds (e.g., 15000 for 15 seconds).")
     wifi_connect_timeout_ms: Optional[int] = Field(30000, gt=0, description="WiFi connection timeout in milliseconds.")
@@ -309,33 +315,143 @@ class DigitalOutputConfig(BaseModel):
     initial_state: Optional[Literal["on", "off"]] = Field("off", description="Initial state on startup ('on' or 'off').")
     model_config = {"extra": "forbid"}
 
+# Enhanced sensor configuration models for C struct generation
+class SHT85SensorConfig(BaseModel):
+    type: Literal["SHT85"] = Field("SHT85", description="Sensor type")
+    instance_name: str = Field(..., description="C variable instance name (e.g., 'SHT85_0')")
+    address: int = Field(..., description="I2C address")
+    point_name: str = Field(..., description="Point name for the sensor")
+    temperature_uuid: PointUUID = Field(..., description="Temperature point UUID")
+    humidity_uuid: PointUUID = Field(..., description="Humidity point UUID")
+    c_to_f: bool = Field(True, description="Convert Celsius to Fahrenheit")
+    model_config = {"extra": "forbid"}
+
+class BME280SensorConfig(BaseModel):
+    type: Literal["BME280"] = Field("BME280", description="Sensor type")
+    instance_name: str = Field(..., description="C variable instance name (e.g., 'BME280_1')")
+    address: int = Field(..., description="I2C address")
+    point_name: str = Field(..., description="Point name for the sensor")
+    temperature_uuid: PointUUID = Field(..., description="Temperature point UUID")
+    humidity_uuid: PointUUID = Field(..., description="Humidity point UUID")
+    pressure_uuid: PointUUID = Field(..., description="Pressure point UUID")
+    c_to_f: bool = Field(True, description="Convert Celsius to Fahrenheit")
+    model_config = {"extra": "forbid"}
+
+class DHT22SensorConfig(BaseModel):
+    type: Literal["DHT22"] = Field("DHT22", description="Sensor type")
+    instance_name: str = Field(..., description="C variable instance name (e.g., 'DHT22_0')")
+    pin: int = Field(..., description="GPIO pin number")
+    point_name: str = Field(..., description="Point name for the sensor")
+    temperature_uuid: PointUUID = Field(..., description="Temperature point UUID")
+    humidity_uuid: PointUUID = Field(..., description="Humidity point UUID")
+    c_to_f: bool = Field(True, description="Convert Celsius to Fahrenheit")
+    model_config = {"extra": "forbid"}
+
+class DS18B20SensorConfig(BaseModel):
+    type: Literal["DS18B20"] = Field("DS18B20", description="Sensor type")
+    instance_name: str = Field(..., description="C variable instance name (e.g., 'DS18B20_0')")
+    pin: int = Field(..., description="GPIO pin number")
+    point_name: str = Field(..., description="Point name for the sensor")
+    temperature_uuid: PointUUID = Field(..., description="Temperature point UUID")
+    resolution_bits: int = Field(10, description="DS18B20 resolution in bits")
+    c_to_f: bool = Field(True, description="Convert Celsius to Fahrenheit")
+    model_config = {"extra": "forbid"}
+
+# FSM Configuration
+class FSMConfig(BaseModel):
+    states: List[str] = Field(..., description="List of FSM state names")
+    model_config = {"extra": "forbid"}
+
+# Comprehensive timing constants
+class ComprehensiveTimingConstants(BaseModel):
+    # Basic intervals
+    publish_interval_ms: int = Field(15000, description="Basic publish interval")
+    sensor_and_status_publish_interval_ms: int = Field(30000, description="Sensor and status publish interval")
+    status_publish_interval_ms: int = Field(300000, description="Status publish interval")
+    
+    # Connection timeouts
+    wifi_connect_timeout_ms: int = Field(30000, description="WiFi connection timeout")
+    mqtt_connect_timeout_ms: int = Field(20000, description="MQTT connection timeout")
+    ntp_sync_timeout_ms: int = Field(15000, description="NTP sync timeout")
+    
+    # FSM retry configuration
+    max_wifi_attempts: int = Field(10, description="Maximum WiFi connection attempts")
+    wifi_attempt_timeout_ms: int = Field(20000, description="WiFi attempt timeout")
+    max_ntp_attempts: int = Field(5, description="Maximum NTP sync attempts")
+    ntp_attempt_timeout_ms: int = Field(30000, description="NTP attempt timeout")
+    
+    # Operation timeouts
+    max_time_no_publish_ms: int = Field(300000, description="Maximum time without publishing")
+    maintenance_restart_interval_ms: int = Field(604800000, description="Maintenance restart interval (1 week)")
+    periodic_checks_interval_ms: int = Field(3600000, description="Periodic checks interval (1 hour)")
+    
+    # Loop and retry delays
+    mqtt_retry_delay_ms: int = Field(2000, description="MQTT retry delay")
+    restart_delay_ms: int = Field(1000, description="Restart delay")
+    main_loop_delay_ms: int = Field(10, description="Main loop delay")
+    ntp_loop_update_interval_ms: int = Field(60000, description="NTP loop update interval")
+    debug_queue_interval_ms: int = Field(30000, description="Debug queue interval")
+    model_config = {"extra": "forbid"}
+
+# Status points configuration
+class StatusPointConfig(BaseModel):
+    point_name: str = Field(..., description="Point name")
+    uuid: PointUUID = Field(..., description="Point UUID")
+    topic: str = Field(..., description="MQTT topic")
+    model_config = {"extra": "forbid"}
+
+class StatusPointsConfig(BaseModel):
+    wifi_uptime: StatusPointConfig = Field(..., description="WiFi uptime status point")
+    last_restart_reason: StatusPointConfig = Field(..., description="Last restart reason status point")
+    model_config = {"extra": "forbid"}
+
+# Debug configuration
+class DebugConfig(BaseModel):
+    i2c_scan_on_startup: bool = Field(True, description="Enable I2C scan on startup")
+    model_config = {"extra": "forbid"}
+
+# MQTT configuration with client_id
+class MQTTConfigWithClientId(BaseModel):
+    broker_address: str = Field(..., description="MQTT broker address")
+    broker_port: int = Field(1883, description="MQTT broker port")
+    username: str = Field(..., description="MQTT username")
+    password: str = Field(..., description="MQTT password")
+    client_id: str = Field(..., description="MQTT client ID")
+    model_config = {"extra": "forbid"}
+
 class MicrocontrollerConfig(BaseModel):
-    # New primary fields
-    device_id: Optional[str] = Field(None, description="Device identifier for this microcontroller.")
-    description: Optional[str] = Field(None, description="Human-readable description of this microcontroller's purpose.")
-    wifi: Optional[WiFiConfig] = Field(None, description="WiFi configuration (overrides global settings if provided).")
-    mqtt_broker: Optional[MQTTBrokerConfigOptional] = Field(None, description="MQTT broker configuration (overrides global settings if provided).")
-    ntp_server: Optional[NTPServerConfigOptional] = Field(None, description="NTP server configuration (overrides global settings if provided).")
-    timing_constants: Optional[TimingConstants] = Field(None, description="Infrastructure timing configuration for this microcontroller.")
-    microcontroller_timing: Optional[MicrocontrollerTimingConstants] = Field(None, description="FSM and logic-specific timing configuration for this microcontroller.")
-    hardware_points: Optional[List[AnyHardwarePoint_MicrocontrollerImpl]] = Field(None, description="List of hardware points managed by this microcontroller (new approach).")
-    output_republish_frequency_ms: Optional[int] = Field(None, description="Output status republish interval in milliseconds.")
+    # Enhanced primary fields
+    device_id: str = Field(..., description="Device identifier for this microcontroller")
+    description: str = Field(..., description="Human-readable description of this microcontroller's purpose")
+    wifi: WiFiConfig = Field(..., description="WiFi configuration")
+    mqtt: MQTTConfigWithClientId = Field(..., description="MQTT configuration")
+    ntp: NTPServerConfig = Field(..., description="NTP server configuration")
+    timing: ComprehensiveTimingConstants = Field(..., description="Comprehensive timing configuration")
+    fsm: Optional[FSMConfig] = Field(None, description="FSM configuration")
+    i2c: I2CConfig = Field(..., description="I2C bus configuration")
+    
+    # Enhanced sensor configurations
+    i2c_sensors: Optional[List[Union[SHT85SensorConfig, BME280SensorConfig]]] = Field(None, description="I2C sensor configurations")
+    dht_sensors: Optional[List[DHT22SensorConfig]] = Field(None, description="DHT sensor configurations")
+    onewire_sensors: Optional[List[DS18B20SensorConfig]] = Field(None, description="OneWire sensor configurations")
+    
+    # Status and debug
+    status_points: StatusPointsConfig = Field(..., description="System status points configuration")
+    debug: DebugConfig = Field(..., description="Debug configuration")
     
     # Legacy fields (for backward compatibility)
-    i2c: Optional[I2CConfig] = Field(None, description="I2C bus configuration, required if i2c_devices are listed.")
-    onewire: Optional[OneWireConfig] = Field(None, description="OneWire bus configuration, required if onewire_devices are listed.")
-    i2c_devices: Optional[List[I2CDevice]] = Field(None, description="List of sensors/devices connected via I2C.")
-    onewire_devices: Optional[List[OneWireDevice]] = Field(None, description="List of sensors connected via OneWire.")
-    dht_sensors: Optional[List[DHTSensorConfig]] = Field(None, description="List of connected DHT sensors.")
-    digital_outputs: Optional[List[DigitalOutputConfig]] = Field(None, description="List of configured digital output pins.")
-    publish_frequency_ms: Optional[int] = Field(None,
-        description="Sensor publish interval in milliseconds used by the microcontroller. (e.g., 15000 for 15 seconds). If not set, firmware default applies.")
+    timing_constants: Optional[TimingConstants] = Field(None, description="Legacy infrastructure timing configuration")
+    microcontroller_timing: Optional[MicrocontrollerTimingConstants] = Field(None, description="Legacy FSM timing configuration")
+    hardware_points: Optional[List[AnyHardwarePoint_MicrocontrollerImpl]] = Field(None, description="Legacy hardware points")
+    output_republish_frequency_ms: Optional[int] = Field(None, description="Legacy output republish interval")
+    mqtt_broker: Optional[MQTTBrokerConfigOptional] = Field(None, description="Legacy MQTT broker configuration")
+    ntp_server: Optional[NTPServerConfigOptional] = Field(None, description="Legacy NTP server configuration")
+    onewire: Optional[OneWireConfig] = Field(None, description="Legacy OneWire bus configuration")
+    i2c_devices: Optional[List[I2CDevice]] = Field(None, description="Legacy I2C devices")
+    onewire_devices: Optional[List[OneWireDevice]] = Field(None, description="Legacy OneWire devices")
+    digital_outputs: Optional[List[DigitalOutputConfig]] = Field(None, description="Legacy digital outputs")
+    publish_frequency_ms: Optional[int] = Field(None, description="Legacy publish frequency")
 
-    @model_validator(mode='after')
-    def check_bus_configs(self) -> Self:
-        if self.i2c_devices and not self.i2c:
-            raise ValueError("i2c bus configuration must be provided if i2c_devices are listed.")
-        return self
     model_config = {"extra": "forbid"}
 
 # --- Governor Supporting Sub-Models ---
