@@ -790,125 +790,124 @@ components:
       - "06b7c8d9-e0f1-4a2b-3c4d-5e6f708192a3" # FruitingChamber_DS18B20-1_Temperature_Raw
       - "17c8d9e0-f1a2-4b3c-4d5e-6f708192a3b4" # C1_Status_WifiUptime
       - "28d9e0f1-a2b3-4c4d-5e6f-708192a3b4c5" # C1_Status_LastRestartReason
-# Temporarily commenting out c2 and c3 for testing
-#  - id: "c2"
-#    type: microcontroller
-#    config_file: "microcontrollers/c2_config.yaml"
-#    points_provided: 
-#      - "39e0f1a2-b3c4-4d5e-6f70-8192a3b4c5d6" # C2_Status_WifiUptime
-#      - "4a0f1a2b-3c4d-4e6f-7081-92a3b4c5d6e7" # C2_Status_LastRestartReason
-#      - "5b10f1a2-b3c4-4d5e-6f70-8192a3b4c5d6" # FruitingChamber_Humidifier_Readback
-#      - "7d32f1a2-b3c4-4d5e-6f70-8192a3b4c5d8" # FruitingChamber_HeatingPad_Readback
-#      - "9f54f1a2-b3c4-4d5e-6f70-8192a3b4c5da" # FruitingChamber_Light_Readback
-#      - "b176f1a2-b3c4-4d5e-6f70-8192a3b4c5dc" # FruitingChamber_VentFan_Readback
-#  - id: "c3"
-#    type: microcontroller
-#    config_file: "microcontrollers/c3_config.yaml"
-#    points_provided: 
-#      - "f5baf1a2-b3c4-4d5e-6f70-8192a3b4c5e0" # FruitingChamber_SCD4x-0_CO2_Raw
-#      - "06cbf1a2-b3c4-4d5e-6f70-8192a3b4c5e1" # FruitingChamber_SCD4x-0_Temperature_Raw
-#      - "17dcf1a2-b3c4-4d5e-6f70-8192a3b4c5e2" # FruitingChamber_SCD4x-0_Humidity_Raw
-#      - "28eef1a2-b3c4-4d5e-6f70-8192a3b4c5e3" # C3_Status_WifiUptime
-#      - "39fff1a2-b3c4-4d5e-6f70-8192a3b4c5e4" # C3_Status_LastRestartReason
+  - id: "c2"
+    type: microcontroller
+    config_file: "microcontrollers/c2_config.yaml"
+    points_provided: 
+      - "39e0f1a2-b3c4-4d5e-6f70-8192a3b4c5d6" # C2_Status_WifiUptime
+      - "4a0f1a2b-3c4d-4e6f-7081-92a3b4c5d6e7" # C2_Status_LastRestartReason
+      - "5b10f1a2-b3c4-4d5e-6f70-8192a3b4c5d6" # FruitingChamber_Humidifier_Readback
+      - "7d32f1a2-b3c4-4d5e-6f70-8192a3b4c5d8" # FruitingChamber_HeatingPad_Readback
+      - "9f54f1a2-b3c4-4d5e-6f70-8192a3b4c5da" # FruitingChamber_Light_Readback
+      - "b176f1a2-b3c4-4d5e-6f70-8192a3b4c5dc" # FruitingChamber_VentFan_Readback
+  - id: "c3"
+    type: microcontroller
+    config_file: "microcontrollers/c3_config.yaml"
+    points_provided: 
+      - "f5baf1a2-b3c4-4d5e-6f70-8192a3b4c5e0" # FruitingChamber_SCD4x-0_CO2_Raw
+      - "06cbf1a2-b3c4-4d5e-6f70-8192a3b4c5e1" # FruitingChamber_SCD4x-0_Temperature_Raw
+      - "17dcf1a2-b3c4-4d5e-6f70-8192a3b4c5e2" # FruitingChamber_SCD4x-0_Humidity_Raw
+      - "28eef1a2-b3c4-4d5e-6f70-8192a3b4c5e3" # C3_Status_WifiUptime
+      - "39fff1a2-b3c4-4d5e-6f70-8192a3b4c5e4" # C3_Status_LastRestartReason
 
-  # Drivers - temporarily commented out for testing
-#  - id: "temperature_driver_fruiting" 
-#    type: driver
-#    config_file: "drivers/temperature_driver_fruiting.yaml" 
-#    controls_microcontroller: "c2" 
-#    virtual_points_provided: 
-#      - "b177f1a2-b3c4-4d5e-6f70-8192a3b4c5ec" # FruitingChamber_TemperatureDriver_TimeInState
-#      - "c288f1a2-b3c4-4d5e-6f70-8192a3b4c5ed" # FruitingChamber_TemperatureDriver_FSM_State
-#      - "d399f1a2-b3c4-4d5e-6f70-8192a3b4c5ee" # FruitingChamber_TemperatureDriver_FSM_Health
-#      - "8e43f1a2-b3c4-4d5e-6f70-8192a3b4c5d9" # FruitingChamber_HeatingPad_Write
-#  
-#  - id: "humidity_driver_fruiting" 
-#    type: driver
-#    config_file: "drivers/humidity_driver_fruiting.yaml" 
-#    controls_microcontroller: "c2"
-#    virtual_points_provided:
-#      - "6c21f1a2-b3c4-4d5e-6f70-8192a3b4c5d7" # FruitingChamber_Humidifier_Write
-#      - "274979de-89e2-496e-a751-5c7faa61928c" # FruitingChamber_HumidityDriver_TimeInState
-#      - "b8016f02-56d4-449c-baf6-7602ef845fb7" # FruitingChamber_HumidityDriver_FSM_State
-#      - "41f6a24c-e22a-495c-9dde-5eb92b9c9926" # FruitingChamber_HumidityDriver_FSM_Health  
-#
-#
-#  - id: "light_driver_fruiting" 
-#    type: driver
-#    config_file: "drivers/light_driver_fruiting.yaml" 
-#    controls_microcontroller: "c2"
-#    virtual_points_provided:
-#      - "a065f1a2-b3c4-4d5e-6f70-8192a3b4c5db" # FruitingChamber_Light_Write
-#      - "b6879dfc-c2eb-42e1-a479-5cffd07da6c0" # FruitingChamber_LightDriver_TimeInState
-#      - "a30be0ec-54d5-4ccd-ad12-0a8482e61a54" # FruitingChamber_LightDriver_FSM_State
-#      - "9f1f19ad-ef0c-42bc-b6fe-9359b331e807" # FruitingChamber_LightDriver_FSM_Health
-#
-#
-#  - id: "vent_driver_fruiting" 
-#    type: driver
-#    config_file: "drivers/vent_driver_fruiting.yaml" 
-#    controls_microcontroller: "c2"
-#    virtual_points_provided:
-#      - "c287f1a2-b3c4-4d5e-6f70-8192a3b4c5dd" # FruitingChamber_VentFan_Write
-#      - "37b0558a-a39e-4a3f-9cdc-ad83e0b5c3f9" # FruitingChamber_VentFanDriver_TimeInState
-#      - "2eaa72d4-5b0e-46db-b5ee-8428726cd400" # FruitingChamber_VentFanDriver_FSM_State
-#      - "0c31a004-741f-4f8a-b2fd-3ceb37cdde8e" # FruitingChamber_VentFanDriver_FSM_Health
+  # Drivers
+  - id: "temperature_driver_fruiting" 
+    type: driver
+    config_file: "drivers/temperature_driver_fruiting.yaml" 
+    controls_microcontroller: "c2" 
+    virtual_points_provided: 
+      - "b177f1a2-b3c4-4d5e-6f70-8192a3b4c5ec" # FruitingChamber_TemperatureDriver_TimeInState
+      - "c288f1a2-b3c4-4d5e-6f70-8192a3b4c5ed" # FruitingChamber_TemperatureDriver_FSM_State
+      - "d399f1a2-b3c4-4d5e-6f70-8192a3b4c5ee" # FruitingChamber_TemperatureDriver_FSM_Health
+      - "8e43f1a2-b3c4-4d5e-6f70-8192a3b4c5d9" # FruitingChamber_HeatingPad_Write
+  
+  - id: "humidity_driver_fruiting" 
+    type: driver
+    config_file: "drivers/humidity_driver_fruiting.yaml" 
+    controls_microcontroller: "c2"
+    virtual_points_provided:
+      - "6c21f1a2-b3c4-4d5e-6f70-8192a3b4c5d7" # FruitingChamber_Humidifier_Write
+      - "274979de-89e2-496e-a751-5c7faa61928c" # FruitingChamber_HumidityDriver_TimeInState
+      - "b8016f02-56d4-449c-baf6-7602ef845fb7" # FruitingChamber_HumidityDriver_FSM_State
+      - "41f6a24c-e22a-495c-9dde-5eb92b9c9926" # FruitingChamber_HumidityDriver_FSM_Health  
+
+
+  - id: "light_driver_fruiting" 
+    type: driver
+    config_file: "drivers/light_driver_fruiting.yaml" 
+    controls_microcontroller: "c2"
+    virtual_points_provided:
+      - "a065f1a2-b3c4-4d5e-6f70-8192a3b4c5db" # FruitingChamber_Light_Write
+      - "b6879dfc-c2eb-42e1-a479-5cffd07da6c0" # FruitingChamber_LightDriver_TimeInState
+      - "a30be0ec-54d5-4ccd-ad12-0a8482e61a54" # FruitingChamber_LightDriver_FSM_State
+      - "9f1f19ad-ef0c-42bc-b6fe-9359b331e807" # FruitingChamber_LightDriver_FSM_Health
+
+
+  - id: "vent_driver_fruiting" 
+    type: driver
+    config_file: "drivers/vent_driver_fruiting.yaml" 
+    controls_microcontroller: "c2"
+    virtual_points_provided:
+      - "c287f1a2-b3c4-4d5e-6f70-8192a3b4c5dd" # FruitingChamber_VentFan_Write
+      - "37b0558a-a39e-4a3f-9cdc-ad83e0b5c3f9" # FruitingChamber_VentFanDriver_TimeInState
+      - "2eaa72d4-5b0e-46db-b5ee-8428726cd400" # FruitingChamber_VentFanDriver_FSM_State
+      - "0c31a004-741f-4f8a-b2fd-3ceb37cdde8e" # FruitingChamber_VentFanDriver_FSM_Health
 
 
 
       
-  # Governor - temporarily commented out for testing
-#  - id: "temperature_governor" 
-#    type: governor
-#    config_file: "governors/temperature_governor.yaml" 
-#    controls_drivers:
-#      - "temperature_driver_fruiting" 
-#    virtual_points_provided: 
-#      - "6c22f1a2-b3c4-4d5e-6f70-8192a3b4c5e7" # FruitingChamber_Heater_Governor_Mode_Command
-#      - "8e44f1a2-b3c4-4d5e-6f70-8192a3b4c5e9" # FruitingChamber_Heater_PWM_Setpoint
-#      - "9f55f1a2-b3c4-4d5e-6f70-8192a3b4c5ea" # FruitingChamber_Heater_PWM_ON_Duration_Setpoint
-#      - "a066f1a2-b3c4-4d5e-6f70-8192a3b4c5eb" # FruitingChamber_Heater_PWM_OFF_Duration_Setpoint
-#
-#  - id: "humidity_governor" 
-#    type: governor
-#    config_file: "governors/humidity_governor.yaml" 
-#    controls_drivers:
-#      - "humidity_driver_fruiting" 
-#    virtual_points_provided:
-#      - "16cc030a-27f6-4d46-83c2-e60ec5b84e02" # FruitingChamber_Humidity_Governor_Mode_Command
-#
-#
-#  - id: "light_governor" 
-#    type: governor
-#    config_file: "governors/light_governor.yaml" 
-#    controls_drivers:
-#      - "light_driver_fruiting"     
-#    virtual_points_provided:
-#      - "7bbe9f99-a3b3-4e97-a10a-d3c4f92c838d" # FruitingChamber_Light_Governor_Mode_Command
-#
-#  - id: "vent_fan_governor" 
-#    type: governor
-#    config_file: "governors/vent_fan_governor.yaml" 
-#    controls_drivers:
-#      - "vent_driver_fruiting" 
-#    virtual_points_provided:
-#      - "c263c3fc-018d-4996-800a-5317465c7178" # FruitingChamber_VentFan_Governor_Mode_Command
-#
-#  - id: "manual_input"
-#    type: manual
-#    controls_governors:
-#      - "temperature_governor"
-#      - "humidity_governor"
-#      - "light_governor"
-#      - "vent_fan_governor"
-#    virtual_points_provided:
-#      - "4a00f1a2-b3c4-4d5e-6f70-8192a3b4c5e5" # FruitingChamber_Temp_Target_Setpoint
-#      - "5b11f1a2-b3c4-4d5e-6f70-8192a3b4c5e6" # FruitingChamber_Temp_Target_Deadband
-#      - "7d33f1a2-b3c4-4d5e-6f70-8192a3b4c5e8" # FruitingChamber_Heater_Manual_Command
-#      - "1ccbdc0e-30cd-4b02-964f-fd5208821bee" # FruitingChamber_Humidity_Target_Setpoint
-#      - "e13a213e-d936-44ab-9948-895c335026b0" # FruitingChamber_Humidity_Target_Deadband
-#      - "3039aac8-2816-4191-9f44-1d453e2e7924" # FruitingChamber_VentFan_Timer_OnIntervalMinutes
-#      - "e0cf042f-5222-4be3-9fad-62ee28f3e3a8" # FruitingChamber_VentFan_Timer_OffIntervalMinutes
-#      - "2be2a778-d0f6-4d33-97a1-747107b952b3" # FruitingChamber_Light_Timer_OnIntervalMinutes
-#      - "f9cc975a-89f2-4b93-8159-074edf2a6c88" # FruitingChamber_Light_Timer_OffIntervalMinutes
+    # Governors
+  - id: "temperature_governor" 
+    type: governor
+    config_file: "governors/temperature_governor.yaml" 
+    controls_drivers:
+      - "temperature_driver_fruiting" 
+    virtual_points_provided: 
+      - "6c22f1a2-b3c4-4d5e-6f70-8192a3b4c5e7" # FruitingChamber_Heater_Governor_Mode_Command
+      - "8e44f1a2-b3c4-4d5e-6f70-8192a3b4c5e9" # FruitingChamber_Heater_PWM_Setpoint
+      - "9f55f1a2-b3c4-4d5e-6f70-8192a3b4c5ea" # FruitingChamber_Heater_PWM_ON_Duration_Setpoint
+      - "a066f1a2-b3c4-4d5e-6f70-8192a3b4c5eb" # FruitingChamber_Heater_PWM_OFF_Duration_Setpoint
+
+  - id: "humidity_governor" 
+    type: governor
+    config_file: "governors/humidity_governor.yaml" 
+    controls_drivers:
+      - "humidity_driver_fruiting" 
+    virtual_points_provided:
+      - "16cc030a-27f6-4d46-83c2-e60ec5b84e02" # FruitingChamber_Humidity_Governor_Mode_Command
+
+
+  - id: "light_governor" 
+    type: governor
+    config_file: "governors/light_governor.yaml" 
+    controls_drivers:
+      - "light_driver_fruiting"     
+    virtual_points_provided:
+      - "7bbe9f99-a3b3-4e97-a10a-d3c4f92c838d" # FruitingChamber_Light_Governor_Mode_Command
+
+  - id: "vent_fan_governor" 
+    type: governor
+    config_file: "governors/vent_fan_governor.yaml" 
+    controls_drivers:
+      - "vent_driver_fruiting" 
+    virtual_points_provided:
+      - "c263c3fc-018d-4996-800a-5317465c7178" # FruitingChamber_VentFan_Governor_Mode_Command
+
+  - id: "manual_input"
+    type: manual
+    controls_governors:
+      - "temperature_governor"
+      - "humidity_governor"
+      - "light_governor"
+      - "vent_fan_governor"
+    virtual_points_provided:
+      - "4a00f1a2-b3c4-4d5e-6f70-8192a3b4c5e5" # FruitingChamber_Temp_Target_Setpoint
+      - "5b11f1a2-b3c4-4d5e-6f70-8192a3b4c5e6" # FruitingChamber_Temp_Target_Deadband
+      - "7d33f1a2-b3c4-4d5e-6f70-8192a3b4c5e8" # FruitingChamber_Heater_Manual_Command
+      - "1ccbdc0e-30cd-4b02-964f-fd5208821bee" # FruitingChamber_Humidity_Target_Setpoint
+      - "e13a213e-d936-44ab-9948-895c335026b0" # FruitingChamber_Humidity_Target_Deadband
+      - "3039aac8-2816-4191-9f44-1d453e2e7924" # FruitingChamber_VentFan_Timer_OnIntervalMinutes
+      - "e0cf042f-5222-4be3-9fad-62ee28f3e3a8" # FruitingChamber_VentFan_Timer_OffIntervalMinutes
+      - "2be2a778-d0f6-4d33-97a1-747107b952b3" # FruitingChamber_Light_Timer_OnIntervalMinutes 
+      - "f9cc975a-89f2-4b93-8159-074edf2a6c88" # FruitingChamber_Light_Timer_OffIntervalMinutes
       

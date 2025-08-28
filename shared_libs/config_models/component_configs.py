@@ -391,6 +391,9 @@ class ComprehensiveTimingConstants(BaseModel):
     main_loop_delay_ms: int = Field(10, description="Main loop delay")
     ntp_loop_update_interval_ms: int = Field(60000, description="NTP loop update interval")
     debug_queue_interval_ms: int = Field(30000, description="Debug queue interval")
+    
+    # Actuator-specific timing
+    output_republish_frequency_ms: Optional[int] = Field(None, description="Actuator status republish frequency")
     model_config = {"extra": "forbid"}
 
 # Status points configuration
@@ -408,6 +411,34 @@ class StatusPointsConfig(BaseModel):
 # Debug configuration
 class DebugConfig(BaseModel):
     i2c_scan_on_startup: bool = Field(True, description="Enable I2C scan on startup")
+    model_config = {"extra": "forbid"}
+
+# SCD4X sensor configuration
+class SCD4XSensorConfig(BaseModel):
+    type: Literal["SCD4X"] = Field("SCD4X", description="SCD4X sensor type")
+    instance_name: str = Field(..., description="C variable instance name (e.g., 'SCD4X_0')")
+    address: int = Field(..., description="I2C address")
+    point_name: str = Field(..., description="Base point name for the sensor")
+    co2_topic: str = Field(..., description="MQTT topic for CO2 data")
+    co2_uuid: PointUUID = Field(..., description="CO2 point UUID")
+    temp_topic: str = Field(..., description="MQTT topic for temperature data")
+    temp_uuid: PointUUID = Field(..., description="Temperature point UUID")
+    humidity_topic: str = Field(..., description="MQTT topic for humidity data")
+    humidity_uuid: PointUUID = Field(..., description="Humidity point UUID")
+    c_to_f: bool = Field(True, description="Convert Celsius to Fahrenheit")
+    model_config = {"extra": "forbid"}
+
+# Actuator configuration
+class ActuatorConfig(BaseModel):
+    type: Literal["ACTUATOR"] = Field("ACTUATOR", description="Actuator type")
+    instance_name: str = Field(..., description="C variable instance name (e.g., 'HUMIDIFIER')")
+    pin: int = Field(..., description="GPIO pin number")
+    point_name: str = Field(..., description="Point name for the actuator")
+    write_topic: str = Field(..., description="MQTT write topic")
+    readback_topic: str = Field(..., description="MQTT readback topic")
+    readback_uuid: PointUUID = Field(..., description="Readback point UUID")
+    pin_mode: Literal["OUTPUT"] = Field("OUTPUT", description="Pin mode")
+    initial_state: Literal["LOW", "HIGH"] = Field("LOW", description="Initial pin state")
     model_config = {"extra": "forbid"}
 
 # MQTT configuration with client_id
@@ -428,12 +459,15 @@ class MicrocontrollerConfig(BaseModel):
     ntp: NTPServerConfig = Field(..., description="NTP server configuration")
     timing: ComprehensiveTimingConstants = Field(..., description="Comprehensive timing configuration")
     fsm: Optional[FSMConfig] = Field(None, description="FSM configuration")
-    i2c: I2CConfig = Field(..., description="I2C bus configuration")
+    i2c: Optional[I2CConfig] = Field(None, description="I2C bus configuration (optional for actuator-only controllers)")
     
     # Enhanced sensor configurations
-    i2c_sensors: Optional[List[Union[SHT85SensorConfig, BME280SensorConfig]]] = Field(None, description="I2C sensor configurations")
+    i2c_sensors: Optional[List[Union[SHT85SensorConfig, BME280SensorConfig, SCD4XSensorConfig]]] = Field(None, description="I2C sensor configurations")
     dht_sensors: Optional[List[DHT22SensorConfig]] = Field(None, description="DHT sensor configurations")
     onewire_sensors: Optional[List[DS18B20SensorConfig]] = Field(None, description="OneWire sensor configurations")
+    
+    # Actuator configurations
+    actuators: Optional[List[ActuatorConfig]] = Field(None, description="Actuator configurations")
     
     # Status and debug
     status_points: StatusPointsConfig = Field(..., description="System status points configuration")

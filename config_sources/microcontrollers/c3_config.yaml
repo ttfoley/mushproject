@@ -1,31 +1,106 @@
-# Configuration for Microcontroller c3
-# Path: control/config/microcontrollers/c3_config.yaml
-# Conforms to the MicrocontrollerConfig Pydantic model
+# Enhanced Configuration for Microcontroller c3
+# CO2/Climate sensor controller for fruiting chamber
 
-# I2C Bus Configuration (for SCD4x sensor)
-# PLEASE UPDATE sda_pin and scl_pin to your ESP32's actual I2C pins for c3.
+# Basic device info
+device_id: "c3"
+description: "CO2/Climate sensor controller for fruiting chamber"
+
+# WiFi Configuration (temporarily using actual values for testing)
+wifi:
+  ssid: "ThomassenCondo_EXT"
+  password: "OceanBreeze"
+
+# MQTT Configuration (temporarily using actual values for testing)
+mqtt:
+  broker_address: "192.168.1.17"
+  broker_port: 1883
+  username: "ttfoley"
+  password: "password"
+  client_id: "controller3"
+
+# NTP Configuration
+ntp:
+  address: "us.pool.ntp.org"
+  utc_offset_seconds: 0
+  update_interval_ms: 3600000
+
+# FSM Configuration
+fsm:
+  states:
+    - SETUP_HW
+    - CONNECT_WIFI
+    - SYNC_NTP
+    - CONNECT_MQTT
+    - PUBLISH_BOOT_STATUS
+    - PROCESS_COMMANDS
+    - READ_SENSORS
+    - PUBLISH_DATA
+    - OPERATIONAL_PERIODIC_CHECKS
+    - WAIT
+    - RESTART
+
+# I2C Configuration
 i2c:
-  sda_pin: 21 # Example I2C SDA pin
-  scl_pin: 22 # Example I2C SCL pin
-  # clock_speed: 100000 # Optional, Sensirion sensors often prefer 100kHz
+  sda_pin: 21
+  scl_pin: 22
 
-i2c_devices:
-  - sensor_model: "SCD41" # Assuming SCD4x is an SCD41, adjust if different (e.g., SCD40)
-    address: 0x62        # PLEASE VERIFY: Default I2C address for SCD4x sensors
-    point_uuids:
-      co2: "f5baf1a2-b3c4-4d5e-6f70-8192a3b4c5e0"         # C3_SCD4x_CO2
-      temperature: "06cbf1a2-b3c4-4d5e-6f70-8192a3b4c5e1" # C3_SCD4x_Temperature
-      humidity: "17dcf1a2-b3c4-4d5e-6f70-8192a3b4c5e2"    # C3_SCD4x_Humidity
-    settings: # Optional device-specific settings for SCD4x
-      automatic_self_calibration: false # Example: if you want to disable ASC
-      # altitude_compensation: 0 # Example: altitude in meters if needed
+# Comprehensive Timing Constants
+timing:
+  # Basic intervals
+  publish_interval_ms: 15000
+  sensor_and_status_publish_interval_ms: 30000
+  status_publish_interval_ms: 300000
+  
+  # Connection timeouts
+  wifi_connect_timeout_ms: 30000
+  mqtt_connect_timeout_ms: 20000
+  ntp_sync_timeout_ms: 15000
+  
+  # FSM retry configuration
+  max_wifi_attempts: 10
+  wifi_attempt_timeout_ms: 20000
+  max_ntp_attempts: 5
+  ntp_attempt_timeout_ms: 30000
+  
+  # Operation timeouts
+  max_time_no_publish_ms: 300000
+  maintenance_restart_interval_ms: 604800000
+  periodic_checks_interval_ms: 3600000
+  
+  # Loop and retry delays
+  mqtt_retry_delay_ms: 2000
+  restart_delay_ms: 1000
+  main_loop_delay_ms: 10
+  ntp_loop_update_interval_ms: 60000
+  debug_queue_interval_ms: 30000
 
-# C3 does not have DHT, OneWire, or Digital Outputs listed in its points_provided.
-# dht_sensors: []
-# onewire_devices: []
-# digital_outputs: []
+# I2C Sensor configurations
+i2c_sensors:
+  - type: "SCD4X"
+    instance_name: "SCD4X_0"
+    address: 98  # 0x62 in decimal
+    point_name: "FruitingChamber_SCD4x_0"
+    co2_topic: "mush/c3/sensors/fruitingchamber_scd4x-0/ppm"
+    co2_uuid: "f5baf1a2-b3c4-4d5e-6f70-8192a3b4c5e0"
+    temp_topic: "mush/c3/sensors/fruitingchamber_scd4x-0/degf"
+    temp_uuid: "06cbf1a2-b3c4-4d5e-6f70-8192a3b4c5e1"
+    humidity_topic: "mush/c3/sensors/fruitingchamber_scd4x-0/percent_rh"
+    humidity_uuid: "17dcf1a2-b3c4-4d5e-6f70-8192a3b4c5e2"
+    c_to_f: true
 
-# Timing Parameters for C3
-publish_frequency_ms: 30000 # Example: publish sensor data every 30 seconds (SCD4x can be slower)
-# output_republish_frequency_ms: 60000 # Not relevant as C3 has no digital_outputs defined
+# System Status Points
+status_points:
+  wifi_uptime:
+    point_name: "C3_WifiUptime"
+    uuid: "28eef1a2-b3c4-4d5e-6f70-8192a3b4c5e3"
+    topic: "mush/c3/statuses/wifi_uptime"
+    
+  last_restart_reason:
+    point_name: "C3_LastRestartReason"
+    uuid: "39fff1a2-b3c4-4d5e-6f70-8192a3b4c5e4"
+    topic: "mush/c3/statuses/last_restart_reason"
+
+# Debug Configuration
+debug:
+  i2c_scan_on_startup: true
 

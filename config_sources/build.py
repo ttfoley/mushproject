@@ -832,21 +832,26 @@ class MicrocontrollerConfigGenerator:
         
         # I2C Configuration
         lines.append("// === I2C Configuration ===")
-        lines.append(f'#define I2C_SDA_PIN {config.i2c.sda_pin}')
-        lines.append(f'#define I2C_SCL_PIN {config.i2c.scl_pin}')
-        lines.append("")
+        if config.i2c:
+            lines.append(f'#define I2C_SDA_PIN {config.i2c.sda_pin}')
+            lines.append(f'#define I2C_SCL_PIN {config.i2c.scl_pin}')
+            lines.append("")
         
-        # Sensor Configuration Structs
-        lines.append("// === Sensor Configuration Structs ===")
-        lines.append('#include "sensors/SensorConfigs.h"  // Common sensor config structs (ADR-25)')
-        lines.append("")
-        
-        # Sensor Configuration Instances
-        lines.append("// === Sensor Configuration Instances ===")
-        lines.append("")
-        
-        # Generate sensor structs
-        lines.extend(self._generate_sensor_structs(config, topic_generator))
+        # Configuration Structs - Sensors or Actuators
+        if config.i2c_sensors or config.dht_sensors or config.onewire_sensors:
+            lines.append("// === Sensor Configuration Structs ===")
+            lines.append('#include "sensors/SensorConfigs.h"  // Common sensor config structs (ADR-25)')
+            lines.append("")
+            lines.append("// === Sensor Configuration Instances ===")
+            lines.append("")
+            lines.extend(self._generate_sensor_structs(config, topic_generator))
+        elif config.actuators:
+            lines.append("// === Actuator Configuration Structs ===")
+            lines.append('#include "actuators/ActuatorConfigs.h"  // Common actuator config structs (ADR-25)')
+            lines.append("")
+            lines.append("// === Actuator Configuration Instances ===")
+            lines.append("")
+            lines.extend(self._generate_actuator_structs(config))
         
         # System status points
         lines.extend(self._generate_status_points(config))
@@ -872,6 +877,11 @@ class MicrocontrollerConfigGenerator:
         lines.append(f'#define STATUS_PUBLISH_INTERVAL_MS {timing.status_publish_interval_ms}')
         lines.append(f'#define MAINTENANCE_RESTART_INTERVAL_MS {timing.maintenance_restart_interval_ms}')
         lines.append(f'#define PERIODIC_CHECKS_INTERVAL_MS {timing.periodic_checks_interval_ms}')
+        
+        # Add OUTPUT_REPUBLISH_FREQUENCY_MS if present (for actuator controllers)
+        if timing.output_republish_frequency_ms:
+            lines.append(f'#define OUTPUT_REPUBLISH_FREQUENCY_MS {timing.output_republish_frequency_ms}')
+        
         lines.append("")
         
         # FSM and Connection Configuration
@@ -935,13 +945,15 @@ class MicrocontrollerConfigGenerator:
         """Generate C struct definitions for sensors"""
         lines = []
         
-        # SHT85 sensors
+        # I2C sensors (SHT85, BME280, SCD4X)
         if config.i2c_sensors:
             for sensor in config.i2c_sensors:
                 if hasattr(sensor, 'type') and sensor.type == "SHT85":
                     lines.extend(self._generate_sht85_struct(sensor))
                 elif hasattr(sensor, 'type') and sensor.type == "BME280":
                     lines.extend(self._generate_bme280_struct(sensor))
+                elif hasattr(sensor, 'type') and sensor.type == "SCD4X":
+                    lines.extend(self._generate_scd4x_sensor_struct(sensor))
         
         # DHT22 sensors
         if config.dht_sensors:
@@ -1061,6 +1073,51 @@ class MicrocontrollerConfigGenerator:
         ])
         
         return lines
+    
+    def _generate_scd4x_sensor_struct(self, sensor) -> List[str]:
+        """Generate C struct definition for SCD4X sensor"""
+        lines = []
+        lines.append(f"// {sensor.point_name} CO2/Temperature/Humidity Sensor Instance")
+        lines.append(f"const SCD4xConfig {sensor.instance_name}_CONFIG = {{")
+        lines.append(f'    .point_name = "{sensor.point_name}",')
+        lines.append(f"    .publish_interval_ms = SENSOR_AND_STATUS_PUBLISH_INTERVAL_MS,")
+        lines.append(f"    .main_loop_delay_ms = MAIN_LOOP_DELAY_MS,")
+        lines.append(f"    .max_time_no_publish_ms = MAX_TIME_NO_PUBLISH_MS,")
+        lines.append(f"    .address = 0x{sensor.address:02X},  // SCD4x standard I2C address")
+        lines.append(f"    .c_to_f = {'true' if sensor.c_to_f else 'false'},")
+        lines.append(f'    .co2_topic = "{sensor.co2_topic}",')
+        lines.append(f'    .co2_uuid = "{sensor.co2_uuid}",')
+        lines.append(f'    .temp_topic = "{sensor.temp_topic}",')
+        lines.append(f'    .temp_uuid = "{sensor.temp_uuid}",')
+        lines.append(f'    .humidity_topic = "{sensor.humidity_topic}",')
+        lines.append(f'    .humidity_uuid = "{sensor.humidity_uuid}"')
+        lines.append("};")
+        lines.append("")
+        return lines
+    
+    def _generate_actuator_structs(self, config: MicrocontrollerConfig) -> List[str]:
+        """Generate C struct instances for actuators"""
+        lines = []
+        
+        if not config.actuators:
+            return lines
+            
+        for actuator in config.actuators:
+            lines.append(f"// {actuator.point_name} Actuator Instance")
+            lines.append(f"const ActuatorConfig {actuator.instance_name}_CONFIG = {{")
+            lines.append(f"    .pin = {actuator.pin},")
+            lines.append(f"    .pin_mode = {actuator.pin_mode},")
+            lines.append(f"    .initial_state = {actuator.initial_state},")
+            lines.append(f'    .point_name = "{actuator.point_name}",')
+            lines.append(f'    .write_topic = "{actuator.write_topic}",')
+            lines.append(f'    .readback_topic = "{actuator.readback_topic}",')
+            lines.append(f'    .readback_uuid = "{actuator.readback_uuid}",')
+            lines.append(f"    .republish_frequency_ms = OUTPUT_REPUBLISH_FREQUENCY_MS,")
+            lines.append(f"    .max_time_no_publish_ms = MAX_TIME_NO_PUBLISH_MS")
+            lines.append("};")
+            lines.append("")
+            
+        return lines
 
 
 # ---- Main Builder Class ----
@@ -1164,8 +1221,7 @@ class SystemBuilder:
         cross_validator = CrossValidator(self.system_config)
         cross_validation_ok = cross_validator.validate(self.validated_components)
         if not cross_validation_ok:
-            print("\nCross-validation errors found, but continuing with header generation for testing...")
-            # return False  # Temporarily disabled for testing
+            return False
             
         print("\n✅ System validation completed successfully!")
         return True
@@ -1197,10 +1253,9 @@ class SystemBuilder:
             return False
             
         # Step 2: Generate Points Registry
-        print("Skipping points registry generation for testing...")
-        # if not self.generate_points_registry(points_registry_path):
-        #     print("❌ Failed to generate points registry.")
-        #     return False
+        if not self.generate_points_registry(points_registry_path):
+            print("❌ Failed to generate points registry.")
+            return False
             
         # Step 3: Generate Microcontroller Configs
         if not self.generate_microcontroller_configs(microcontroller_config_dir):
