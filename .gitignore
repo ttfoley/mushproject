@@ -78,6 +78,5 @@ docs/
 compile_commands.json
 microcontroller/controller1/src/autogen_config.h
 docs/designandprinciples.txt
-*autogen_config.h
-config_sources/microcontrollers/generated/autogen_config_c2.h
-config_sources/microcontrollers/generated/autogen_config_c3.h
+*autogen_config*.h
+
