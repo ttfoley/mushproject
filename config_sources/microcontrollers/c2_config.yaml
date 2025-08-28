@@ -1,0 +1,123 @@
+# Enhanced Configuration for Microcontroller c2
+# Actuator controller for fruiting chamber
+
+# Basic device info
+device_id: "c2"
+description: "Actuator controller for fruiting chamber"
+
+# MQTT Configuration
+mqtt:
+  client_id: "controller2"
+
+# NTP Configuration
+ntp:
+  address: "us.pool.ntp.org"
+  utc_offset_seconds: 0
+  update_interval_ms: 3600000
+
+# FSM Configuration
+fsm:
+  states:
+    - SETUP_HW
+    - CONNECT_WIFI
+    - SYNC_NTP
+    - CONNECT_MQTT
+    - PUBLISH_BOOT_STATUS
+    - PROCESS_COMMANDS
+    - READ_SENSORS
+    - PUBLISH_DATA
+    - OPERATIONAL_PERIODIC_CHECKS
+    - WAIT
+    - RESTART
+
+# Comprehensive Timing Constants
+timing:
+  # Basic intervals
+  publish_interval_ms: 15000
+  sensor_and_status_publish_interval_ms: 30000
+  status_publish_interval_ms: 300000
+  
+  # Connection timeouts
+  wifi_connect_timeout_ms: 30000
+  mqtt_connect_timeout_ms: 20000
+  ntp_sync_timeout_ms: 15000
+  
+  # FSM retry configuration
+  max_wifi_attempts: 10
+  wifi_attempt_timeout_ms: 20000
+  max_ntp_attempts: 5
+  ntp_attempt_timeout_ms: 30000
+  
+  # Operation timeouts
+  max_time_no_publish_ms: 300000
+  maintenance_restart_interval_ms: 604800000
+  periodic_checks_interval_ms: 3600000
+  
+  # Loop and retry delays
+  mqtt_retry_delay_ms: 2000
+  restart_delay_ms: 1000
+  main_loop_delay_ms: 10
+  ntp_loop_update_interval_ms: 60000
+  debug_queue_interval_ms: 30000
+  
+  # C2-specific timing
+  output_republish_frequency_ms: 60000
+
+# Actuator configurations
+actuators:
+  - type: "ACTUATOR"
+    instance_name: "HUMIDIFIER"
+    pin: 25
+    point_name: "C2_HumidifierRelay"
+    write_topic: "mush/humidity_driver_fruiting/commands/c2/humidifier/write"
+    readback_topic: "mush/c2/actuators/humidifier/readback"
+    readback_uuid: "5b10f1a2-b3c4-4d5e-6f70-8192a3b4c5d6"
+    pin_mode: "OUTPUT"
+    initial_state: "LOW"
+    
+  - type: "ACTUATOR"
+    instance_name: "HEATINGPAD"
+    pin: 26
+    point_name: "C2_HeatingPadRelay"
+    write_topic: "mush/temperature_driver_fruiting/commands/c2/heatingpad/write"
+    readback_topic: "mush/c2/actuators/heatingpad/readback"
+    readback_uuid: "7d32f1a2-b3c4-4d5e-6f70-8192a3b4c5d8"
+    pin_mode: "OUTPUT"
+    initial_state: "LOW"
+    
+  - type: "ACTUATOR"
+    instance_name: "LIGHT"
+    pin: 32
+    point_name: "C2_LightRelay"
+    write_topic: "mush/light_driver_fruiting/commands/c2/light/write"
+    readback_topic: "mush/c2/actuators/light/readback"
+    readback_uuid: "9f54f1a2-b3c4-4d5e-6f70-8192a3b4c5da"
+    pin_mode: "OUTPUT"
+    initial_state: "LOW"
+    
+  - type: "ACTUATOR"
+    instance_name: "VENTFAN"
+    pin: 33
+    point_name: "C2_VentFanRelay"
+    write_topic: "mush/vent_driver_fruiting/commands/c2/ventfan/write"
+    readback_topic: "mush/c2/actuators/ventfan/readback"
+    readback_uuid: "b176f1a2-b3c4-4d5e-6f70-8192a3b4c5dc"
+    pin_mode: "OUTPUT"
+    initial_state: "LOW"
+
+# System Status Points
+status_points:
+  wifi_uptime:
+    point_name: "C2_WifiUptime"
+    uuid: "39e0f1a2-b3c4-4d5e-6f70-8192a3b4c5d6"
+    topic: "mush/c2/statuses/wifi_uptime"
+    
+  last_restart_reason:
+    point_name: "C2_LastRestartReason" 
+    uuid: "4a0f1a2b-3c4d-4e6f-7081-92a3b4c5d6e7"
+    topic: "mush/c2/statuses/last_restart_reason"
+
+# Debug Configuration
+debug:
+  i2c_scan_on_startup: false
+

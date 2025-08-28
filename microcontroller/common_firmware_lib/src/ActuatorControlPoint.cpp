@@ -1,0 +1,156 @@
+#include "actuators/ActuatorControlPoint.h"
+
+ActuatorControlPoint::ActuatorControlPoint(const ActuatorConfig& config)
+    : _pin(config.pin),
+      _pinMode(config.pin_mode),
+      _initialState(config.initial_state),
+      _pointName(config.point_name),
+      _writeTopic(config.write_topic),
+      _readbackTopic(config.readback_topic),
+      _readbackUUID(config.readback_uuid),
+      _outputRepublishFrequencyMillis(config.republish_frequency_ms),
+      _maxTimeNoPublishMillis(config.max_time_no_publish_ms),
+      _lastPublishTimeMillis(0),                  // Initialize to 0
+      _lastSuccessfulPayload("")                  // Initialize to empty string
+{
+    // Constructor initialization complete via member initializer list
+}
+
+void ActuatorControlPoint::initialize() {
+    // Called by FSM in SETUP_HW state
+    // ONLY sets up pin mode - does NOT control hardware directly
+    // FSM will queue initial command and process it through normal command flow
+    Serial.print("Initializing pin ");
+    Serial.print(_pin);
+    Serial.print(" for actuator: ");
+    Serial.println(_pointName);
+    
+    pinMode(_pin, _pinMode);
+    
+    // DO NOT call digitalWrite() here - that's the FSM's job through executeDeviceCommand()
+    // FSM should queue the initial state command and process it normally
+}
+
+bool ActuatorControlPoint::executeDeviceCommand(const String& commandPayload) {
+    // Called by FSM from PROCESS_COMMANDS state
+    // Parses commandPayload using centralized conversion utility
+    // Performs digitalWrite(_pin, newState) if valid
+    // Returns true if successful, false if invalid command
+    // FSM handles readback publishing using the commandPayload that succeeded
+    
+    int newState = payloadToHardwareState(commandPayload);
+    
+    // Check if payload was valid (payloadToHardwareState returns LOW for invalid)
+    // We need to distinguish between valid "off" and invalid payload
+    if (commandPayload.equalsIgnoreCase("on") || commandPayload.equalsIgnoreCase("off")) {
+        // Valid command - control hardware and return success
+        digitalWrite(_pin, newState);
+        return true;
+    } else {
+        // Invalid command payload - return failure
+        Serial.print("Invalid command payload: ");
+        Serial.println(commandPayload);
+        return false;
+    }
+}
+
+// Configuration getters
+const char* ActuatorControlPoint::getReadbackTopic() const {
+    return _readbackTopic;
+}
+
+const char* ActuatorControlPoint::getReadbackUUID() const {
+    return _readbackUUID;
+}
+
+const char* ActuatorControlPoint::getWriteTopic() const {
+    return _writeTopic;
+}
+
+const char* ActuatorControlPoint::getPointName() const {
+    return _pointName;
+}
+
+int ActuatorControlPoint::getInitialState() const {
+    return _initialState;
+}
+
+// Static utility methods for centralized conversion
+String ActuatorControlPoint::hardwareStateToPayload(int hwState) {
+    // Centralized HIGH/LOW -> "on"/"off" conversion
+    // This is the single source of truth for this mapping
+    return (hwState == HIGH) ? "on" : "off";
+}
+
+int ActuatorControlPoint::payloadToHardwareState(const String& payload) {
+    // Centralized "on"/"off" -> HIGH/LOW conversion
+    // This is the single source of truth for this mapping
+    if (payload.equalsIgnoreCase("on")) {
+        return HIGH;
+    } else if (payload.equalsIgnoreCase("off")) {
+        return LOW;
+    } else {
+        // Invalid payload - return a safe default
+        return LOW;
+    }
+}
+
+String ActuatorControlPoint::getInitialCommandPayload() const {
+    // Helper method using centralized conversion utility
+    return hardwareStateToPayload(_initialState);
+}
+
+// Timing configuration getters
+unsigned long ActuatorControlPoint::getOutputRepublishFrequencyMillis() const {
+    return _outputRepublishFrequencyMillis;
+}
+
+unsigned long ActuatorControlPoint::getMaxTimeNoPublishMillis() const {
+    return _maxTimeNoPublishMillis;
+}
+
+// FSM-managed timestamp methods
+void ActuatorControlPoint::setLastPublishTimeMillis(unsigned long time) {
+    _lastPublishTimeMillis = time;
+}
+
+unsigned long ActuatorControlPoint::getLastPublishTimeMillis() const {
+    return _lastPublishTimeMillis;
+}
+
+bool ActuatorControlPoint::isTimeToRepublish() const {
+    // Simple method for FSM to check if it's time to republish this actuator's readback
+    // Returns true if (millis() - _lastPublishTimeMillis >= _outputRepublishFrequencyMillis)
+    
+    unsigned long currentTime = millis();
+    unsigned long timeSinceLastPublish = currentTime - _lastPublishTimeMillis;
+    
+    return timeSinceLastPublish >= _outputRepublishFrequencyMillis;
+}
+
+bool ActuatorControlPoint::hasNoPublishTimeoutOccurred() const {
+    // Returns (millis() - _lastPublishTimeMillis > _maxTimeNoPublishMillis) 
+    // if _maxTimeNoPublishMillis > 0. Called by FSM.
+    
+    if (_maxTimeNoPublishMillis == 0) {
+        // Timeout monitoring disabled
+        return false;
+    }
+    
+    unsigned long currentTime = millis();
+    unsigned long timeSinceLastPublish = currentTime - _lastPublishTimeMillis;
+    
+    return timeSinceLastPublish > _maxTimeNoPublishMillis;
+}
+
+bool ActuatorControlPoint::isLastStateSet() const {
+    return !_lastSuccessfulPayload.isEmpty();
+}
+
+String ActuatorControlPoint::getLastSuccessfulPayload() const {
+    return _lastSuccessfulPayload;
+}
+
+void ActuatorControlPoint::setLastSuccessfulPayload(const String& payload) {
+    _lastSuccessfulPayload = payload;
+} 
