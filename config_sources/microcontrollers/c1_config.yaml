@@ -5,17 +5,8 @@
 device_id: "c1"
 description: "Sensor controller for fruiting chamber"
 
-# WiFi Configuration (temporarily using actual values for testing)
-wifi:
-  ssid: "ThomassenCondo_EXT"
-  password: "OceanBreeze"
-
-# MQTT Configuration (temporarily using actual values for testing)
+# MQTT Configuration
 mqtt:
-  broker_address: "192.168.1.17"
-  broker_port: 1883
-  username: "ttfoley"
-  password: "password"
   client_id: "controller1"
 
 # NTP Configuration

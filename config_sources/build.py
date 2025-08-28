@@ -4,13 +4,11 @@ import yaml
 from pathlib import Path
 from pydantic import ValidationError, BaseModel # BaseModel for type hinting
 import sys
-from typing import Optional, Dict, Any, Set, Tuple, List, get_args, get_origin, Union, cast
+from typing import Optional, Dict, Any, Set, Tuple, List, get_args, get_origin, Union
 import collections # Added for Counter
 import json
-import re # Added for placeholder substitution
 
 # --- Add project root to sys.path for shared_libs imports ---
-import os
 project_root = Path(__file__).parent.parent  # config_sources parent = project root
 sys.path.insert(0, str(project_root))
 
@@ -19,18 +17,15 @@ try:
     # Import from the new shared_libs location
     from shared_libs.config_models.core_ssot_models import (
         SystemDefinition, ComponentType, PointDefinition, PointUUID,
-        ValueType, AccessMode, DataSourceLayer, FunctionGrouping, # Added FunctionGrouping
+        AccessMode, FunctionGrouping,
         DriverComponentDefinition, GovernorComponentDefinition, MicrocontrollerComponentDefinition,
-        ManualSourceComponentDefinition # Added ManualSourceComponentDefinition
+        ManualSourceComponentDefinition
     )
     from shared_libs.config_models.component_configs import (
-        DriverConfig, # Removed unused WriteAction, StateCondition, etc. for this script
-        DriverPWMOutputMapping, # Kept for DriverConfig
-        AnyConstraintDefinition, ConstraintDefinition, ConstraintGroup, # Kept for DriverConfig
-        TransitionDefinition, BaseConstraintDefinition, # Kept for DriverConfig
+        DriverConfig,
         GovernorConfig, MicrocontrollerConfig,
-        BangBangControllerConfig, TimeScheduleControllerConfig, PIDControllerConfig # Added controller configs
     )
+    from shared_libs.config_models.secrets import InfrastructureSecrets
 
 except ImportError as e:
     print(f"Error: Could not import required Pydantic models or PointUUID type: {e}")
@@ -337,15 +332,17 @@ class SSOTValidator:
 class ComponentConfigValidator:
     """Validates component configuration files."""
     
-    def __init__(self, system_config: SystemDefinition, config_base_dir: Path):
+    def __init__(self, system_config: SystemDefinition, config_base_dir: Path, infrastructure_config: Optional[Dict[str, Any]] = None, secrets_model: Optional[InfrastructureSecrets] = None):
         self.system_config = system_config
         self.config_base_dir = config_base_dir
+        self.infrastructure_config = infrastructure_config
+        self.secrets_model = secrets_model
         self.component_model_map = {
             ComponentType.DRIVER: DriverConfig,
             ComponentType.GOVERNOR: GovernorConfig,
             ComponentType.MICROCONTROLLER: MicrocontrollerConfig,
         }
-        
+    
     def validate(self, points_by_uuid_map: Dict[PointUUID, PointDefinition]) -> Tuple[bool, Dict[str, Any]]:
         """
         Loads and validates specific config files for each component listed in the SSOT.
@@ -361,18 +358,8 @@ class ComponentConfigValidator:
             if component.config_file is None:
                 if component.type == ComponentType.MANUAL: # Or any other type that legitimately has no config file
                     print(f"   Component type '{component.type.value}' with ID '{component.id}' does not have a config file. Skipping file validation.")
-                    # We can still add the component instance itself to validated_configs if needed for other checks
-                    # For now, let's assume components without config files don't need to be in validated_configs
-                    # unless a specific config model (even an empty one) is defined and mapped.
-                    # If we add a ManualSourceConfig to COMPONENT_MODEL_MAP and it's a simple BaseModel,
-                    # we could potentially instantiate it here with default values if needed.
-                    # For this iteration, skipping seems fine if no specific validation on its internal structure is needed here.
                     continue 
                 else:
-                    # This case might indicate an issue if a component type that *should* have a config_file has it missing.
-                    # However, ComponentDefinition now makes config_file optional globally.
-                    # ADR/Design decision needed: Should certain component types *require* config_file?
-                    # For now, we'll just note it if it's not a MANUAL type.
                     print(f"   Note: Component type '{component.type.value}' with ID '{component.id}' has no config_file specified. Skipping file validation.")
                     continue
 
@@ -405,8 +392,13 @@ class ComponentConfigValidator:
                 continue
             try:
                 print(f"   Validating using {config_model.__name__} model...")
+                
+                # No string substitution for microcontrollers; secrets are injected via validation context
+                if component.type == ComponentType.MICROCONTROLLER:
+                    print(f"   DEBUG: Skipping placeholder substitution for microcontroller; using secrets model via validation context.")
+                
                 # Pass context to the model validation
-                validation_context = {"points_by_uuid_map": points_by_uuid_map, "component_id": component.id}
+                validation_context = {"points_by_uuid_map": points_by_uuid_map, "component_id": component.id, "infrastructure_secrets": self.secrets_model}
                 # Use model_validate for Pydantic V2
                 validated_component_config = config_model.model_validate(component_data, context=validation_context)
                 print(f"✅ Validation Successful for '{component_config_path_str}' using {config_model.__name__}.")
@@ -537,7 +529,7 @@ class CrossValidator:
             if isinstance(comp, MicrocontrollerComponentDefinition):
                 provided_uuids = comp.points_provided
                 provider_attr_name = "points_provided"
-            elif isinstance(comp, (DriverComponentDefinition, GovernorComponentDefinition, ManualSourceComponentDefinition)): # Added ManualSourceComponentDefinition
+            elif isinstance(comp, (DriverComponentDefinition, GovernorComponentDefinition, ManualSourceComponentDefinition)):
                 provided_uuids = comp.virtual_points_provided or []
                 provider_attr_name = "virtual_points_provided"
 
@@ -617,7 +609,7 @@ class CrossValidator:
         for comp in self.system_config.components:
             if isinstance(comp, MicrocontrollerComponentDefinition):
                 all_claimed_provided_uuids_list.extend(comp.points_provided)
-            elif isinstance(comp, (DriverComponentDefinition, GovernorComponentDefinition, ManualSourceComponentDefinition)): # Added ManualSourceComponentDefinition
+            elif isinstance(comp, (DriverComponentDefinition, GovernorComponentDefinition, ManualSourceComponentDefinition)):
                 if comp.virtual_points_provided: # Ensure it's not None
                     all_claimed_provided_uuids_list.extend(comp.virtual_points_provided)
         
@@ -790,7 +782,6 @@ class MicrocontrollerConfigGenerator:
         
         # Initialize topic generator for MQTT topics
         topic_generator = TopicGenerator(self.system_config)
-        points_by_uuid = {point.uuid: point for point in self.system_config.points}
         
         lines = []
         lines.append(f"// autogen_config.h")
@@ -1132,21 +1123,21 @@ class SystemBuilder:
         self.validated_components = {}
         self.points_by_uuid_map = {}
         self.infrastructure_config = None
+        self.secrets_model: Optional[InfrastructureSecrets] = None
         
     def load_infrastructure_with_secrets(self) -> Optional[Dict[str, Any]]:
         """Load infrastructure_definition.yaml and merge with secrets"""
         try:
-            # Load infrastructure definition
+            # Load infrastructure definition (optional for non-secret defaults)
             infra_path = self.config_base_dir / "infrastructure_definition.yaml"
             if not infra_path.exists():
                 print(f"Infrastructure definition file not found: {infra_path}")
-                return None
-                
-            with open(infra_path) as f:
-                infrastructure = yaml.safe_load(f)
+                infrastructure = {}
+            else:
+                with open(infra_path) as f:
+                    infrastructure = yaml.safe_load(f) or {}
             
             # Load secrets (relative to project root)
-            # Since config_base_dir is "." and we're running from config_sources/, go up one level
             current_dir = Path.cwd()
             if current_dir.name == "config_sources":
                 project_root = current_dir.parent
@@ -1159,39 +1150,47 @@ class SystemBuilder:
                 return None
                 
             with open(secrets_path) as f:
-                secrets = yaml.safe_load(f)
+                secrets_raw = yaml.safe_load(f) or {}
             
-            # Substitute placeholders with actual secret values
-            resolved_infrastructure = self._substitute_placeholders(infrastructure, secrets)
-            return resolved_infrastructure
+            # Backward-compat: convert flat keys (WIFI_SSID, MQTT_*) into grouped structure expected by InfrastructureSecrets
+            if isinstance(secrets_raw, dict) and (
+                'WIFI_SSID' in secrets_raw or 'MQTT_BROKER_ADDRESS' in secrets_raw
+            ):
+                secrets_converted = {
+                    'wifi': {
+                        'default': {
+                            'ssid': secrets_raw.get('WIFI_SSID', ''),
+                            'password': secrets_raw.get('WIFI_PASSWORD', ''),
+                        },
+                        'per_device': {}
+                    },
+                    'mqtt': {
+                        'default': {
+                            'broker_address': secrets_raw.get('MQTT_BROKER_ADDRESS', ''),
+                            'broker_port': secrets_raw.get('MQTT_BROKER_PORT', 1883),
+                            'username': secrets_raw.get('MQTT_USERNAME', ''),
+                            'password': secrets_raw.get('MQTT_PASSWORD', ''),
+                        },
+                        'per_device': {}
+                    }
+                }
+            else:
+                secrets_converted = secrets_raw
+            
+            # Validate secrets model
+            try:
+                self.secrets_model = InfrastructureSecrets.model_validate(secrets_converted)
+            except Exception as e:
+                print(f"Error validating infrastructure_secrets.yaml: {e}")
+                return None
+            
+            # Do not substitute secrets into component configs here
+            return infrastructure
             
         except Exception as e:
             print(f"Error loading infrastructure with secrets: {e}")
             return None
     
-    def _substitute_placeholders(self, config_dict: Any, secrets_dict: Dict[str, Any]) -> Any:
-        """Recursively substitute ${VAR} placeholders with secret values"""
-        if isinstance(config_dict, dict):
-            result = {}
-            for key, value in config_dict.items():
-                result[key] = self._substitute_placeholders(value, secrets_dict)
-            return result
-        elif isinstance(config_dict, list):
-            return [self._substitute_placeholders(item, secrets_dict) for item in config_dict]
-        elif isinstance(config_dict, str):
-            # Look for ${VAR} patterns and substitute
-            def replace_placeholder(match):
-                var_name = match.group(1)
-                if var_name in secrets_dict:
-                    return str(secrets_dict[var_name])
-                else:
-                    print(f"Warning: Placeholder ${{{var_name}}} not found in secrets")
-                    return match.group(0)  # Return original if not found
-            
-            return re.sub(r'\$\{([^}]+)\}', replace_placeholder, config_dict)
-        else:
-            return config_dict
-        
     def validate_system(self) -> bool:
         """Validates the entire system configuration."""
         # Step 1: Load infrastructure with secrets
@@ -1211,7 +1210,7 @@ class SystemBuilder:
         self.points_by_uuid_map = {point.uuid: point for point in self.system_config.points}
             
         # Step 2: Validate Component Configs
-        component_validator = ComponentConfigValidator(self.system_config, self.config_base_dir)
+        component_validator = ComponentConfigValidator(self.system_config, self.config_base_dir, self.infrastructure_config, self.secrets_model)
         components_ok, self.validated_components = component_validator.validate(self.points_by_uuid_map)
         if not components_ok:
             print("\nAborting build due to errors in component configurations.")

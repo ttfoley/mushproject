@@ -180,9 +180,26 @@ class DriverConfig(BaseModel):
 
 # --- Supporting Sub-Models for Microcontroller ---
 class WiFiConfig(BaseModel):
-    ssid: Optional[str] = Field(None, description="WiFi network SSID. If not provided, uses global setting.")
-    password: Optional[str] = Field(None, description="WiFi network password. If not provided, uses global setting.")
+    ssid: str = Field(..., description="WiFi network SSID. Resolved from secrets; not allowed in tracked YAML.")
+    password: str = Field(..., description="WiFi network password. Resolved from secrets; not allowed in tracked YAML.")
     model_config = {"extra": "forbid"}
+
+    @model_validator(mode='before')
+    @classmethod
+    def inject_from_secrets(cls, data: Any, info: ValidationInfo):
+        # Initialize empty mapping if missing
+        data = {} if data is None else dict(data)
+        # Forbid literals in tracked YAMLs
+        if 'ssid' in data or 'password' in data:
+            raise ValueError("WiFi secrets must not be set in tracked YAML. Remove 'wifi.ssid' and 'wifi.password'.")
+        secrets = info.context.get("infrastructure_secrets") if info and info.context else None
+        device_id = info.context.get("component_id") if info and info.context else None
+        if secrets is None or device_id is None:
+            raise ValueError("Infrastructure secrets context missing for WiFiConfig resolution.")
+        wifi_secrets = secrets.get_wifi_for_device(device_id)
+        data['ssid'] = wifi_secrets.ssid
+        data['password'] = wifi_secrets.password
+        return data
 
 class MQTTBrokerConfigOptional(BaseModel):
     address: Optional[str] = Field(None, description="MQTT broker address. If not provided, uses global setting.")
@@ -443,12 +460,31 @@ class ActuatorConfig(BaseModel):
 
 # MQTT configuration with client_id
 class MQTTConfigWithClientId(BaseModel):
-    broker_address: str = Field(..., description="MQTT broker address")
-    broker_port: int = Field(1883, description="MQTT broker port")
-    username: str = Field(..., description="MQTT username")
-    password: str = Field(..., description="MQTT password")
+    broker_address: str = Field(..., description="MQTT broker address. Resolved from secrets; not allowed in tracked YAML.")
+    broker_port: int = Field(..., description="MQTT broker port. Resolved from secrets; not allowed in tracked YAML.")
+    username: str = Field(..., description="MQTT username. Resolved from secrets; not allowed in tracked YAML.")
+    password: str = Field(..., description="MQTT password. Resolved from secrets; not allowed in tracked YAML.")
     client_id: str = Field(..., description="MQTT client ID")
     model_config = {"extra": "forbid"}
+
+    @model_validator(mode='before')
+    @classmethod
+    def inject_from_secrets(cls, data: Any, info: ValidationInfo):
+        data = {} if data is None else dict(data)
+        # Forbid literals in tracked YAMLs for secret-bearing fields
+        forbidden = ['broker_address', 'broker_port', 'username', 'password']
+        if any(k in data for k in forbidden):
+            raise ValueError("MQTT secrets must not be set in tracked YAML. Remove broker_address/port/username/password.")
+        secrets = info.context.get("infrastructure_secrets") if info and info.context else None
+        device_id = info.context.get("component_id") if info and info.context else None
+        if secrets is None or device_id is None:
+            raise ValueError("Infrastructure secrets context missing for MQTTConfig resolution.")
+        mqtt_secrets = secrets.get_mqtt_for_device(device_id)
+        data['broker_address'] = mqtt_secrets.broker_address
+        data['broker_port'] = mqtt_secrets.broker_port
+        data['username'] = mqtt_secrets.username
+        data['password'] = mqtt_secrets.password
+        return data
 
 class MicrocontrollerConfig(BaseModel):
     # Enhanced primary fields
@@ -487,6 +523,17 @@ class MicrocontrollerConfig(BaseModel):
     publish_frequency_ms: Optional[int] = Field(None, description="Legacy publish frequency")
 
     model_config = {"extra": "forbid"}
+
+    @model_validator(mode='before')
+    @classmethod
+    def ensure_required_sections(cls, data: Any, info: ValidationInfo):
+        data = {} if data is None else dict(data)
+        # If wifi/mqtt blocks are omitted in YAML, create empty dicts so submodel 'before' can inject secrets
+        if 'wifi' not in data or data['wifi'] is None:
+            data['wifi'] = {}
+        if 'mqtt' not in data or data['mqtt'] is None:
+            data['mqtt'] = {}
+        return data
 
 # --- Governor Supporting Sub-Models ---
 class _BaseGovernorControllerConfig(BaseModel):
