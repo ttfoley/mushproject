@@ -116,14 +116,13 @@ def toml_mqtt_input(topics: List[str]) -> str:
         "\n"
         "  [[inputs.mqtt_consumer.json_v2]]\n"
         "    measurement_name = \"points\"\n"
+        "    timestamp_path   = \"timestamp_utc\"\n"
+        "    timestamp_format = \"2006-01-02T15:04:05.000Z07:00\"\n"
         "    [[inputs.mqtt_consumer.json_v2.tag]]\n"
         "      path = \"uuid\"\n"
         "    [[inputs.mqtt_consumer.json_v2.field]]\n"
         "      path = \"value\"\n"
         "      rename = \"value_raw\"\n"
-        "    [[inputs.mqtt_consumer.json_v2.timestamp]]\n"
-        "      path   = \"timestamp_utc\"\n"
-        "      format = \"2006-01-02T15:04:05.000Z07:00\"\n"
     )
 
 
