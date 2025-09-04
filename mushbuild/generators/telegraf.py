@@ -176,28 +176,49 @@ def build_enum_mapping(pt: PointDef) -> Dict[str, int]:
 
 
 def toml_processors_for_discrete(points: List[PointDef]) -> str:
+    """Group rename for all discrete; group boolean enum; keep per-enum mapping for others."""
     if not points:
         return ""
     blocks: List[str] = []
-    for pt in points:
-        # 1) rename value_raw -> value_label (string field)
+
+    # Group 1: one rename for all discrete UUIDs
+    all_discrete_uuids = [p.uuid for p in points]
+    if all_discrete_uuids:
+        uuids_list = ", ".join([f'"{u}"' for u in sorted(all_discrete_uuids)])
         blocks.append(
             "\n[[processors.rename]]\n"
             "  namepass = [\"points\"]\n"
-            f"  tagpass = {{ uuid = [\"{pt.uuid}\"] }}\n"
+            f"  tagpass = {{ uuid = [{uuids_list}] }}\n"
             "  [[processors.rename.replace]]\n"
             "    field = \"value_raw\"\n"
             "    dest  = \"value_label\"\n"
         )
-        # 2) map label -> code (value_code or state_code)
+
+    # Split booleans vs other enums
+    boolean_pts = [p for p in points if is_boolean_point(p)]
+    enum_pts = [p for p in points if not is_boolean_point(p)]
+
+    # Group 2: single enum block for all booleans: off=0, on=1
+    if boolean_pts:
+        bool_uuids_list = ", ".join([f'"{p.uuid}"' for p in sorted(boolean_pts, key=lambda x: x.uuid)])
+        blocks.append(
+            "\n[[processors.enum]]\n"
+            "  namepass = [\"points\"]\n"
+            f"  tagpass = {{ uuid = [{bool_uuids_list}] }}\n"
+            + enum_mapping_block("value_label", "value_code", {"off": 0, "on": 1})
+        )
+
+    # Group 3: per-point enum block for non-boolean enumerations (can later group by allowed_values)
+    for pt in enum_pts:
         mapping = build_enum_mapping(pt)
-        dest_field = "state_code" if (pt.units or "").lower() not in ("on/off") and pt.allowed_values else "value_code"
+        dest_field = "state_code" if pt.allowed_values else "value_code"
         blocks.append(
             "\n[[processors.enum]]\n"
             "  namepass = [\"points\"]\n"
             f"  tagpass = {{ uuid = [\"{pt.uuid}\"] }}\n"
             + enum_mapping_block("value_label", dest_field, mapping)
         )
+
     return "".join(blocks)
 
 
