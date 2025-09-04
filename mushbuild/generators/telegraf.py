@@ -123,7 +123,7 @@ def toml_mqtt_input(topics: List[str]) -> str:
         "      rename = \"value_raw\"\n"
         "    [[inputs.mqtt_consumer.json_v2.timestamp]]\n"
         "      path   = \"timestamp_utc\"\n"
-        "      layout = \"2006-01-02T15:04:05.000Z07:00\"\n"
+        "      format = \"2006-01-02T15:04:05.000Z07:00\"\n"
     )
 
 
