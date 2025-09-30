@@ -1,0 +1,1109 @@
+{
+  "metadata": {
+    "generated_at": "placeholder_timestamp",
+    "total_points": 54,
+    "mqtt_topic_prefix": "mush/"
+  },
+  "points": {
+    "f47ac10b-58cc-4372-a567-0e02b2c3d479": {
+      "uuid": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "name": "FruitingChamber_SHT85-0_Temperature_Raw",
+      "description": "Sensor reading from C1/sht_0",
+      "function_grouping": "sensor",
+      "value_type": "CONTINUOUS",
+      "units": "degF",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c1/sensors/fruitingchamber_sht85-0/degf",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 100.0,
+        "allowed_values": null
+      }
+    },
+    "9c8b1da3-1b2a-4c8e-9d1f-6a7b8c9d0e1f": {
+      "uuid": "9c8b1da3-1b2a-4c8e-9d1f-6a7b8c9d0e1f",
+      "name": "FruitingChamber_SHT85-0_Humidity_Raw",
+      "description": "Sensor reading from C1/sht_0",
+      "function_grouping": "sensor",
+      "value_type": "CONTINUOUS",
+      "units": "percent_rh",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c1/sensors/fruitingchamber_sht85-0/percent_rh",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 100.0,
+        "allowed_values": null
+      }
+    },
+    "2a3b4c5d-6e7f-4a1b-8c2d-3e4f5a6b7c8d": {
+      "uuid": "2a3b4c5d-6e7f-4a1b-8c2d-3e4f5a6b7c8d",
+      "name": "Outside_DHT-0_Temperature_Raw",
+      "description": "Sensor reading from C1/dht_0",
+      "function_grouping": "sensor",
+      "value_type": "CONTINUOUS",
+      "units": "degF",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c1/sensors/outside_dht-0/degf",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 100.0,
+        "allowed_values": null
+      }
+    },
+    "b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e": {
+      "uuid": "b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
+      "name": "Outside_DHT-0_Humidity_Raw",
+      "description": "Sensor reading from C1/dht_0",
+      "function_grouping": "sensor",
+      "value_type": "CONTINUOUS",
+      "units": "percent_rh",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c1/sensors/outside_dht-0/percent_rh",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 100.0,
+        "allowed_values": null
+      }
+    },
+    "c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f": {
+      "uuid": "c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f",
+      "name": "FruitingChamber_BME280-1_Temperature_Raw",
+      "description": "Temperature reading from BME280_1 on C1.",
+      "function_grouping": "sensor",
+      "value_type": "CONTINUOUS",
+      "units": "degF",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c1/sensors/fruitingchamber_bme280-1/degf",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": -40.0,
+        "max_value": 185.0,
+        "allowed_values": null
+      }
+    },
+    "d3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f70": {
+      "uuid": "d3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f70",
+      "name": "FruitingChamber_BME280-1_Humidity_Raw",
+      "description": "Humidity reading from BME280_1 on C1.",
+      "function_grouping": "sensor",
+      "value_type": "CONTINUOUS",
+      "units": "percent_rh",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c1/sensors/fruitingchamber_bme280-1/percent_rh",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 100.0,
+        "allowed_values": null
+      }
+    },
+    "e4f5a6b7-c8d9-4e0f-1a2b-3c4d5e6f7081": {
+      "uuid": "e4f5a6b7-c8d9-4e0f-1a2b-3c4d5e6f7081",
+      "name": "FruitingChamber_BME280-1_Pressure_Raw",
+      "description": "Pressure reading from BME280_1 on C1.",
+      "function_grouping": "sensor",
+      "value_type": "CONTINUOUS",
+      "units": "pascal",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c1/sensors/fruitingchamber_bme280-1/pascal",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 30000.0,
+        "max_value": 110000.0,
+        "allowed_values": null
+      }
+    },
+    "f5a6b7c8-d9e0-4f1a-2b3c-4d5e6f708192": {
+      "uuid": "f5a6b7c8-d9e0-4f1a-2b3c-4d5e6f708192",
+      "name": "FruitingChamber_DS18B20-0_Temperature_Raw",
+      "description": "Temperature reading from DS18B20_0 on C1.",
+      "function_grouping": "sensor",
+      "value_type": "CONTINUOUS",
+      "units": "degF",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c1/sensors/fruitingchamber_ds18b20-0/degf",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 200.0,
+        "allowed_values": null
+      }
+    },
+    "06b7c8d9-e0f1-4a2b-3c4d-5e6f708192a3": {
+      "uuid": "06b7c8d9-e0f1-4a2b-3c4d-5e6f708192a3",
+      "name": "FruitingChamber_DS18B20-1_Temperature_Raw",
+      "description": "Temperature reading from DS18B20_1 on C1.",
+      "function_grouping": "sensor",
+      "value_type": "CONTINUOUS",
+      "units": "degF",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c1/sensors/fruitingchamber_ds18b20-1/degf",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 200.0,
+        "allowed_values": null
+      }
+    },
+    "17c8d9e0-f1a2-4b3c-4d5e-6f708192a3b4": {
+      "uuid": "17c8d9e0-f1a2-4b3c-4d5e-6f708192a3b4",
+      "name": "C1_Status_WifiUptime",
+      "description": "WiFi connection uptime for C1.",
+      "function_grouping": "status",
+      "value_type": "CONTINUOUS",
+      "units": "minutes",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c1/statuses/wifi_uptime",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": null,
+        "allowed_values": null
+      }
+    },
+    "28d9e0f1-a2b3-4c4d-5e6f-708192a3b4c5": {
+      "uuid": "28d9e0f1-a2b3-4c4d-5e6f-708192a3b4c5",
+      "name": "C1_Status_LastRestartReason",
+      "description": "Last restart reason for C1.",
+      "function_grouping": "status",
+      "value_type": "DISCRETE",
+      "units": "reason_code",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c1/statuses/last_restart_reason",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "unknown",
+          "power_on",
+          "wifi_timeout",
+          "mqtt_timeout",
+          "sensor_timeout",
+          "manual_reset",
+          "other"
+        ]
+      },
+      "initial_value": "unknown"
+    },
+    "39e0f1a2-b3c4-4d5e-6f70-8192a3b4c5d6": {
+      "uuid": "39e0f1a2-b3c4-4d5e-6f70-8192a3b4c5d6",
+      "name": "C2_Status_WifiUptime",
+      "description": "Sensor reading from C2/status",
+      "function_grouping": "status",
+      "value_type": "CONTINUOUS",
+      "units": "minutes",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c2/statuses/wifi_uptime",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 1000000.0,
+        "allowed_values": null
+      }
+    },
+    "4a0f1a2b-3c4d-4e6f-7081-92a3b4c5d6e7": {
+      "uuid": "4a0f1a2b-3c4d-4e6f-7081-92a3b4c5d6e7",
+      "name": "C2_Status_LastRestartReason",
+      "description": "Last restart reason for C2.",
+      "function_grouping": "status",
+      "value_type": "DISCRETE",
+      "units": "reason_code",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c2/statuses/last_restart_reason",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "unknown",
+          "power_on",
+          "wifi_timeout",
+          "mqtt_timeout",
+          "sensor_timeout",
+          "manual_reset",
+          "other"
+        ]
+      },
+      "initial_value": "unknown"
+    },
+    "5b10f1a2-b3c4-4d5e-6f70-8192a3b4c5d6": {
+      "uuid": "5b10f1a2-b3c4-4d5e-6f70-8192a3b4c5d6",
+      "name": "FruitingChamber_Humidifier_Readback",
+      "description": "Humidifier status readback",
+      "function_grouping": "actuator",
+      "value_type": "DISCRETE",
+      "units": "on/off",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c2/actuators/humidifier/readback",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "unknown",
+          "on",
+          "off"
+        ]
+      },
+      "initial_value": "off"
+    },
+    "6c21f1a2-b3c4-4d5e-6f70-8192a3b4c5d7": {
+      "uuid": "6c21f1a2-b3c4-4d5e-6f70-8192a3b4c5d7",
+      "name": "FruitingChamber_Humidifier_Write",
+      "description": "Humidifier command",
+      "function_grouping": "command",
+      "value_type": "DISCRETE",
+      "units": "on/off",
+      "data_source_layer": "driver",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/humidity_driver_fruiting/commands/c2/humidifier/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "on",
+          "off"
+        ]
+      },
+      "initial_value": "off",
+      "readback_point_uuid": "5b10f1a2-b3c4-4d5e-6f70-8192a3b4c5d6",
+      "writable_by": [
+        "humidity_driver_fruiting"
+      ]
+    },
+    "7d32f1a2-b3c4-4d5e-6f70-8192a3b4c5d8": {
+      "uuid": "7d32f1a2-b3c4-4d5e-6f70-8192a3b4c5d8",
+      "name": "FruitingChamber_HeatingPad_Readback",
+      "description": "HeatingPad status readback",
+      "function_grouping": "actuator",
+      "value_type": "DISCRETE",
+      "units": "on/off",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c2/actuators/heatingpad/readback",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "unknown",
+          "on",
+          "off"
+        ]
+      },
+      "initial_value": "off"
+    },
+    "8e43f1a2-b3c4-4d5e-6f70-8192a3b4c5d9": {
+      "uuid": "8e43f1a2-b3c4-4d5e-6f70-8192a3b4c5d9",
+      "name": "FruitingChamber_HeatingPad_Write",
+      "description": "HeatingPad command",
+      "function_grouping": "command",
+      "value_type": "DISCRETE",
+      "units": "on/off",
+      "data_source_layer": "driver",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/temperature_driver_fruiting/commands/c2/heatingpad/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "on",
+          "off"
+        ]
+      },
+      "initial_value": "off",
+      "readback_point_uuid": "7d32f1a2-b3c4-4d5e-6f70-8192a3b4c5d8",
+      "writable_by": [
+        "temperature_driver_fruiting"
+      ]
+    },
+    "9f54f1a2-b3c4-4d5e-6f70-8192a3b4c5da": {
+      "uuid": "9f54f1a2-b3c4-4d5e-6f70-8192a3b4c5da",
+      "name": "FruitingChamber_Light_Readback",
+      "description": "Light status readback",
+      "function_grouping": "actuator",
+      "value_type": "DISCRETE",
+      "units": "on/off",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c2/actuators/light/readback",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "unknown",
+          "on",
+          "off"
+        ]
+      },
+      "initial_value": "off"
+    },
+    "a065f1a2-b3c4-4d5e-6f70-8192a3b4c5db": {
+      "uuid": "a065f1a2-b3c4-4d5e-6f70-8192a3b4c5db",
+      "name": "FruitingChamber_Light_Write",
+      "description": "Light command",
+      "function_grouping": "command",
+      "value_type": "DISCRETE",
+      "units": "on/off",
+      "data_source_layer": "driver",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/light_driver_fruiting/commands/c2/light/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "on",
+          "off"
+        ]
+      },
+      "initial_value": "off",
+      "readback_point_uuid": "9f54f1a2-b3c4-4d5e-6f70-8192a3b4c5da",
+      "writable_by": [
+        "light_driver_fruiting"
+      ]
+    },
+    "b176f1a2-b3c4-4d5e-6f70-8192a3b4c5dc": {
+      "uuid": "b176f1a2-b3c4-4d5e-6f70-8192a3b4c5dc",
+      "name": "FruitingChamber_VentFan_Readback",
+      "description": "VentFan status readback",
+      "function_grouping": "actuator",
+      "value_type": "DISCRETE",
+      "units": "on/off",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c2/actuators/ventfan/readback",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "unknown",
+          "on",
+          "off"
+        ]
+      },
+      "initial_value": "off"
+    },
+    "c287f1a2-b3c4-4d5e-6f70-8192a3b4c5dd": {
+      "uuid": "c287f1a2-b3c4-4d5e-6f70-8192a3b4c5dd",
+      "name": "FruitingChamber_VentFan_Write",
+      "description": "VentFan command",
+      "function_grouping": "command",
+      "value_type": "DISCRETE",
+      "units": "on/off",
+      "data_source_layer": "driver",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/vent_driver_fruiting/commands/c2/ventfan/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "on",
+          "off"
+        ]
+      },
+      "initial_value": "off",
+      "readback_point_uuid": "b176f1a2-b3c4-4d5e-6f70-8192a3b4c5dc",
+      "writable_by": [
+        "vent_driver_fruiting"
+      ]
+    },
+    "f5baf1a2-b3c4-4d5e-6f70-8192a3b4c5e0": {
+      "uuid": "f5baf1a2-b3c4-4d5e-6f70-8192a3b4c5e0",
+      "name": "FruitingChamber_SCD4x-0_CO2_Raw",
+      "description": "CO2 reading from SCD4x on C3.",
+      "function_grouping": "sensor",
+      "value_type": "CONTINUOUS",
+      "units": "ppm",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c3/sensors/fruitingchamber_scd4x-0/ppm",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 20000.0,
+        "allowed_values": null
+      }
+    },
+    "06cbf1a2-b3c4-4d5e-6f70-8192a3b4c5e1": {
+      "uuid": "06cbf1a2-b3c4-4d5e-6f70-8192a3b4c5e1",
+      "name": "FruitingChamber_SCD4x-0_Temperature_Raw",
+      "description": "Temperature reading from SCD4x on C3.",
+      "function_grouping": "sensor",
+      "value_type": "CONTINUOUS",
+      "units": "degF",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c3/sensors/fruitingchamber_scd4x-0/degf",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": -40.0,
+        "max_value": 185.0,
+        "allowed_values": null
+      }
+    },
+    "17dcf1a2-b3c4-4d5e-6f70-8192a3b4c5e2": {
+      "uuid": "17dcf1a2-b3c4-4d5e-6f70-8192a3b4c5e2",
+      "name": "FruitingChamber_SCD4x-0_Humidity_Raw",
+      "description": "Humidity reading from SCD4x on C3.",
+      "function_grouping": "sensor",
+      "value_type": "CONTINUOUS",
+      "units": "percent_rh",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c3/sensors/fruitingchamber_scd4x-0/percent_rh",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 100.0,
+        "allowed_values": null
+      }
+    },
+    "28eef1a2-b3c4-4d5e-6f70-8192a3b4c5e3": {
+      "uuid": "28eef1a2-b3c4-4d5e-6f70-8192a3b4c5e3",
+      "name": "C3_Status_WifiUptime",
+      "description": "WiFi connection uptime for C3.",
+      "function_grouping": "status",
+      "value_type": "CONTINUOUS",
+      "units": "minutes",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c3/statuses/wifi_uptime",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": null,
+        "allowed_values": null
+      }
+    },
+    "39fff1a2-b3c4-4d5e-6f70-8192a3b4c5e4": {
+      "uuid": "39fff1a2-b3c4-4d5e-6f70-8192a3b4c5e4",
+      "name": "C3_Status_LastRestartReason",
+      "description": "Last restart reason for C3.",
+      "function_grouping": "status",
+      "value_type": "DISCRETE",
+      "units": "reason_code",
+      "data_source_layer": "microcontroller",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/c3/statuses/last_restart_reason",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "unknown",
+          "power_on",
+          "wifi_timeout",
+          "mqtt_timeout",
+          "sensor_timeout",
+          "manual_reset",
+          "other"
+        ]
+      },
+      "initial_value": "unknown"
+    },
+    "4a00f1a2-b3c4-4d5e-6f70-8192a3b4c5e5": {
+      "uuid": "4a00f1a2-b3c4-4d5e-6f70-8192a3b4c5e5",
+      "name": "FruitingChamber_Temp_Target_Setpoint",
+      "description": "Target temperature setpoint for the controller (e.g., Governor).",
+      "function_grouping": "command",
+      "value_type": "CONTINUOUS",
+      "units": "degF",
+      "data_source_layer": "manual",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/manual_input/commands/temperature_governor/temperature_target_setpoint/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 100.0,
+        "allowed_values": null
+      },
+      "initial_value": 70.0,
+      "writable_by": [
+        "Manual_HOA"
+      ]
+    },
+    "5b11f1a2-b3c4-4d5e-6f70-8192a3b4c5e6": {
+      "uuid": "5b11f1a2-b3c4-4d5e-6f70-8192a3b4c5e6",
+      "name": "FruitingChamber_Temp_Target_Deadband",
+      "description": "Deadband (+/- value around setpoint) or total hysteresis width for bang-bang control.",
+      "function_grouping": "command",
+      "value_type": "CONTINUOUS",
+      "units": "delta_degF",
+      "data_source_layer": "manual",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/manual_input/commands/temperature_governor/temperature_target_deadband/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 10.0,
+        "allowed_values": null
+      },
+      "initial_value": 2.0,
+      "writable_by": [
+        "Manual_HOA"
+      ]
+    },
+    "6c22f1a2-b3c4-4d5e-6f70-8192a3b4c5e7": {
+      "uuid": "6c22f1a2-b3c4-4d5e-6f70-8192a3b4c5e7",
+      "name": "FruitingChamber_Heater_Governor_Mode_Command",
+      "description": "Desired operating mode from the Governor for the Heater Driver FSM (e.g., pwm, off, on).",
+      "function_grouping": "command",
+      "value_type": "DISCRETE",
+      "units": "mode_command",
+      "data_source_layer": "governor",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/temperature_governor/commands/c2/heater_mode/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "pwm",
+          "off",
+          "on"
+        ]
+      },
+      "initial_value": "off",
+      "writable_by": [
+        "temperature_governor"
+      ]
+    },
+    "7d33f1a2-b3c4-4d5e-6f70-8192a3b4c5e8": {
+      "uuid": "7d33f1a2-b3c4-4d5e-6f70-8192a3b4c5e8",
+      "name": "FruitingChamber_Heater_Manual_Command",
+      "description": "Desired operating mode from Manual/HOA input for the Heater Driver FSM (e.g., on, off).",
+      "function_grouping": "command",
+      "value_type": "DISCRETE",
+      "units": "mode_command",
+      "data_source_layer": "manual",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/manual_input/commands/temperature_governor/heater_manual_override/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "on",
+          "off"
+        ]
+      },
+      "initial_value": "off",
+      "writable_by": [
+        "Manual_HOA"
+      ]
+    },
+    "8e44f1a2-b3c4-4d5e-6f70-8192a3b4c5e9": {
+      "uuid": "8e44f1a2-b3c4-4d5e-6f70-8192a3b4c5e9",
+      "name": "FruitingChamber_Heater_PWM_Setpoint",
+      "description": "Target PWM duty cycle (0.0 to 1.0) set by Gov/Manual, read by Driver for PWM logic.",
+      "function_grouping": "command",
+      "value_type": "CONTINUOUS",
+      "units": "ratio",
+      "data_source_layer": "governor",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/temperature_governor/commands/c2/heater_pwm_setpoint/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 1.0,
+        "allowed_values": null
+      },
+      "initial_value": 0.0,
+      "writable_by": [
+        "temperature_governor",
+        "Manual_HOA"
+      ]
+    },
+    "9f55f1a2-b3c4-4d5e-6f70-8192a3b4c5ea": {
+      "uuid": "9f55f1a2-b3c4-4d5e-6f70-8192a3b4c5ea",
+      "name": "FruitingChamber_Heater_PWM_ON_Duration_Setpoint",
+      "description": "Target ON duration (seconds) for PWM cycle, published by Governor, read by Driver's FSM.",
+      "function_grouping": "command",
+      "value_type": "CONTINUOUS",
+      "units": "seconds",
+      "data_source_layer": "governor",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/temperature_governor/commands/c2/heater_pwm_on_duration/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": null,
+        "allowed_values": null
+      },
+      "initial_value": 0.0,
+      "writable_by": [
+        "temperature_governor"
+      ]
+    },
+    "a066f1a2-b3c4-4d5e-6f70-8192a3b4c5eb": {
+      "uuid": "a066f1a2-b3c4-4d5e-6f70-8192a3b4c5eb",
+      "name": "FruitingChamber_Heater_PWM_OFF_Duration_Setpoint",
+      "description": "Target OFF duration (seconds) for PWM cycle, published by Governor, read by Driver's FSM.",
+      "function_grouping": "command",
+      "value_type": "CONTINUOUS",
+      "units": "seconds",
+      "data_source_layer": "governor",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/temperature_governor/commands/c2/heater_pwm_off_duration/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": null,
+        "allowed_values": null
+      },
+      "initial_value": 60.0,
+      "writable_by": [
+        "temperature_governor"
+      ]
+    },
+    "16cc030a-27f6-4d46-83c2-e60ec5b84e02": {
+      "uuid": "16cc030a-27f6-4d46-83c2-e60ec5b84e02",
+      "name": "FruitingChamber_Humidity_Governor_Mode_Command",
+      "description": "Desired operating mode from the Governor for the Humidity Driver FSM (e.g., off, on).",
+      "function_grouping": "command",
+      "value_type": "DISCRETE",
+      "units": "mode_command",
+      "data_source_layer": "governor",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/humidity_governor/commands/c2/humidifier_mode/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "off",
+          "on"
+        ]
+      },
+      "initial_value": "off",
+      "writable_by": [
+        "humidity_governor"
+      ]
+    },
+    "1ccbdc0e-30cd-4b02-964f-fd5208821bee": {
+      "uuid": "1ccbdc0e-30cd-4b02-964f-fd5208821bee",
+      "name": "FruitingChamber_Humidity_Target_Setpoint",
+      "description": "Target humidity setpoint for the controller (e.g., Humidity Governor).",
+      "function_grouping": "command",
+      "value_type": "CONTINUOUS",
+      "units": "percent_rh",
+      "data_source_layer": "manual",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/manual_input/commands/humidity_governor/humidity_target_setpoint/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 100.0,
+        "allowed_values": null
+      },
+      "initial_value": 85.0,
+      "writable_by": [
+        "Manual_HOA",
+        "humidity_governor"
+      ]
+    },
+    "e13a213e-d936-44ab-9948-895c335026b0": {
+      "uuid": "e13a213e-d936-44ab-9948-895c335026b0",
+      "name": "FruitingChamber_Humidity_Target_Deadband",
+      "description": "Deadband (+/- value around setpoint) or total hysteresis width for humidity bang-bang control.",
+      "function_grouping": "command",
+      "value_type": "CONTINUOUS",
+      "units": "delta_percent_rh",
+      "data_source_layer": "manual",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/manual_input/commands/humidity_governor/humidity_target_deadband/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 20.0,
+        "allowed_values": null
+      },
+      "initial_value": 5.0,
+      "writable_by": [
+        "Manual_HOA",
+        "humidity_governor"
+      ]
+    },
+    "c263c3fc-018d-4996-800a-5317465c7178": {
+      "uuid": "c263c3fc-018d-4996-800a-5317465c7178",
+      "name": "FruitingChamber_VentFan_Governor_Mode_Command",
+      "description": "Desired operating mode from the Governor for the Vent Fan Driver FSM (e.g., off, on).",
+      "function_grouping": "command",
+      "value_type": "DISCRETE",
+      "units": "mode_command",
+      "data_source_layer": "governor",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/vent_fan_governor/commands/c2/ventfan_mode/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "off",
+          "on"
+        ]
+      },
+      "initial_value": "off",
+      "writable_by": [
+        "vent_fan_governor"
+      ]
+    },
+    "3039aac8-2816-4191-9f44-1d453e2e7924": {
+      "uuid": "3039aac8-2816-4191-9f44-1d453e2e7924",
+      "name": "FruitingChamber_VentFan_Timer_OnIntervalMinutes",
+      "description": "ON duration in minutes for the fruiting vent fan timer. Set manually or by a future scheduler.",
+      "function_grouping": "command",
+      "value_type": "CONTINUOUS",
+      "units": "minutes",
+      "data_source_layer": "manual",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/manual_input/commands/vent_fan_governor/ventfan_timer_on_interval/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 120.0,
+        "allowed_values": null
+      },
+      "initial_value": 5.0,
+      "writable_by": [
+        "Manual_HOA"
+      ]
+    },
+    "e0cf042f-5222-4be3-9fad-62ee28f3e3a8": {
+      "uuid": "e0cf042f-5222-4be3-9fad-62ee28f3e3a8",
+      "name": "FruitingChamber_VentFan_Timer_OffIntervalMinutes",
+      "description": "OFF duration in minutes for the fruiting vent fan timer. Set manually or by a future scheduler.",
+      "function_grouping": "command",
+      "value_type": "CONTINUOUS",
+      "units": "minutes",
+      "data_source_layer": "manual",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/manual_input/commands/vent_fan_governor/ventfan_timer_off_interval/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 1440.0,
+        "allowed_values": null
+      },
+      "initial_value": 55.0,
+      "writable_by": [
+        "Manual_HOA"
+      ]
+    },
+    "7bbe9f99-a3b3-4e97-a10a-d3c4f92c838d": {
+      "uuid": "7bbe9f99-a3b3-4e97-a10a-d3c4f92c838d",
+      "name": "FruitingChamber_Light_Governor_Mode_Command",
+      "description": "Desired operating mode from the Governor for the Light Driver FSM (e.g., off, on).",
+      "function_grouping": "command",
+      "value_type": "DISCRETE",
+      "units": "mode_command",
+      "data_source_layer": "governor",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/light_governor/commands/c2/light_mode/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "off",
+          "on"
+        ]
+      },
+      "initial_value": "off",
+      "writable_by": [
+        "light_governor"
+      ]
+    },
+    "2be2a778-d0f6-4d33-97a1-747107b952b3": {
+      "uuid": "2be2a778-d0f6-4d33-97a1-747107b952b3",
+      "name": "FruitingChamber_Light_Timer_OnIntervalMinutes",
+      "description": "ON duration in minutes for the fruiting light timer. Set manually or by a future scheduler.",
+      "function_grouping": "command",
+      "value_type": "CONTINUOUS",
+      "units": "minutes",
+      "data_source_layer": "manual",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/manual_input/commands/light_governor/light_timer_on_interval/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 1440.0,
+        "allowed_values": null
+      },
+      "initial_value": 720.0,
+      "writable_by": [
+        "Manual_HOA"
+      ]
+    },
+    "f9cc975a-89f2-4b93-8159-074edf2a6c88": {
+      "uuid": "f9cc975a-89f2-4b93-8159-074edf2a6c88",
+      "name": "FruitingChamber_Light_Timer_OffIntervalMinutes",
+      "description": "OFF duration in minutes for the fruiting light timer. Set manually or by a future scheduler.",
+      "function_grouping": "command",
+      "value_type": "CONTINUOUS",
+      "units": "minutes",
+      "data_source_layer": "manual",
+      "access": "READ_WRITE",
+      "mqtt_topic": "mush/manual_input/commands/light_governor/light_timer_off_interval/write",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": 0.0,
+        "max_value": 1440.0,
+        "allowed_values": null
+      },
+      "initial_value": 720.0,
+      "writable_by": [
+        "Manual_HOA"
+      ]
+    },
+    "b177f1a2-b3c4-4d5e-6f70-8192a3b4c5ec": {
+      "uuid": "b177f1a2-b3c4-4d5e-6f70-8192a3b4c5ec",
+      "name": "FruitingChamber_TemperatureDriver_TimeInState",
+      "description": "Time elapsed (seconds) since the temperature driver's FSM internally changed state.",
+      "function_grouping": "status",
+      "value_type": "CONTINUOUS",
+      "units": "seconds",
+      "data_source_layer": "driver",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/temperature_driver_fruiting/statuses/time_in_state",
+      "persist_to_db": true,
+      "initial_value": 0.0
+    },
+    "c288f1a2-b3c4-4d5e-6f70-8192a3b4c5ed": {
+      "uuid": "c288f1a2-b3c4-4d5e-6f70-8192a3b4c5ed",
+      "name": "FruitingChamber_TemperatureDriver_FSM_State",
+      "description": "Current internal state name of the temperature driver FSM.",
+      "function_grouping": "status",
+      "value_type": "DISCRETE",
+      "units": "state_name",
+      "data_source_layer": "driver",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/temperature_driver_fruiting/statuses/fsm_state",
+      "persist_to_db": true,
+      "initial_value": "unknown"
+    },
+    "d399f1a2-b3c4-4d5e-6f70-8192a3b4c5ee": {
+      "uuid": "d399f1a2-b3c4-4d5e-6f70-8192a3b4c5ee",
+      "name": "FruitingChamber_TemperatureDriver_FSM_Health",
+      "description": "Confirmation status for the temperature driver.",
+      "function_grouping": "status",
+      "value_type": "DISCRETE",
+      "units": "health_status",
+      "data_source_layer": "driver",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/temperature_driver_fruiting/statuses/fsm_health",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "pending",
+          "verified",
+          "fault",
+          "unknown"
+        ]
+      },
+      "initial_value": "unknown"
+    },
+    "274979de-89e2-496e-a751-5c7faa61928c": {
+      "uuid": "274979de-89e2-496e-a751-5c7faa61928c",
+      "name": "FruitingChamber_HumidityDriver_TimeInState",
+      "description": "Time elapsed (seconds) since the humidity driver's FSM internally changed state.",
+      "function_grouping": "status",
+      "value_type": "CONTINUOUS",
+      "units": "seconds",
+      "data_source_layer": "driver",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/humidity_driver_fruiting/statuses/time_in_state",
+      "persist_to_db": true,
+      "initial_value": 0.0
+    },
+    "b8016f02-56d4-449c-baf6-7602ef845fb7": {
+      "uuid": "b8016f02-56d4-449c-baf6-7602ef845fb7",
+      "name": "FruitingChamber_HumidityDriver_FSM_State",
+      "description": "Current internal state name of the humidity driver FSM.",
+      "function_grouping": "status",
+      "value_type": "DISCRETE",
+      "units": "state_name",
+      "data_source_layer": "driver",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/humidity_driver_fruiting/statuses/fsm_state",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "off",
+          "on",
+          "lockout",
+          "unknown"
+        ]
+      },
+      "initial_value": "off"
+    },
+    "41f6a24c-e22a-495c-9dde-5eb92b9c9926": {
+      "uuid": "41f6a24c-e22a-495c-9dde-5eb92b9c9926",
+      "name": "FruitingChamber_HumidityDriver_FSM_Health",
+      "description": "Confirmation status for the humidity driver.",
+      "function_grouping": "status",
+      "value_type": "DISCRETE",
+      "units": "health_status",
+      "data_source_layer": "driver",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/humidity_driver_fruiting/statuses/fsm_health",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "pending",
+          "verified",
+          "fault",
+          "unknown"
+        ]
+      },
+      "initial_value": "unknown"
+    },
+    "37b0558a-a39e-4a3f-9cdc-ad83e0b5c3f9": {
+      "uuid": "37b0558a-a39e-4a3f-9cdc-ad83e0b5c3f9",
+      "name": "FruitingChamber_VentFanDriver_TimeInState",
+      "description": "Time elapsed (seconds) since the vent fan driver's FSM internally changed state.",
+      "function_grouping": "status",
+      "value_type": "CONTINUOUS",
+      "units": "seconds",
+      "data_source_layer": "driver",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/vent_driver_fruiting/statuses/time_in_state",
+      "persist_to_db": true,
+      "initial_value": 0.0
+    },
+    "2eaa72d4-5b0e-46db-b5ee-8428726cd400": {
+      "uuid": "2eaa72d4-5b0e-46db-b5ee-8428726cd400",
+      "name": "FruitingChamber_VentFanDriver_FSM_State",
+      "description": "Current internal state name of the vent fan driver FSM.",
+      "function_grouping": "status",
+      "value_type": "DISCRETE",
+      "units": "state_name",
+      "data_source_layer": "driver",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/vent_driver_fruiting/statuses/fsm_state",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "off",
+          "on",
+          "unknown"
+        ]
+      },
+      "initial_value": "off"
+    },
+    "0c31a004-741f-4f8a-b2fd-3ceb37cdde8e": {
+      "uuid": "0c31a004-741f-4f8a-b2fd-3ceb37cdde8e",
+      "name": "FruitingChamber_VentFanDriver_FSM_Health",
+      "description": "Confirmation status for the vent fan driver.",
+      "function_grouping": "status",
+      "value_type": "DISCRETE",
+      "units": "health_status",
+      "data_source_layer": "driver",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/vent_driver_fruiting/statuses/fsm_health",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "pending",
+          "verified",
+          "fault",
+          "unknown"
+        ]
+      },
+      "initial_value": "unknown"
+    },
+    "b6879dfc-c2eb-42e1-a479-5cffd07da6c0": {
+      "uuid": "b6879dfc-c2eb-42e1-a479-5cffd07da6c0",
+      "name": "FruitingChamber_LightDriver_TimeInState",
+      "description": "Time elapsed (seconds) since the light driver's FSM internally changed state.",
+      "function_grouping": "status",
+      "value_type": "CONTINUOUS",
+      "units": "seconds",
+      "data_source_layer": "driver",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/light_driver_fruiting/statuses/time_in_state",
+      "persist_to_db": true,
+      "initial_value": 0.0
+    },
+    "a30be0ec-54d5-4ccd-ad12-0a8482e61a54": {
+      "uuid": "a30be0ec-54d5-4ccd-ad12-0a8482e61a54",
+      "name": "FruitingChamber_LightDriver_FSM_State",
+      "description": "Current internal state name of the light driver FSM.",
+      "function_grouping": "status",
+      "value_type": "DISCRETE",
+      "units": "state_name",
+      "data_source_layer": "driver",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/light_driver_fruiting/statuses/fsm_state",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "off",
+          "on",
+          "unknown"
+        ]
+      },
+      "initial_value": "off"
+    },
+    "9f1f19ad-ef0c-42bc-b6fe-9359b331e807": {
+      "uuid": "9f1f19ad-ef0c-42bc-b6fe-9359b331e807",
+      "name": "FruitingChamber_LightDriver_FSM_Health",
+      "description": "Confirmation status for the light driver.",
+      "function_grouping": "status",
+      "value_type": "DISCRETE",
+      "units": "health_status",
+      "data_source_layer": "driver",
+      "access": "READ_ONLY",
+      "mqtt_topic": "mush/light_driver_fruiting/statuses/fsm_health",
+      "persist_to_db": true,
+      "validation_rules": {
+        "min_value": null,
+        "max_value": null,
+        "allowed_values": [
+          "pending",
+          "verified",
+          "fault",
+          "unknown"
+        ]
+      },
+      "initial_value": "unknown"
+    }
+  }
+}
