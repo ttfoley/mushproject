@@ -1,8 +1,0 @@
-{
-  "off": [
-    {"control_point": {"controller": "C2", "name": "CP_26"}, "value": "off"}
-  ],
-  "on": [
-    {"control_point": {"controller": "C2", "name": "CP_26"}, "value": "on"}
-  ]
-}
