@@ -1,0 +1,11 @@
+[tool.ruff]
+exclude = [
+  "legacy",
+  "analysis",
+  "artifacts",
+  "docs",
+  ".venv-dev",
+  ".pio",
+  "microcontroller",
+]
+

@@ -139,7 +139,7 @@ def main():
     # Base paths
     config_base_dir = Path(__file__).parent.parent / "config_sources"
     ssot_file = config_base_dir / "system_definition.yaml"
-    points_out = Path(__file__).parent.parent / "control" / "global_points_registry.refactor.json"
+    points_out = Path(__file__).parent.parent / "artifacts" / "global_points_registry.refactor.json"
     micros_out_dir = config_base_dir / "microcontrollers" / "generated"
 
     # Validate
