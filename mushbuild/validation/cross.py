@@ -13,6 +13,7 @@ from shared_libs.config_models.component_configs import (
     GovernorConfig,
     MicrocontrollerConfig,
 )
+from mushbuild.utils.uuid_utils import UUIDUtils
 
 
 class CrossValidator:
@@ -49,13 +50,10 @@ class CrossValidator:
 
             referenced_uuids_in_component: Set[PointUUID] = set()
             if isinstance(config_object, DriverConfig):
-                from mushbuild.utils.uuid_utils import UUIDUtils
                 referenced_uuids_in_component = UUIDUtils.extract_driver_point_uuids(config_object)
             elif isinstance(config_object, MicrocontrollerConfig):
-                from mushbuild.utils.uuid_utils import UUIDUtils
                 referenced_uuids_in_component = UUIDUtils.extract_microcontroller_point_uuids(config_object)
             elif isinstance(config_object, GovernorConfig):
-                from mushbuild.utils.uuid_utils import UUIDUtils
                 referenced_uuids_in_component = UUIDUtils.extract_governor_point_uuids(config_object)
 
             for uuid_ref in referenced_uuids_in_component:
