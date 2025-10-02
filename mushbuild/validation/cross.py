@@ -49,13 +49,13 @@ class CrossValidator:
 
             referenced_uuids_in_component: Set[PointUUID] = set()
             if isinstance(config_object, DriverConfig):
-                from config_sources.build import UUIDUtils  # reuse existing extractor
+                from mushbuild.utils.uuid_utils import UUIDUtils
                 referenced_uuids_in_component = UUIDUtils.extract_driver_point_uuids(config_object)
             elif isinstance(config_object, MicrocontrollerConfig):
-                from config_sources.build import UUIDUtils
+                from mushbuild.utils.uuid_utils import UUIDUtils
                 referenced_uuids_in_component = UUIDUtils.extract_microcontroller_point_uuids(config_object)
             elif isinstance(config_object, GovernorConfig):
-                from config_sources.build import UUIDUtils
+                from mushbuild.utils.uuid_utils import UUIDUtils
                 referenced_uuids_in_component = UUIDUtils.extract_governor_point_uuids(config_object)
 
             for uuid_ref in referenced_uuids_in_component:
