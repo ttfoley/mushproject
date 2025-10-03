@@ -80,3 +80,10 @@ microcontroller/controller1/src/autogen_config.h
 docs/designandprinciples.txt
 *autogen_config*.h
 
+artifacts/**
+
+# Keep placeholder dirs if you want them in repo
+!artifacts/.gitkeep
+
+# Explicitly ignore churny “latest” paths
+artifacts/points_registry/global_points_registry.refactor.json
