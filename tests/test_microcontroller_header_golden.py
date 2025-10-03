@@ -2,18 +2,14 @@ from pathlib import Path
 
 from mushbuild.validation.ssot import SSOTValidator
 from mushbuild.validation.components import ComponentConfigValidator
-from mushbuild.validation.cross import CrossValidator
-from mushbuild.utils.topics import TopicGenerator  # noqa: F401 (used by generators)
-from mushbuild.generators.points_registry import PointsRegistryGenerator
-# Use the existing generator implementation to avoid unnecessary diffs
 from mushbuild.generators.microcontrollers import MicrocontrollerConfigGenerator
-
 from shared_libs.config_models.secrets import InfrastructureSecrets
 
 import yaml
+import pytest
 
 
-def load_infrastructure_with_secrets(config_base_dir: Path) -> tuple[dict, InfrastructureSecrets]:
+def _load_infrastructure_with_secrets(config_base_dir: Path):
     infra_path = config_base_dir / "infrastructure_definition.yaml"
     infrastructure = {}
     if infra_path.exists():
@@ -53,32 +49,31 @@ def load_infrastructure_with_secrets(config_base_dir: Path) -> tuple[dict, Infra
     return infrastructure, secrets_model
 
 
-def main():
-    config_base_dir = Path(__file__).parent.parent / "config_sources"
-    ssot_file = config_base_dir / "system_definition.yaml"
-    points_out = Path(__file__).parent.parent / "artifacts" / "global_points_registry.refactor.json"
-    micros_out_dir = config_base_dir / "microcontrollers" / "generated"
+@pytest.mark.parametrize("micro_id", ["c1", "c2", "c3"])
+def test_micro_header_matches_artifact(tmp_path: Path, micro_id: str):
+    project_root = Path(__file__).parent.parent
+    config_base_dir = project_root / "config_sources"
 
-    infra, secrets_model = load_infrastructure_with_secrets(config_base_dir)
+    infra, secrets_model = _load_infrastructure_with_secrets(config_base_dir)
+
+    ssot_file = config_base_dir / "system_definition.yaml"
     ssot = SSOTValidator(ssot_file).validate()
-    if ssot is None:
-        raise SystemExit(1)
+    assert ssot is not None
 
     points_by_uuid_map = {p.uuid: p for p in ssot.points}
-    components_ok, validated = ComponentConfigValidator(ssot, config_base_dir, infra, secrets_model).validate(points_by_uuid_map)
-    if not components_ok:
-        raise SystemExit(1)
+    ok, validated = ComponentConfigValidator(ssot, config_base_dir, infra, secrets_model).validate(points_by_uuid_map)
+    assert ok
+    assert micro_id in validated
 
-    if not CrossValidator(ssot).validate(validated):
-        raise SystemExit(1)
+    out_dir = tmp_path / "generated"
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    PointsRegistryGenerator(ssot, points_out).generate()
+    gen = MicrocontrollerConfigGenerator(ssot, out_dir)
+    assert gen.generate(validated, only=micro_id)
 
-    # Generate headers for all micros
-    MicrocontrollerConfigGenerator(ssot, micros_out_dir).generate(validated)
+    generated = (out_dir / f"autogen_config_{micro_id}.refactor.h").read_bytes()
+    artifact = (project_root / "artifacts" / "microcontrollers" / "2025-10-01" / f"autogen_config_{micro_id}.refactor.h").read_bytes()
 
-
-if __name__ == "__main__":
-    main()
+    assert generated == artifact
 
 
