@@ -58,7 +58,7 @@ def load_infrastructure_with_secrets(config_base_dir: Path) -> tuple[dict, Infra
 def main():
     config_base_dir = Path(__file__).parent.parent / "config_sources"
     ssot_file = config_base_dir / "system_definition.yaml"
-    points_out = Path(__file__).parent.parent / "artifacts" / "points_registry" / "global_points_registry.refactor.json"
+    points_out = Path(__file__).parent.parent / "artifacts" / "points_registry" / "global_points_registry.json"
     micros_out_dir = config_base_dir / "microcontrollers" / "generated"
 
     infra, secrets_model = load_infrastructure_with_secrets(config_base_dir)
