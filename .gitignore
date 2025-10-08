@@ -80,13 +80,18 @@ microcontroller/controller1/src/autogen_config.h
 docs/designandprinciples.txt
 *autogen_config*.h
 
-artifacts/**
-
-# Keep placeholder dirs if you want them in repo
+# Artifacts: ignore by default, but keep points registry tracked
+artifacts/*
 !artifacts/.gitkeep
 
-# Explicitly ignore churny “latest” paths
-artifacts/points_registry/global_points_registry.refactor.json
+# Keep points registry file(s) tracked
+!artifacts/points_registry/
+artifacts/points_registry/*
+!artifacts/points_registry/global_points_registry.json
+!artifacts/points_registry/global_points_registry.refactor.json
+
+# Ignore microcontroller generated headers under artifacts
+artifacts/microcontrollers/**
 
 # Generated microcontroller headers (may contain secrets) under config_sources
 config_sources/microcontrollers/generated/*.h
