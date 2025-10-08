@@ -87,3 +87,6 @@ artifacts/**
 
 # Explicitly ignore churny “latest” paths
 artifacts/points_registry/global_points_registry.refactor.json
+
+# Generated microcontroller headers (may contain secrets) under config_sources
+config_sources/microcontrollers/generated/*.h
