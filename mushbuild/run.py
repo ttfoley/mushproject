@@ -59,7 +59,16 @@ def main():
     config_base_dir = Path(__file__).parent.parent / "config_sources"
     ssot_file = config_base_dir / "system_definition.yaml"
     points_out = Path(__file__).parent.parent / "artifacts" / "points_registry" / "global_points_registry.json"
-    micros_out_dir = config_base_dir / "microcontrollers" / "generated"
+    # Prepare microcontroller artifact dirs
+    artifacts_micros_root = Path(__file__).parent.parent / "artifacts" / "microcontrollers"
+    today_str = date.today().isoformat()
+    dated_micros_dir = artifacts_micros_root / today_str
+    latest_micros_dir = artifacts_micros_root / "latest"
+    dated_micros_dir.mkdir(parents=True, exist_ok=True)
+    latest_micros_dir.mkdir(parents=True, exist_ok=True)
+    # Generate directly into dated directory
+    micros_out_dir = dated_micros_dir
+    artifacts_micros_root = artifacts_micros_root
 
     infra, secrets_model = load_infrastructure_with_secrets(config_base_dir)
     ssot = SSOTValidator(ssot_file).validate()
@@ -83,8 +92,12 @@ def main():
     dated_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(points_out, dated_dir / points_out.name)
 
-    # Generate headers for all micros
+    # Generate headers for all micros (into dated directory)
     MicrocontrollerConfigGenerator(ssot, micros_out_dir).generate(validated)
+
+    # Mirror generated headers into 'latest'
+    for header_path in dated_micros_dir.glob("*.h"):
+        shutil.copy2(header_path, latest_micros_dir / header_path.name)
 
 
 if __name__ == "__main__":

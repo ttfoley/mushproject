@@ -8,7 +8,7 @@ from mushbuild.utils.topics import TopicResolver
 
 
 class MicrocontrollerConfigGenerator:
-    """Generates autogen_config_<id>.refactor.h for microcontrollers (SSOT-derived topics)."""
+    """Generates autogen_config_<id>.h for microcontrollers (SSOT-derived topics)."""
 
     def __init__(self, system_config: SystemDefinition, output_dir: Path, infrastructure_config: Optional[Dict[str, Any]] = None):
         self.system_config = system_config
@@ -16,7 +16,7 @@ class MicrocontrollerConfigGenerator:
         self.infrastructure_config = infrastructure_config
 
     def generate(self, validated_components: Dict[str, Any], only: Optional[str] = None) -> bool:
-        print("\n--- Microcontroller Config Header Generation (refactor) ---")
+        print("\n--- Microcontroller Config Header Generation  ---")
         print(f"   Output dir: {self.output_dir}")
         success = True
 
@@ -37,7 +37,7 @@ class MicrocontrollerConfigGenerator:
                 continue
             try:
                 header = self._generate_header_content(micro_id, cfg)
-                out_file = self.output_dir / f"autogen_config_{micro_id}.refactor.h"
+                out_file = self.output_dir / f"autogen_config_{micro_id}.h"
                 out_file.parent.mkdir(parents=True, exist_ok=True)
                 with open(out_file, "w") as f:
                     f.write(header)

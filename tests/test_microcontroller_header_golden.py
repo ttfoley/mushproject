@@ -72,7 +72,7 @@ def test_micro_header_matches_artifact(tmp_path: Path, micro_id: str):
     assert gen.generate(validated, only=micro_id)
 
     generated = (out_dir / f"autogen_config_{micro_id}.refactor.h").read_bytes()
-    artifact = (project_root / "artifacts" / "microcontrollers" / "2025-10-01" / f"autogen_config_{micro_id}.refactor.h").read_bytes()
+    artifact = (project_root / "artifacts" / "microcontrollers" / "2025-10-01" / f"autogen_config_{micro_id}.h").read_bytes()
 
     assert generated == artifact
 
