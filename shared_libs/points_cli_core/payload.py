@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any, Dict, Mapping, Optional
-from uuid import uuid7
+from uuid6 import uuid7
 
 from .registry_loader import Point
+
+
+def _generate_command_id() -> str:
+	return str(uuid7())
 
 
 def _now_iso8601_utc_ms() -> str:
@@ -30,7 +34,7 @@ def build_payload(
 		return base
 	if trace and role:
 		base["source"] = role
-		base["command_id"] = str(uuid7())
+		base["command_id"] = _generate_command_id()
 	return base
 
 
